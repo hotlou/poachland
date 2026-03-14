@@ -33,9 +33,9 @@ export default function LandingPage() {
             Ultimate Frisbee Only
           </div>
           <h1 className="font-display font-900 text-5xl uppercase leading-none tracking-tight text-balance mb-4">
-            Trade the&nbsp;
-            <span className="text-accent">jerseys</span>
-            .&nbsp;Collect the&nbsp;
+            Trade <span className="text-accent">jerseys</span>.
+
+            &nbsp;Collect &nbsp;
             <span className="text-accent">discs</span>.
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed mb-8 text-pretty">
