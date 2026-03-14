@@ -3,7 +3,7 @@ import sys
 
 def run(cmd):
     print(f"Running: {cmd}")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd="/vercel/share/v0-project")
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd="/home/user")
     if result.stdout:
         print(result.stdout)
     if result.stderr:
