@@ -1,209 +1,304 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { Send, ArrowLeft } from "lucide-react";
-import { DEMO_PROPOSALS, DEMO_USERS, DEMO_LISTINGS } from "@/lib/seed-data";
+import { ArrowRight, ArrowRightLeft, BadgeCheck, MessageSquare } from "lucide-react";
+import { DealStatusBadge } from "@/components/deal-status-badge";
+import { Hydrated } from "@/components/hydrated";
+import { DEAL_KIND_LABELS } from "@/lib/constants";
+import { timeAgo } from "@/lib/format";
+import { useStore } from "@/lib/store-context";
+import type { Deal, Thread } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "text-yellow-400 border-yellow-400",
-  accepted: "text-accent border-accent",
-  rejected: "text-red-400 border-red-400",
-  countered: "text-purple-400 border-purple-400",
-  completed: "text-sky-400 border-sky-400",
-  expired: "text-muted-foreground border-border",
-};
+type TabKey = "messages" | "deals";
 
-const MOCK_MESSAGES = [
-  { sender: "u2", content: "That Brute jersey is sick. Offering my 2011 UPA disc + $15. Let me know.", time: "2h ago" },
-  { sender: "u1", content: "Appreciate the offer! Let me think about it — that disc is legit though.", time: "1h ago" },
-  { sender: "u2", content: "No rush. Been hunting a Brute jersey for two seasons lol.", time: "45m ago" },
-];
-
-export default function InboxPage() {
-  const [activeThread, setActiveThread] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
-
-  const activeProposal = DEMO_PROPOSALS.find((p) => p.id === activeThread);
-
-  const sendMessage = () => {
-    if (!message.trim()) return;
-    setMessages((prev) => [...prev, { sender: "u1", content: message, time: "now" }]);
-    setMessage("");
-  };
-
-  if (activeThread && activeProposal) {
-    const otherUser = activeProposal.fromUserId === "u1" ? activeProposal.toUser : activeProposal.fromUser;
-    const offeredListing = DEMO_LISTINGS.find((l) => l.id === activeProposal.offeredListingId);
-    const wantedListing = DEMO_LISTINGS.find((l) => l.id === activeProposal.wantedListingId);
-
+function preview(thread: Thread): React.ReactNode {
+  const m = thread.lastMessage;
+  if (!m) return <span className="italic">No messages yet</span>;
+  if (m.kind === "offer") {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        {/* Thread header */}
-        <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setActiveThread(null)}>
-            <ArrowLeft size={20} />
-          </button>
-          <div className="w-8 h-8 rounded-full overflow-hidden">
-            <Image src={otherUser.avatar} alt={otherUser.username} width={32} height={32} className="object-cover" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">@{otherUser.username}</p>
-            <span className={cn("badge-stamp text-[9px]", STATUS_COLORS[activeProposal.status])}>
-              {activeProposal.status}
-            </span>
-          </div>
-        </header>
+      <span>
+        <span className="text-accent">↔ Offer:</span> {m.content}
+      </span>
+    );
+  }
+  if (m.kind === "system") return <span className="italic">{m.content}</span>;
+  return m.content;
+}
 
-        {/* Trade summary card */}
-        <div className="mx-4 mt-4 bg-card border border-border rounded-lg p-3">
-          <p className="text-xs text-muted-foreground mb-2 uppercase tracking-widest font-semibold">Trade proposal</p>
-          <div className="flex items-center gap-3">
-            {offeredListing && (
-              <div className="flex-1 text-center">
-                <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-1">
-                  <Image src={offeredListing.photos[0]} alt={offeredListing.title} fill className="object-cover" sizes="80px" />
-                </div>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">{offeredListing.title}</p>
-              </div>
+function ThreadRow({ thread }: { thread: Thread }) {
+  return (
+    <Link
+      href={`/app/inbox/${thread.id}`}
+      className="flex items-start gap-3 px-4 py-4 hover:bg-surface transition-colors"
+    >
+      {/* plain img: avatars may be data URLs */}
+      <div className="relative w-12 h-12 rounded-full overflow-hidden bg-surface border border-border flex-shrink-0">
+        <img
+          src={thread.otherUser.avatar || "/placeholder-user.jpg"}
+          alt={thread.otherUser.displayName}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p
+            className={cn(
+              "text-sm leading-tight truncate",
+              thread.unreadCount > 0 ? "font-bold text-foreground" : "font-semibold text-foreground",
             )}
-            <div className="text-muted-foreground font-display font-700 text-lg">⟷</div>
-            {wantedListing && (
-              <div className="flex-1 text-center">
-                <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-1">
-                  <Image src={wantedListing.photos[0]} alt={wantedListing.title} fill className="object-cover" sizes="80px" />
-                </div>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">{wantedListing.title}</p>
-              </div>
-            )}
-          </div>
-          {activeProposal.cashAdded && (
-            <p className="text-xs text-accent font-semibold text-center mt-2">
-              +${activeProposal.cashAdded} cash sweetener
-            </p>
+          >
+            {thread.otherUser.displayName}
+          </p>
+          {thread.otherUser.isVerified && (
+            <BadgeCheck size={14} className="text-accent flex-shrink-0" />
           )}
-          {activeProposal.status === "pending" && (
-            <div className="flex gap-2 mt-3">
-              <button className="flex-1 py-2 bg-accent text-accent-foreground text-xs font-display font-700 uppercase rounded-sm">
-                Accept
-              </button>
-              <button className="flex-1 py-2 bg-surface border border-border text-xs font-display font-700 uppercase rounded-sm text-muted-foreground">
-                Counter
-              </button>
-              <button className="flex-1 py-2 bg-surface border border-destructive text-destructive text-xs font-display font-700 uppercase rounded-sm">
-                Decline
-              </button>
-            </div>
+          {thread.deal && (
+            <DealStatusBadge status={thread.deal.status} className="flex-shrink-0 text-[9px]" />
           )}
         </div>
-
-        {/* Messages */}
-        <div className="flex-1 px-4 py-4 flex flex-col gap-3 overflow-y-auto">
-          {messages.map((msg, i) => {
-            const isMe = msg.sender === "u1";
-            return (
-              <div key={i} className={cn("flex gap-2", isMe ? "justify-end" : "justify-start")}>
-                {!isMe && (
-                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 mt-auto">
-                    <Image src={otherUser.avatar} alt="" width={28} height={28} className="object-cover" />
-                  </div>
-                )}
-                <div className={cn(
-                  "max-w-[75%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
-                  isMe
-                    ? "bg-accent text-accent-foreground rounded-br-sm"
-                    : "bg-surface-raised text-foreground rounded-bl-sm",
-                )}>
-                  {msg.content}
-                  <p className={cn("text-[10px] mt-1", isMe ? "text-accent-foreground/60" : "text-muted-foreground")}>
-                    {msg.time}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Input */}
-        <div className="sticky bottom-0 bg-surface border-t border-border px-4 py-3 pb-safe">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Message..."
-              className="flex-1 bg-background border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
+        <p
+          className={cn(
+            "text-xs mt-0.5 line-clamp-1",
+            thread.unreadCount > 0 ? "text-foreground/90" : "text-muted-foreground",
+          )}
+        >
+          {preview(thread)}
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-1">{timeAgo(thread.updatedAt)}</p>
+      </div>
+      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+        {thread.listing && (
+          <div className="relative w-10 h-10 rounded-md overflow-hidden bg-surface border border-border">
+            <img
+              src={thread.listing.photos[0] || "/placeholder.jpg"}
+              alt={thread.listing.title}
+              className="absolute inset-0 w-full h-full object-cover"
             />
-            <button
-              onClick={sendMessage}
-              className="w-10 h-10 rounded-full bg-accent flex items-center justify-center flex-shrink-0"
-            >
-              <Send size={16} className="text-accent-foreground" />
-            </button>
           </div>
+        )}
+        {thread.unreadCount > 0 && (
+          <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center">
+            {thread.unreadCount > 9 ? "9+" : thread.unreadCount}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function DealRow({ deal, meId }: { deal: Deal; meId: string }) {
+  const store = useStore();
+  const other = deal.proposerId === meId ? deal.owner : deal.proposer;
+  return (
+    <Link
+      href={`/app/trades/${deal.id}`}
+      className="flex gap-3 bg-card border border-border rounded-lg p-3 card-lift"
+    >
+      <div className="relative w-12 h-12 rounded-md overflow-hidden bg-surface border border-border flex-shrink-0">
+        <img
+          src={deal.listing.photos[0] || "/placeholder.jpg"}
+          alt={deal.listing.title}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-semibold text-foreground leading-tight line-clamp-1">
+            {deal.listing.title}
+          </p>
+          <DealStatusBadge status={deal.status} className="flex-shrink-0" />
         </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {DEAL_KIND_LABELS[deal.kind]} · with @{other.username}
+        </p>
+        <p className="text-xs text-foreground/80 mt-1 line-clamp-1">
+          {store.describeOffer(deal, deal.currentOffer)}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function MessagesTab({ threads }: { threads: Thread[] }) {
+  if (threads.length === 0) {
+    return (
+      <div className="px-6 py-20 text-center">
+        <MessageSquare size={32} className="mx-auto mb-4 text-muted-foreground" />
+        <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+          No conversations yet
+        </h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          Every deal starts with a message.
+        </p>
+        <Link
+          href="/app/browse"
+          className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm"
+        >
+          Browse the market
+        </Link>
       </div>
     );
   }
+  return (
+    <div className="divide-y divide-border">
+      {threads.map((t) => (
+        <ThreadRow key={t.id} thread={t} />
+      ))}
+    </div>
+  );
+}
 
+function DealsTab({ yourMove, others, meId }: { yourMove: Deal[]; others: Deal[]; meId: string }) {
+  if (yourMove.length === 0 && others.length === 0) {
+    return (
+      <div className="px-6 py-20 text-center">
+        <ArrowRightLeft size={32} className="mx-auto mb-4 text-muted-foreground" />
+        <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+          No live deals
+        </h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          Nothing on the table. Go poach something.
+        </p>
+        <Link
+          href="/app/trades"
+          className="inline-block text-accent text-sm font-semibold"
+        >
+          See all deals →
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <div className="px-4 py-4 space-y-5">
+      {yourMove.length > 0 && (
+        <section>
+          <h2 className="font-display font-bold uppercase tracking-widest text-xs text-accent mb-2">
+            Your move
+          </h2>
+          <div className="space-y-3">
+            {yourMove.map((d) => (
+              <DealRow key={d.id} deal={d} meId={meId} />
+            ))}
+          </div>
+        </section>
+      )}
+      {others.length > 0 && (
+        <section>
+          <h2 className="font-display font-bold uppercase tracking-widest text-xs text-muted-foreground mb-2">
+            In play
+          </h2>
+          <div className="space-y-3">
+            {others.map((d) => (
+              <DealRow key={d.id} deal={d} meId={meId} />
+            ))}
+          </div>
+        </section>
+      )}
+      <Link
+        href="/app/trades"
+        className="flex items-center justify-center gap-1.5 text-sm font-semibold text-accent py-2"
+      >
+        All deals <ArrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
+
+function InboxContent() {
+  const store = useStore();
+  const [tab, setTab] = useState<TabKey>("messages");
+  const me = store.requireUser();
+
+  const threads = store.listThreads();
+  const yourMove = store.dealsAwaitingResponse(me.id);
+  const yourMoveIds = new Set(yourMove.map((d) => d.id));
+  const others = store
+    .dealsForUser(me.id, { statuses: ["open", "accepted"] })
+    .filter((d) => !yourMoveIds.has(d.id));
+  const dealCount = yourMove.length + others.length;
+  const unreadTotal = threads.reduce((sum, t) => sum + t.unreadCount, 0);
+
+  const tabs: { key: TabKey; label: string; badge: number }[] = [
+    { key: "messages", label: "Messages", badge: unreadTotal },
+    { key: "deals", label: `Deals (${dealCount})`, badge: yourMove.length },
+  ];
+
+  return (
+    <div>
+      <div className="flex gap-2 px-4 pt-4 pb-3">
+        {tabs.map(({ key, label, badge }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+              tab === key
+                ? "bg-accent text-accent-foreground border-accent"
+                : "bg-transparent text-muted-foreground border-border hover:text-foreground",
+            )}
+          >
+            {label}
+            {badge > 0 && (
+              <span
+                className={cn(
+                  "text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none",
+                  tab === key
+                    ? "bg-accent-foreground/15 text-accent-foreground"
+                    : "bg-accent text-accent-foreground",
+                )}
+              >
+                {badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      {tab === "messages" ? (
+        <MessagesTab threads={threads} />
+      ) : (
+        <DealsTab yourMove={yourMove} others={others} meId={me.id} />
+      )}
+    </div>
+  );
+}
+
+function InboxSkeleton() {
+  return (
+    <div>
+      <div className="flex gap-2 px-4 pt-4 pb-3">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="h-8 w-28 bg-surface rounded-sm animate-pulse" />
+        ))}
+      </div>
+      <div className="divide-y divide-border">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-start gap-3 px-4 py-4">
+            <div className="w-12 h-12 rounded-full bg-surface animate-pulse flex-shrink-0" />
+            <div className="flex-1 space-y-2 pt-1">
+              <div className="h-3.5 w-32 bg-surface rounded animate-pulse" />
+              <div className="h-3 w-52 bg-surface rounded animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function InboxPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <h1 className="font-display font-800 text-xl uppercase tracking-tight">Inbox</h1>
+        <h1 className="font-display font-bold text-2xl uppercase tracking-tight text-foreground">
+          Inbox
+        </h1>
       </header>
-
-      <div className="divide-y divide-border">
-        {DEMO_PROPOSALS.map((proposal) => {
-          const otherUser = proposal.fromUserId === "u1" ? proposal.toUser : proposal.fromUser;
-          const offeredListing = DEMO_LISTINGS.find((l) => l.id === proposal.offeredListingId);
-
-          return (
-            <button
-              key={proposal.id}
-              onClick={() => setActiveThread(proposal.id)}
-              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-surface transition-colors"
-            >
-              <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                <Image src={otherUser.avatar} alt={otherUser.username} width={48} height={48} className="object-cover" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-sm font-semibold">@{otherUser.username}</p>
-                  <span className={cn("badge-stamp text-[9px]", STATUS_COLORS[proposal.status])}>
-                    {proposal.status}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-1">{proposal.note}</p>
-              </div>
-              <div className="flex-shrink-0">
-                {offeredListing && (
-                  <div className="w-10 h-10 rounded-lg overflow-hidden relative">
-                    <Image src={offeredListing.photos[0]} alt="" fill className="object-cover" sizes="40px" />
-                  </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
-
-        {DEMO_PROPOSALS.length === 0 && (
-          <div className="text-center py-16 px-4">
-            <p className="font-display font-700 text-xl uppercase text-muted-foreground mb-2">
-              No active trades
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Browse listings and propose your first trade.
-            </p>
-            <Link href="/app/browse" className="text-accent text-sm font-semibold">
-              Start browsing
-            </Link>
-          </div>
-        )}
-      </div>
+      <Hydrated fallback={<InboxSkeleton />}>
+        <InboxContent />
+      </Hydrated>
     </div>
   );
 }

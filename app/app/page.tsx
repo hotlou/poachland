@@ -1,224 +1,518 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Bell, Flame, Disc3, Shirt, TrendingUp, ChevronRight } from "lucide-react";
+import {
+  Bell,
+  ChevronRight,
+  Flame,
+  Handshake,
+  Pin,
+  Star,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/format";
+import { money } from "@/lib/format";
+import { useStore } from "@/lib/store-context";
+import { Hydrated } from "@/components/hydrated";
 import { ListingCard } from "@/components/listing-card";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
-import {
-  DEMO_LISTINGS,
-  DEMO_ISO_POSTS,
-  DEMO_USERS,
-} from "@/lib/seed-data";
+import type { Deal } from "@/lib/types";
 
-export default function HomeFeedPage() {
-  const [activeTab, setActiveTab] = useState<"all" | "jerseys" | "discs">("all");
+/* ── Header bell with unread dot ─────────────────────────────────────────── */
 
-  const featured = DEMO_LISTINGS.filter((l) => l.isFeatured);
-  const recent = DEMO_LISTINGS.slice(0, 6);
-  const filtered =
-    activeTab === "all"
-      ? recent
-      : recent.filter((l) => l.type === (activeTab === "jerseys" ? "jersey" : "disc"));
+function NotificationBell() {
+  const store = useStore();
+  const unread = store.unreadNotificationCount();
+  return (
+    <Link
+      href="/app/notifications"
+      aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ""}`}
+      className="relative text-muted-foreground hover:text-foreground transition-colors"
+    >
+      <Bell size={20} />
+      {unread > 0 && (
+        <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function HeaderAvatar() {
+  const store = useStore();
+  const me = store.requireUser();
+  return (
+    <Link href={`/app/u/${me.username}`} aria-label="My profile">
+      <div className="w-8 h-8 rounded-full overflow-hidden border border-border">
+        <img
+          src={me.avatar}
+          alt={me.displayName}
+          width={32}
+          height={32}
+          className="object-cover w-full h-full"
+        />
+      </div>
+    </Link>
+  );
+}
+
+/* ── "Your move" strip ───────────────────────────────────────────────────── */
+
+type MoveKind = "respond" | "track" | "rate";
+
+interface MoveCard {
+  key: string;
+  kind: MoveKind;
+  deal: Deal;
+}
+
+const MOVE_LABELS: Record<MoveKind, string> = {
+  respond: "Your call",
+  track: "In progress",
+  rate: "Deal done",
+};
+
+const MOVE_CTAS: Record<MoveKind, string> = {
+  respond: "Respond",
+  track: "Track deal",
+  rate: "Rate",
+};
+
+function YourMoveStrip() {
+  const store = useStore();
+  const me = store.requireUser();
+
+  const cards: MoveCard[] = [
+    ...store
+      .dealsAwaitingResponse(me.id)
+      .map((deal): MoveCard => ({ key: `respond-${deal.id}`, kind: "respond", deal })),
+    ...store
+      .dealsForUser(me.id, { statuses: ["accepted"] })
+      .map((deal): MoveCard => ({ key: `track-${deal.id}`, kind: "track", deal })),
+    ...store
+      .pendingRatings(me.id)
+      .map((deal): MoveCard => ({ key: `rate-${deal.id}`, kind: "rate", deal })),
+  ];
+
+  if (cards.length === 0) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
-        <span className="font-display font-900 text-xl uppercase tracking-tight text-accent">
-          Poachland
+    <section className="mt-4">
+      <div className="px-4 flex items-center gap-1.5 mb-2">
+        <Zap size={15} className="text-accent" />
+        <h2 className="font-display font-bold text-base uppercase tracking-tight">
+          Your move
+        </h2>
+        <span className="badge-stamp text-accent border-accent ml-1">
+          {cards.length}
         </span>
-        <div className="flex items-center gap-3">
-          <Link href="/app/notifications" className="relative text-muted-foreground">
-            <Bell size={20} />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full" />
-          </Link>
-          <Link href="/app/profile">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-border">
-              <Image
-                src={DEMO_USERS[0].avatar}
-                alt="My profile"
-                width={32}
-                height={32}
-                className="object-cover"
-              />
-            </div>
-          </Link>
-        </div>
-      </header>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 px-4 snap-x">
+        {cards.map(({ key, kind, deal }) => {
+          const other = deal.proposerId === me.id ? deal.owner : deal.proposer;
+          const body =
+            kind === "respond"
+              ? store.describeOffer(deal, deal.currentOffer)
+              : kind === "track"
+                ? `Deal agreed on "${deal.listing.title}". Arrange shipping and confirm when it lands.`
+                : `Your deal with @${other.username} is complete. Leave a rating to build trust.`;
+          const cta =
+            kind === "rate" ? `Rate @${other.username}` : MOVE_CTAS[kind];
+          return (
+            <Link
+              key={key}
+              href={`/app/trades/${deal.id}`}
+              className={cn(
+                "snap-start flex-shrink-0 w-64 rounded-lg bg-card p-3 card-lift border",
+                kind === "respond" && "border-accent/60",
+                kind === "track" && "border-accent/30",
+                kind === "rate" && "border-yellow-400/40",
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-10 h-10 rounded overflow-hidden bg-surface border border-border flex-shrink-0">
+                  <img
+                    src={deal.listing.photos[0] || "/placeholder.jpg"}
+                    alt={deal.listing.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "badge-stamp",
+                      kind === "rate"
+                        ? "text-yellow-400 border-yellow-400"
+                        : "text-accent border-accent",
+                    )}
+                  >
+                    {MOVE_LABELS[kind]}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    @{other.username}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-foreground leading-snug line-clamp-2 min-h-8">
+                {body}
+              </p>
+              <p className="mt-2 text-xs font-bold text-accent flex items-center gap-0.5">
+                {cta} <ChevronRight size={12} />
+              </p>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
-      {/* Profile nudge */}
-      <div className="mx-4 mt-4 p-3 bg-accent-dim border border-accent/30 rounded-lg flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-accent">Complete your profile</p>
-          <p className="text-xs text-muted-foreground">Add a bio + favorite teams to unlock trust badges.</p>
-        </div>
-        <Link href="/app/profile/edit" className="text-xs font-bold text-accent flex items-center gap-1 flex-shrink-0 ml-2">
-          Go <ChevronRight size={12} />
+/* ── Hot right now ───────────────────────────────────────────────────────── */
+
+function HotRightNow() {
+  const store = useStore();
+  const featured = store.featuredListings();
+  if (featured.length === 0) return null;
+  return (
+    <section className="mt-6">
+      <div className="px-4 flex items-center justify-between mb-3">
+        <h2 className="font-display font-bold text-lg uppercase tracking-tight flex items-center gap-1.5">
+          <Flame size={16} className="text-accent" /> Hot right now
+        </h2>
+        <Link
+          href="/app/browse"
+          className="text-xs text-accent font-semibold flex items-center gap-0.5"
+        >
+          See all <ChevronRight size={12} />
         </Link>
       </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 px-4 snap-x">
+        {featured.map((listing) => (
+          <ListingCard
+            key={listing.id}
+            listing={listing}
+            className="snap-start flex-shrink-0 w-60"
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
 
-      {/* Featured rare items */}
-      <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-800 text-lg uppercase tracking-tight flex items-center gap-1.5">
-            <Flame size={16} className="text-accent" /> Hot right now
-          </h2>
-          <Link href="/app/browse?sort=featured" className="text-xs text-accent font-semibold">
-            See all
+/* ── Fresh drops ─────────────────────────────────────────────────────────── */
+
+function FreshDrops() {
+  const store = useStore();
+  const latest = store.listListings({ sort: "newest" }).slice(0, 8);
+  return (
+    <section className="px-4 mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-display font-bold text-lg uppercase tracking-tight">
+          Fresh drops
+        </h2>
+        <Link
+          href="/app/browse"
+          className="text-xs text-accent font-semibold flex items-center gap-0.5"
+        >
+          See all <ChevronRight size={12} />
+        </Link>
+      </div>
+      {latest.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Nothing here yet. Be the first to poach it.
+          </p>
+          <Link
+            href="/app/create"
+            className="inline-block mt-3 px-4 py-2 rounded-md bg-accent text-accent-foreground text-xs font-display font-bold uppercase tracking-wide"
+          >
+            List something
           </Link>
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-          {featured.map((listing) => (
-            <ListingCard
-              key={listing.id}
-              listing={listing}
-              className="flex-shrink-0 w-52"
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* Community activity */}
-      <section className="px-4 mt-6">
-        <div className="flex items-center gap-1.5 mb-3">
-          <TrendingUp size={16} className="text-accent" />
-          <h2 className="font-display font-800 text-lg uppercase tracking-tight">
-            Activity
-          </h2>
-        </div>
-        <div className="flex flex-col gap-2">
-          {[
-            { user: DEMO_USERS[1], action: "just listed", item: "2011 UPA Championship Disc", time: "3m" },
-            { user: DEMO_USERS[0], action: "completed a trade with", item: "huck_and_pray", time: "1h" },
-            { user: DEMO_USERS[2], action: "posted a wanted for", item: "WFDF Cologne '17 disc", time: "2h" },
-          ].map((act, i) => (
-            <div key={i} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
-              <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                <Image src={act.user.avatar} alt={act.user.username} width={28} height={28} className="object-cover" />
-              </div>
-              <p className="text-xs text-muted-foreground flex-1 leading-relaxed">
-                <span className="text-foreground font-medium">@{act.user.username}</span>{" "}
-                {act.action}{" "}
-                <span className="text-foreground">{act.item}</span>
-              </p>
-              <span className="text-xs text-muted-foreground flex-shrink-0">{act.time}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Recent listings */}
-      <section className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-800 text-lg uppercase tracking-tight">
-            Fresh drops
-          </h2>
-          <Link href="/app/browse" className="text-xs text-accent font-semibold">
-            Browse all
-          </Link>
-        </div>
-
-        {/* Filter tabs */}
-        <div className="flex gap-2 mb-4">
-          {[
-            { key: "all", label: "All" },
-            { key: "jerseys", label: "Jerseys", icon: Shirt },
-            { key: "discs", label: "Discs", icon: Disc3 },
-          ].map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key as typeof activeTab)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors ${
-                activeTab === key
-                  ? "bg-accent text-accent-foreground border-accent"
-                  : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"
-              }`}
-            >
-              {Icon && <Icon size={12} />}
-              {label}
-            </button>
-          ))}
-        </div>
-
+      ) : (
         <div className="grid grid-cols-2 gap-3">
-          {filtered.map((listing) => (
+          {latest.map((listing) => (
             <ListingCard key={listing.id} listing={listing} />
           ))}
         </div>
-      </section>
+      )}
+    </section>
+  );
+}
 
-      {/* Wanted board snippet */}
-      <section className="px-4 mt-6 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-800 text-lg uppercase tracking-tight">
-            Wanted board
-          </h2>
-          <Link href="/app/wanted" className="text-xs text-accent font-semibold">
-            See all
+/* ── Activity timeline ───────────────────────────────────────────────────── */
+
+function ActivityTimeline() {
+  const store = useStore();
+  const events = store.listActivity(8);
+  return (
+    <section className="px-4 mt-6">
+      <div className="flex items-center gap-1.5 mb-3">
+        <TrendingUp size={16} className="text-accent" />
+        <h2 className="font-display font-bold text-lg uppercase tracking-tight">
+          Around the fields
+        </h2>
+      </div>
+      {events.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          All quiet on the sideline. Check back soon.
+        </p>
+      ) : (
+        <div className="flex flex-col">
+          {events.map((event) => {
+            const inner = (
+              <>
+                {event.actor && (
+                  <div className="w-6 h-6 rounded-full overflow-hidden border border-border flex-shrink-0">
+                    <img
+                      src={event.actor.avatar}
+                      alt={event.actor.username}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-foreground/90 flex-1 leading-relaxed min-w-0">
+                  {event.summary}
+                </p>
+                <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                  {timeAgo(event.createdAt)}
+                </span>
+              </>
+            );
+            const rowClass =
+              "flex items-center gap-2.5 py-2.5 pl-3 border-l-2 border-accent/50 hover:border-accent transition-colors";
+            return event.linkTo ? (
+              <Link key={event.id} href={event.linkTo} className={rowClass}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={event.id} className={rowClass}>
+                {inner}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ── Wanted board preview ────────────────────────────────────────────────── */
+
+function WantedPreview() {
+  const store = useStore();
+  const posts = store.listISOPosts({ sort: "newest" }).slice(0, 3);
+  return (
+    <section className="px-4 mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-display font-bold text-lg uppercase tracking-tight flex items-center gap-1.5">
+          <Pin size={15} className="text-accent" /> Wanted board
+        </h2>
+        <Link
+          href="/app/wanted"
+          className="text-xs text-accent font-semibold flex items-center gap-0.5"
+        >
+          See the board <ChevronRight size={12} />
+        </Link>
+      </div>
+      {posts.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            No active hunts. Post what you&apos;re chasing.
+          </p>
+          <Link
+            href="/app/wanted"
+            className="inline-block mt-3 text-xs font-bold text-accent"
+          >
+            Start a hunt
           </Link>
         </div>
-        <div className="flex flex-col gap-2">
-          {DEMO_ISO_POSTS.slice(0, 3).map((post) => (
+      ) : (
+        <div className="flex flex-col gap-3">
+          {posts.map((post, i) => (
             <Link
               key={post.id}
-              href={`/app/wanted/${post.id}`}
-              className="flex items-start gap-3 p-3.5 bg-card border border-border rounded-lg"
+              href="/app/wanted"
+              className={cn(
+                "relative block bg-card border border-border rounded-sm p-3.5 card-lift",
+                i % 2 === 0 ? "rotate-[0.6deg]" : "-rotate-[0.6deg]",
+              )}
             >
-              <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                <Image
-                  src={post.user.avatar}
-                  alt={post.user.username}
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground mb-0.5">@{post.user.username}</p>
-                <p className="text-sm leading-snug line-clamp-2">{post.description}</p>
-                <p className="text-xs text-muted-foreground mt-1">{post.saves} saves</p>
+              <Pin
+                size={14}
+                className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-accent rotate-[30deg]"
+              />
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex-shrink-0">
+                  <img
+                    src={post.user.avatar}
+                    alt={post.user.username}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs text-muted-foreground">
+                      @{post.user.username}
+                    </span>
+                    <span className="badge-stamp text-muted-foreground border-border">
+                      ISO {post.itemType}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-snug line-clamp-2">
+                    {post.description}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    {post.team ? `${post.team} · ` : ""}
+                    {post.maxPrice ? `up to ${money(post.maxPrice)} · ` : ""}
+                    {post.saves} save{post.saves === 1 ? "" : "s"} ·{" "}
+                    {timeAgo(post.createdAt)}
+                  </p>
+                </div>
               </div>
             </Link>
           ))}
         </div>
-      </section>
+      )}
+    </section>
+  );
+}
 
-      {/* Spotlight trader */}
-      <section className="px-4 mb-6">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3">
-            Trader spotlight
-          </p>
-          <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-accent">
-              <Image
-                src={DEMO_USERS[0].avatar}
-                alt={DEMO_USERS[0].displayName}
-                width={48}
-                height={48}
-                className="object-cover"
-              />
+/* ── Trader spotlight ────────────────────────────────────────────────────── */
+
+function TraderSpotlight() {
+  const store = useStore();
+  const me = store.requireUser();
+  const spotlight = store
+    .listUsers()
+    .filter((u) => u.id !== me.id)
+    .sort((a, b) => b.trustScore - a.trustScore || b.tradesCompleted - a.tradesCompleted)[0];
+  if (!spotlight) return null;
+  return (
+    <section className="px-4 mt-6 mb-6">
+      <Link
+        href={`/app/u/${spotlight.username}`}
+        className="block bg-card border border-border rounded-lg p-4 card-lift"
+      >
+        <p className="text-xs uppercase tracking-widest text-muted-foreground font-display font-bold mb-3 flex items-center gap-1.5">
+          <Star size={12} className="text-accent" /> Trader spotlight
+        </p>
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-accent">
+            <img
+              src={spotlight.avatar}
+              alt={spotlight.displayName}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="font-semibold text-sm">{spotlight.displayName}</p>
+              <span className="text-xs text-muted-foreground">
+                @{spotlight.username}
+              </span>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <p className="font-semibold text-sm">{DEMO_USERS[0].displayName}</p>
-                <span className="text-xs text-muted-foreground">@{DEMO_USERS[0].username}</span>
-              </div>
-              <TrustScore score={DEMO_USERS[0].trustScore} trades={DEMO_USERS[0].tradesCompleted} size="sm" />
+            <TrustScore
+              score={spotlight.trustScore}
+              trades={spotlight.tradesCompleted}
+              size="sm"
+            />
+            {spotlight.bio && (
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed line-clamp-2">
-                {DEMO_USERS[0].bio}
+                {spotlight.bio}
               </p>
+            )}
+            {spotlight.badges.length > 0 && (
               <div className="flex gap-1.5 mt-2 flex-wrap">
-                {DEMO_USERS[0].badges.map((b) => (
+                {spotlight.badges.slice(0, 4).map((b) => (
                   <TrustBadge key={b.id} badge={b} size="sm" />
                 ))}
               </div>
-            </div>
+            )}
           </div>
+          <ChevronRight
+            size={16}
+            className="text-muted-foreground flex-shrink-0 mt-1"
+          />
         </div>
-      </section>
+      </Link>
+    </section>
+  );
+}
+
+/* ── Skeleton fallback ───────────────────────────────────────────────────── */
+
+function HomeSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="flex gap-3 overflow-hidden px-4 mt-6">
+        {[0, 1].map((i) => (
+          <div key={i} className="flex-shrink-0 w-60 space-y-2">
+            <div className="aspect-[4/3] bg-surface rounded-lg" />
+            <div className="h-3 bg-surface rounded w-3/4" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 px-4 mt-6">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="space-y-2">
+            <div className="aspect-[4/3] bg-surface rounded-lg" />
+            <div className="h-3 bg-surface rounded w-2/3" />
+          </div>
+        ))}
+      </div>
+      <div className="px-4 mt-6 space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-10 bg-surface rounded" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────────────── */
+
+export default function HomeFeedPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
+        <Link
+          href="/app"
+          className="font-display font-black text-xl uppercase tracking-tight text-accent flex items-center gap-1.5"
+        >
+          <Handshake size={20} strokeWidth={2.5} />
+          Poachland
+        </Link>
+        <div className="flex items-center gap-4">
+          <Hydrated
+            fallback={
+              <span className="relative text-muted-foreground">
+                <Bell size={20} />
+              </span>
+            }
+          >
+            <NotificationBell />
+          </Hydrated>
+          <Hydrated
+            fallback={<div className="w-8 h-8 rounded-full bg-surface border border-border" />}
+          >
+            <HeaderAvatar />
+          </Hydrated>
+        </div>
+      </header>
+
+      <Hydrated fallback={<HomeSkeleton />}>
+        <YourMoveStrip />
+        <HotRightNow />
+        <FreshDrops />
+        <ActivityTimeline />
+        <WantedPreview />
+        <TraderSpotlight />
+      </Hydrated>
     </div>
   );
 }

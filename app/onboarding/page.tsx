@@ -1,215 +1,565 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  MapPin,
+  Plus,
+  Repeat2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { useStore } from "@/lib/store-context";
+import { Hydrated } from "@/components/hydrated";
+import { STOCK_AVATARS } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import type { User } from "@/lib/types";
+
+const SUGGESTED_TEAMS = [
+  "Brute Squad",
+  "Sockeye",
+  "Riot",
+  "Fury",
+  "Revolver",
+  "Ring of Fire",
+  "Machine",
+  "Mixtape",
+  "AMP",
+  "Truck Stop",
+  "Scandal",
+  "Johnny Bravo",
+];
+
+const TOTAL_STEPS = 4;
+
+/** Mirrors the engine's username normalization so the preview is honest. */
+function sanitizeUsername(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 24);
+}
+
+const inputCls =
+  "w-full rounded-md bg-input border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    username: '',
-    bio: '',
-    tradingStyle: '',
-    interests: [] as string[],
-  });
+  const store = useStore();
 
-  const interests = ['Jerseys', 'Discs', 'Apparel', 'Collectibles', 'Rare Items', 'Vintage'];
+  const [step, setStep] = useState(0);
+  const [created, setCreated] = useState<User | null>(null);
 
-  const handleInterestToggle = (interest: string) => {
-    setFormData(prev => ({
-      ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter(i => i !== interest)
-        : [...prev.interests, interest],
-    }));
+  // Step 2 — identity
+  const [username, setUsername] = useState("");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [location, setLocation] = useState("");
+
+  // Step 3 — flavor
+  const [teams, setTeams] = useState<string[]>([]);
+  const [customTeam, setCustomTeam] = useState("");
+  const [avatar, setAvatar] = useState<string>(STOCK_AVATARS[0]);
+  const [bio, setBio] = useState("");
+
+  const usernameTaken =
+    username.length >= 3 && store.getUserByUsername(username) !== null;
+  const identityValid =
+    username.length >= 3 && !usernameTaken && displayName.trim().length > 0;
+
+  const allTeamChips = [
+    ...SUGGESTED_TEAMS,
+    ...teams.filter((t) => !SUGGESTED_TEAMS.includes(t)),
+  ];
+
+  const toggleTeam = (team: string) => {
+    setTeams((prev) =>
+      prev.includes(team) ? prev.filter((t) => t !== team) : [...prev, team],
+    );
   };
 
-  const handleNext = () => {
-    if (step < 4) {
-      setStep(step + 1);
-    } else {
-      router.push('/app');
+  const addCustomTeam = () => {
+    const team = customTeam.trim();
+    if (!team) return;
+    setTeams((prev) => (prev.includes(team) ? prev : [...prev, team]));
+    setCustomTeam("");
+  };
+
+  const handleCreate = () => {
+    const res = store.createAccount({
+      username,
+      displayName,
+      location: location.trim(),
+      bio,
+      favoriteTeams: teams,
+      avatar,
+    });
+    if (!res.ok) {
+      toast.error(res.error);
+      if (res.error.toLowerCase().includes("username")) {
+        setUsernameError(res.error);
+        setStep(1); // back to identity to fix the handle
+      } else if (res.error.toLowerCase().includes("display name")) {
+        setStep(1);
+      }
+      return;
     }
+    setCreated(res.value);
+    toast.success(`Welcome to the land, @${res.value.username}`);
   };
 
-  const handleSkip = () => {
-    router.push('/app');
-  };
-
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map(i => (
-              <div
-                key={i}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  i <= step ? 'bg-accent' : 'bg-secondary'
-                }`}
-              />
-            ))}
-          </div>
+  // ── Success state ───────────────────────────────────────────────────────────
+  if (created) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-16 h-16 rounded-full bg-accent-dim border-2 border-accent flex items-center justify-center mb-6">
+          <Check size={30} className="text-accent" strokeWidth={3} />
         </div>
-
-        {/* Step 1: Welcome */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to Poachland</h1>
-              <p className="text-secondary-foreground">
-                The ultimate marketplace for disc and jersey collectors.
-              </p>
-            </div>
-            <div className="space-y-3 text-sm text-secondary-foreground">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 text-accent font-bold">
-                  1
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Browse Collections</p>
-                  <p>Discover rare jerseys and discs from collectors worldwide</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 text-accent font-bold">
-                  2
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Trade & Sell</p>
-                  <p>List items or propose trades with the community</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0 text-accent font-bold">
-                  3
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground">Trusted Network</p>
-                  <p>Build reputation and connect with verified traders</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Profile */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Create Your Profile</h2>
-              <p className="text-secondary-foreground">
-                Help other collectors get to know you.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Username</label>
-                <input
-                  type="text"
-                  placeholder="Choose a collector name"
-                  value={formData.username}
-                  onChange={e => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-2 rounded-lg bg-secondary border border-border text-foreground placeholder:text-secondary-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Bio</label>
-                <textarea
-                  placeholder="Tell us about yourself and your collections"
-                  value={formData.bio}
-                  onChange={e => setFormData({ ...formData, bio: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 rounded-lg bg-secondary border border-border text-foreground placeholder:text-secondary-foreground focus:outline-none focus:ring-2 focus:ring-accent resize-none"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Trading Preferences */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Trading Style</h2>
-              <p className="text-secondary-foreground">
-                How do you prefer to trade?
-              </p>
-            </div>
-            <div className="space-y-3">
-              {['Buy & Sell', 'Trade Only', 'Looking to Trade Up', 'Selling Collection'].map(style => (
-                <button
-                  key={style}
-                  onClick={() => setFormData({ ...formData, tradingStyle: style })}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left font-medium ${
-                    formData.tradingStyle === style
-                      ? 'border-accent bg-accent/10 text-foreground'
-                      : 'border-border bg-secondary text-secondary-foreground hover:border-accent/50'
-                  }`}
-                >
-                  {style}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Interests */}
-        {step === 4 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">What Interests You?</h2>
-              <p className="text-secondary-foreground">
-                We'll personalize your feed based on these interests.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {interests.map(interest => (
-                <button
-                  key={interest}
-                  onClick={() => handleInterestToggle(interest)}
-                  className={`p-3 rounded-lg border-2 transition-all font-medium text-sm ${
-                    formData.interests.includes(interest)
-                      ? 'border-accent bg-accent/10 text-foreground'
-                      : 'border-border bg-secondary text-secondary-foreground hover:border-accent/50'
-                  }`}
-                >
-                  {interest}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Buttons */}
-        <div className="mt-8 flex gap-3">
-          {step > 1 && (
-            <button
-              onClick={() => setStep(step - 1)}
-              className="flex-1 px-4 py-3 rounded-lg border border-border text-foreground font-medium hover:bg-secondary transition-colors"
-            >
-              Back
-            </button>
-          )}
-          <button
-            onClick={handleNext}
-            className="flex-1 px-4 py-3 rounded-lg bg-accent text-background font-medium hover:bg-accent/90 transition-colors"
-          >
-            {step === 4 ? 'Get Started' : 'Next'}
-          </button>
+        <div className="badge-stamp text-accent border-accent mb-4">
+          Account live
         </div>
-        {step === 1 && (
-          <button
-            onClick={handleSkip}
-            className="w-full mt-2 px-4 py-2 text-secondary-foreground hover:text-foreground transition-colors text-sm"
-          >
-            Skip for now
-          </button>
-        )}
+        <h1 className="font-display font-black text-4xl uppercase tracking-tight text-balance mb-3">
+          Welcome to the land,
+          <br />
+          <span className="text-accent">@{created.username}</span>
+        </h1>
+        <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mb-8">
+          You&apos;re signed in and ready to trade. Post your first listing or
+          hit the wanted board — rep is earned one deal at a time.
+        </p>
+        <button
+          onClick={() => router.push("/app")}
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+        >
+          Enter Poachland <ArrowRight size={18} />
+        </button>
       </div>
+    );
+  }
+
+  // ── Wizard ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Top bar */}
+      <header className="flex items-center justify-between px-5 py-4">
+        {step > 0 ? (
+          <button
+            onClick={() => setStep(step - 1)}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Back"
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
+        ) : (
+          <span className="font-display font-black text-xl tracking-tight uppercase">
+            Poachland
+          </span>
+        )}
+        {/* Progress dots */}
+        <div className="flex items-center gap-1.5" aria-label={`Step ${step + 1} of ${TOTAL_STEPS}`}>
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+            <span
+              key={i}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-300",
+                i === step ? "w-6 bg-accent" : "w-1.5",
+                i < step ? "bg-accent/50" : i > step ? "bg-secondary" : "",
+              )}
+            />
+          ))}
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-6 pb-10">
+        {/* Step 1 — Welcome */}
+        {step === 0 && (
+          <div className="flex-1 flex flex-col">
+            <div className="badge-stamp text-accent border-accent self-start mb-5">
+              Ultimate frisbee only
+            </div>
+            <h1 className="font-display font-black text-4xl uppercase leading-none tracking-tight text-balance mb-3">
+              The collector&apos;s <span className="text-accent">sideline</span>
+            </h1>
+            <p className="text-muted-foreground text-sm leading-relaxed mb-8">
+              Trade, sell, or give away jerseys and discs with people who
+              actually know what a Brute Squad &apos;22 is worth. No fees, no
+              algorithms — trust is the product.
+            </p>
+
+            <div className="flex flex-col gap-5 mb-10">
+              {[
+                {
+                  icon: Repeat2,
+                  title: "Every deal is a negotiation",
+                  desc: "Offer items, add cash, counter until it's fair — or claim free gear outright.",
+                },
+                {
+                  icon: ShieldCheck,
+                  title: "Trust you can see",
+                  desc: "Ratings on every completed deal roll into a public trust score. Flakes don't last.",
+                },
+                {
+                  icon: Sparkles,
+                  title: "The wanted board hunts for you",
+                  desc: "Post what you're chasing and get pinged the second a match gets listed.",
+                },
+              ].map(({ icon: Icon, title, desc }) => (
+                <div key={title} className="flex gap-4 items-start">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-sm bg-accent-dim flex items-center justify-center">
+                    <Icon size={20} className="text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-sans font-semibold text-sm mb-0.5 normal-case tracking-normal">
+                      {title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto">
+              <button
+                onClick={() => setStep(1)}
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+              >
+                Get started <ArrowRight size={18} />
+              </button>
+              <Link
+                href="/app"
+                className="block text-center mt-4 text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+              >
+                Skip — browse as demo trader
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Identity */}
+        {step === 1 && (
+          <div className="flex-1 flex flex-col">
+            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+              Claim your handle
+            </h1>
+            <p className="text-sm text-muted-foreground mb-8">
+              This is how the community will know you. Choose wisely.
+            </p>
+
+            <div className="flex flex-col gap-5">
+              <div>
+                <label
+                  htmlFor="ob-username"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                    @
+                  </span>
+                  <input
+                    id="ob-username"
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="huck_norris"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(sanitizeUsername(e.target.value));
+                      setUsernameError(null);
+                    }}
+                    className={cn(inputCls, "pl-8")}
+                  />
+                </div>
+                <div className="min-h-5 mt-1.5">
+                  <Hydrated>
+                    {usernameError ? (
+                      <p className="text-xs text-red-400">{usernameError}</p>
+                    ) : username.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Lowercase letters, numbers, dots, dashes, underscores.
+                      </p>
+                    ) : username.length < 3 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Keep going — at least 3 characters.
+                      </p>
+                    ) : usernameTaken ? (
+                      <p className="text-xs text-red-400">
+                        @{username} is taken. Try another.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-accent">
+                        @{username} is available ✓
+                      </p>
+                    )}
+                  </Hydrated>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="ob-displayname"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  Display name
+                </label>
+                <input
+                  id="ob-displayname"
+                  type="text"
+                  placeholder="Sam Calhoun"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="ob-location"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  Location
+                </label>
+                <div className="relative">
+                  <MapPin
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                  />
+                  <input
+                    id="ob-location"
+                    type="text"
+                    placeholder="Seattle, WA"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className={cn(inputCls, "pl-9")}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Helps traders spot local-only deals. Optional.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto pt-8">
+              <button
+                onClick={() => setStep(2)}
+                disabled={!identityValid}
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continue <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3 — Flavor */}
+        {step === 2 && (
+          <div className="flex-1 flex flex-col">
+            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+              Rep your colors
+            </h1>
+            <p className="text-sm text-muted-foreground mb-8">
+              Favorite teams show on your profile and help traders talk shop.
+            </p>
+
+            <div className="flex flex-col gap-7">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                  Favorite teams{" "}
+                  <span className="normal-case font-normal">(pick any)</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {allTeamChips.map((team) => {
+                    const selected = teams.includes(team);
+                    return (
+                      <button
+                        key={team}
+                        type="button"
+                        onClick={() => toggleTeam(team)}
+                        aria-pressed={selected}
+                        className={cn(
+                          "px-3 py-1.5 rounded-sm border text-xs font-semibold transition-colors inline-flex items-center gap-1.5",
+                          selected
+                            ? "border-accent bg-accent-dim text-accent"
+                            : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground",
+                        )}
+                      >
+                        {selected && <Check size={12} strokeWidth={3} />}
+                        {team}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <input
+                    type="text"
+                    placeholder="Add your own team…"
+                    value={customTeam}
+                    onChange={(e) => setCustomTeam(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomTeam();
+                      }
+                    }}
+                    className={cn(inputCls, "flex-1")}
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomTeam}
+                    disabled={!customTeam.trim()}
+                    aria-label="Add team"
+                    className="flex-shrink-0 w-10 rounded-md border border-border bg-card text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors flex items-center justify-center disabled:opacity-40"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                  Pick an avatar
+                </p>
+                <div className="flex gap-3">
+                  {STOCK_AVATARS.map((src) => {
+                    const selected = avatar === src;
+                    return (
+                      <button
+                        key={src}
+                        type="button"
+                        onClick={() => setAvatar(src)}
+                        aria-pressed={selected}
+                        className={cn(
+                          "relative w-16 h-16 rounded-full overflow-hidden border-2 transition-all",
+                          selected
+                            ? "border-accent ring-2 ring-accent/40"
+                            : "border-border opacity-70 hover:opacity-100",
+                        )}
+                      >
+                        {/* plain img: avatars may be data URLs elsewhere in the app */}
+                        <img
+                          src={src}
+                          alt="Avatar option"
+                          className="w-full h-full object-cover"
+                        />
+                        {selected && (
+                          <span className="absolute inset-0 bg-accent/20 flex items-center justify-center">
+                            <Check
+                              size={18}
+                              strokeWidth={3}
+                              className="text-accent drop-shadow"
+                            />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="ob-bio"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  Bio{" "}
+                  <span className="normal-case font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="ob-bio"
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Handler with a jersey problem. Hunting anything Sockeye pre-2018."
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  className={cn(inputCls, "resize-none")}
+                />
+              </div>
+            </div>
+
+            <div className="mt-auto pt-8">
+              <button
+                onClick={() => setStep(3)}
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+              >
+                Continue <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4 — Review & create */}
+        {step === 3 && (
+          <div className="flex-1 flex flex-col">
+            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+              Look right?
+            </h1>
+            <p className="text-sm text-muted-foreground mb-8">
+              This is what the community sees. You can change all of it later
+              in settings.
+            </p>
+
+            <div className="bg-card border border-border rounded-lg p-5">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-accent flex-shrink-0">
+                  <img
+                    src={avatar}
+                    alt="Your avatar"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-display font-bold text-lg uppercase tracking-tight leading-tight truncate">
+                    {displayName.trim() || "Unnamed trader"}
+                  </p>
+                  <p className="text-sm text-accent truncate">@{username}</p>
+                  {location.trim() && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <MapPin size={11} /> {location.trim()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {teams.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {teams.map((team) => (
+                    <span
+                      key={team}
+                      className="badge-stamp text-accent border-accent"
+                    >
+                      {team}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {bio.trim() && (
+                <p className="text-sm text-muted-foreground leading-relaxed border-t border-border pt-3">
+                  {bio.trim()}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-auto pt-8">
+              <button
+                onClick={handleCreate}
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+              >
+                Create my account <Check size={18} strokeWidth={3} />
+              </button>
+              <p className="text-center text-xs text-muted-foreground mt-4">
+                Free forever. No fees, no card, no catch.
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
