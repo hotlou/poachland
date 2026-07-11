@@ -113,6 +113,8 @@ export interface ListingFilter {
   statuses?: ListingStatus[]; // defaults to ["active"]
   sort?: "newest" | "oldest" | "most-saved" | "most-viewed" | "price-low" | "price-high";
   includeOwn?: boolean; // include current user's listings (default true)
+  /** Skip the viewer's block filter (moderation views must see everything). */
+  includeBlocked?: boolean;
 }
 
 export interface RatingInput {
@@ -354,11 +356,15 @@ export class PoachStore {
     const ratings = this.state.ratings.filter((r) => r.toUserId === userId);
     const user = this.rawUser(userId);
     const count = ratings.length;
-    const avg = (pick: (r: Rating) => number) =>
-      count === 0 ? 0 : ratings.reduce((s, r) => s + pick(r), 0) / count;
     const baselineCount = user?.baselineRatingCount ?? 0;
     const baselineSum = user?.baselineRatingSum ?? 0;
     const totalCount = count + baselineCount;
+    // Baseline history only recorded overall scores, so each dimension is
+    // seeded with the baseline mean — keeps every figure on the same count.
+    const avg = (pick: (r: Rating) => number) =>
+      totalCount === 0
+        ? 0
+        : (ratings.reduce((s, r) => s + pick(r), 0) + baselineSum) / totalCount;
     const overall =
       totalCount === 0
         ? 0
@@ -442,7 +448,8 @@ export class PoachStore {
     let results = this.state.listings.filter((l) => {
       if (!statuses.includes(l.status)) return false;
       if (filter.sellerId && l.sellerId !== filter.sellerId) return false;
-      if (!filter.sellerId && me && this.isBlockedPair(me.id, l.sellerId)) return false;
+      if (!filter.sellerId && !filter.includeBlocked && me && this.isBlockedPair(me.id, l.sellerId))
+        return false;
       if (filter.includeOwn === false && me && l.sellerId === me.id) return false;
       if (filter.itemType && filter.itemType !== "all" && l.type !== filter.itemType) return false;
       if (filter.listingType && filter.listingType !== "all" && l.listingType !== filter.listingType)
@@ -738,6 +745,11 @@ export class PoachStore {
       this.commit();
       return ok(false);
     }
+    const ownerId =
+      targetType === "listing"
+        ? (counter as ListingRecord | undefined)?.sellerId
+        : (counter as ISOPostRecord | undefined)?.userId;
+    if (ownerId === me.id) return err("It's already yours — no need to save it");
     this.state.saves.push({ userId: me.id, targetType, targetId, createdAt: this.now() });
     if (counter) counter.saves += 1;
     this.commit();
@@ -751,7 +763,10 @@ export class PoachStore {
       .filter((s) => s.userId === me.id && s.targetType === "listing")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((s) => this.getListing(s.targetId))
-      .filter((l): l is Listing => !!l && l.status !== "removed");
+      .filter(
+        (l): l is Listing =>
+          !!l && l.status !== "removed" && !this.isBlockedPair(me.id, l.sellerId),
+      );
   }
 
   savedISOPosts(): ISOPost[] {
@@ -761,13 +776,38 @@ export class PoachStore {
       .filter((s) => s.userId === me.id && s.targetType === "iso")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((s) => this.getISOPost(s.targetId))
-      .filter((p): p is ISOPost => !!p);
+      .filter((p): p is ISOPost => !!p && !this.isBlockedPair(me.id, p.userId));
   }
 
   // ── Deals: propose / negotiate / close ─────────────────────────────────────
 
   private latestOffer(deal: DealRecord): Offer {
     return deal.offers[deal.offers.length - 1];
+  }
+
+  /**
+   * Lazily expire an open deal whose pending offer is past its deadline —
+   * long-lived tabs never remount the provider, so the periodic sweep alone
+   * isn't enough. Returns true if the deal just expired (caller must commit).
+   */
+  private expireOfferIfPast(deal: DealRecord): boolean {
+    if (deal.status !== "open") return false;
+    const offer = this.latestOffer(deal);
+    if (offer.status !== "pending" || offer.expiresAt >= this.now()) return false;
+    offer.status = "expired";
+    deal.status = "expired";
+    deal.closedAt = this.now();
+    deal.updatedAt = this.now();
+    for (const userId of [deal.proposerId, deal.ownerId]) {
+      this.notify(
+        userId,
+        "system",
+        "Offer expired",
+        `An offer on "${this.rawListing(deal.listingId)?.title ?? "a listing"}" expired after ${OFFER_EXPIRY_DAYS} days without a response.`,
+        `/app/trades/${deal.id}`,
+      );
+    }
+    return true;
   }
 
   private hydrateDeal(record: DealRecord): Deal {
@@ -978,6 +1018,12 @@ export class PoachStore {
     if (!deal) return err("Deal not found");
     if (deal.status !== "open") return err("This deal is no longer open to counters");
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    if (this.isBlockedPair(me.id, this.otherParty(deal, me.id)))
+      return err("You can't trade with this user");
+    if (this.expireOfferIfPast(deal)) {
+      this.commit();
+      return err("This offer expired before a response");
+    }
     const current = this.latestOffer(deal);
     if (current.byUserId === me.id)
       return err("Your offer is already on the table — wait for a response or withdraw it");
@@ -1012,6 +1058,12 @@ export class PoachStore {
     const offer = this.latestOffer(deal);
     if (offer.byUserId === me.id) return err("You can't accept your own offer");
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    if (this.isBlockedPair(me.id, this.otherParty(deal, me.id)))
+      return err("You can't trade with this user");
+    if (this.expireOfferIfPast(deal)) {
+      this.commit();
+      return err("This offer expired before a response");
+    }
     // Everything changing hands must still be available.
     for (const id of [...offer.proposerListingIds, ...offer.ownerListingIds]) {
       const l = this.rawListing(id);
@@ -1039,13 +1091,18 @@ export class PoachStore {
         o.ownerListingIds.some((id) => lockedIds.includes(id));
       if (overlaps) {
         this.closeDeal(otherDeal, "declined", "The item went to another trade.");
-        this.notify(
-          otherDeal.proposerId === me.id ? otherDeal.ownerId : otherDeal.proposerId,
-          "offer_rejected",
-          "Item no longer available",
-          "An item in your negotiation was committed to another deal.",
-          `/app/trades/${otherDeal.id}`,
-        );
+        // Notify every party of the competing deal (the accepter may not be
+        // one of them when the same item was offered in two negotiations).
+        for (const partyId of [otherDeal.proposerId, otherDeal.ownerId]) {
+          if (partyId === me.id) continue;
+          this.notify(
+            partyId,
+            "offer_rejected",
+            "Item no longer available",
+            "An item in your negotiation was committed to another deal.",
+            `/app/trades/${otherDeal.id}`,
+          );
+        }
       }
     }
     this.appendMessage(
@@ -1071,6 +1128,11 @@ export class PoachStore {
     const deal = this.state.deals.find((d) => d.id === dealId);
     if (!deal) return err("Deal not found");
     if (deal.status !== "open") return err("This deal is not open");
+    if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    if (this.expireOfferIfPast(deal)) {
+      this.commit();
+      return err("This offer already expired — no need to decline");
+    }
     const offer = this.latestOffer(deal);
     if (offer.byUserId === me.id) return err("Use withdraw to pull your own offer");
     offer.status = "declined";
@@ -1383,27 +1445,9 @@ export class PoachStore {
   }
 
   sweepExpirations() {
-    const now = this.now();
     let changed = false;
     for (const deal of this.state.deals) {
-      if (deal.status !== "open") continue;
-      const offer = this.latestOffer(deal);
-      if (offer.status === "pending" && offer.expiresAt < now) {
-        offer.status = "expired";
-        deal.status = "expired";
-        deal.closedAt = now;
-        deal.updatedAt = now;
-        changed = true;
-        for (const userId of [deal.proposerId, deal.ownerId]) {
-          this.notify(
-            userId,
-            "system",
-            "Offer expired",
-            `An offer on "${this.rawListing(deal.listingId)?.title ?? "a listing"}" expired after ${OFFER_EXPIRY_DAYS} days without a response.`,
-            `/app/trades/${deal.id}`,
-          );
-        }
-      }
+      if (this.expireOfferIfPast(deal)) changed = true;
     }
     if (changed) this.commit();
   }
@@ -1854,7 +1898,9 @@ export class PoachStore {
   }
 
   listActivity(limit = 20): (ActivityEvent & { actor: User | null })[] {
+    const me = this.currentUser();
     return [...this.state.activity]
+      .filter((a) => !me || !this.isBlockedPair(me.id, a.actorId))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit)
       .map((a) => ({ ...a, actor: this.getUser(a.actorId) }));

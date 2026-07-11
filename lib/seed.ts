@@ -972,7 +972,7 @@ export function buildSeedState(): DBState {
     { id: "n7", userId: "u1", type: "deal_complete", title: "Deal complete 🎉", body: `Your trade of "Riot 2016 Away Jersey" is done. Leave a rating.`, read: true, createdAt: iso(8 * DAYS), linkTo: "/app/trades/d4" },
     { id: "n8", userId: "u1", type: "new_rating", title: "New rating from flick_therapy", body: `5.0 stars. "Shipped fast, jersey exactly as described. Textbook trade." Would trade again.`, read: true, createdAt: iso(8 * DAYS), linkTo: "/app/ratings" },
     { id: "n9", userId: "u2", type: "iso_match", title: "ISO match found", body: `A new jersey listing matches your wanted post: "Sockeye 2017 Nationals Jersey — Fish Scale Design".`, read: false, createdAt: iso(1 * DAYS), linkTo: "/app/listings/l11" },
-    { id: "n10", userId: "u2", type: "offer_countered", title: "Counter-offer received", body: `You countered huck_and_pray's trade — waiting on their response.`, read: true, createdAt: iso(1 * DAYS), linkTo: "/app/trades/d2" },
+    { id: "n10", userId: "u3", type: "offer_countered", title: "Counter-offer received", body: `flick_therapy countered: "Mixtape 2021 USAU Nationals Jersey" + $10 ⇄ "2011 UPA Club Championship Disc — Sarasota"`, read: false, createdAt: iso(1 * DAYS), linkTo: "/app/trades/d2" },
   ];
 
   return {

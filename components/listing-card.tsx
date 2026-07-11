@@ -121,7 +121,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
               {listing.seller.username}
             </span>
           </div>
-          {listing.askingPrice && (
+          {!!listing.askingPrice && (
             <span className="text-sm font-bold text-foreground">
               ${listing.askingPrice}
             </span>

@@ -966,7 +966,11 @@ function DealRoom({ id }: { id: string }) {
             <p className="text-sm text-foreground">
               Waiting on <Link href={`/app/u/${other.username}`} className="text-accent font-semibold">@{other.username}</Link>
             </p>
-            <p className="text-xs text-yellow-400/80">Expires {timeUntil(current.expiresAt)}</p>
+            <p className="text-xs text-yellow-400/80">
+              {timeUntil(current.expiresAt) === "expired"
+                ? "Offer expired — refresh to close it out"
+                : `Expires: ${timeUntil(current.expiresAt)}`}
+            </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button

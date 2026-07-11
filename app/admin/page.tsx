@@ -626,7 +626,12 @@ function UsersSection() {
 function ListingsSection() {
   const store = useStore();
   const listings = store
-    .listListings({ statuses: ["active", "pending"], sort: "newest", includeOwn: true })
+    .listListings({
+      statuses: ["active", "pending"],
+      sort: "newest",
+      includeOwn: true,
+      includeBlocked: true,
+    })
     .slice(0, 10);
   const [removeTarget, setRemoveTarget] = useState<Listing | null>(null);
   const [reason, setReason] = useState("");
