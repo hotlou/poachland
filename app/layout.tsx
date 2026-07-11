@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { StoreProvider } from "@/lib/store-context";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,7 +47,8 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${barlow.variable} font-sans antialiased bg-background text-foreground`}
       >
-        {children}
+        <StoreProvider>{children}</StoreProvider>
+        <Toaster position="top-center" richColors />
         <Analytics />
       </body>
     </html>

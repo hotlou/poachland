@@ -1,11 +1,21 @@
-import { Star, ShieldCheck, Zap, Package, Trophy } from "lucide-react";
+import { Star, ShieldCheck, Zap, Package, Trophy, Handshake, HeartHandshake } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Badge } from "@/lib/seed-data";
+import type { Badge } from "@/lib/types";
 
 const BADGE_CONFIG: Record<
   Badge["type"],
   { icon: React.ElementType; color: string; bg: string }
 > = {
+  "first-trade": {
+    icon: Handshake,
+    color: "text-teal-400 border-teal-400",
+    bg: "bg-teal-400/10",
+  },
+  generous: {
+    icon: HeartHandshake,
+    color: "text-pink-400 border-pink-400",
+    bg: "bg-pink-400/10",
+  },
   founding: {
     icon: Trophy,
     color: "text-yellow-400 border-yellow-400",
