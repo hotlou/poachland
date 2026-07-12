@@ -25,7 +25,7 @@ import { ListingCard } from "@/components/listing-card";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { formatMonthYear, timeAgo } from "@/lib/format";
 import { REPORT_REASONS } from "@/lib/constants";
-import type { User } from "@/lib/types";
+import type { HistoryEntry, User } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+const HISTORY_KIND_LABELS: Record<HistoryEntry["kind"], string> = {
+  team: "Team",
+  tournament: "Tournament",
+  league: "League",
+};
 
 function PageSkeleton() {
   return (
@@ -335,6 +341,32 @@ function PublicProfile({ user }: { user: User }) {
         {/* Actions (mobile) */}
         {actions && <div className="mt-4 md:hidden">{actions}</div>}
 
+        {/* Photo gallery */}
+        {user.gallery && user.gallery.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Gallery
+            </p>
+            <div className="grid grid-cols-4 gap-2 max-w-md">
+              {user.gallery.map((src, i) => (
+                <a
+                  key={`${i}-${src.slice(-24)}`}
+                  href={src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative block aspect-square rounded-lg overflow-hidden border border-border bg-surface"
+                >
+                  <img
+                    src={src}
+                    alt={`Photo ${i + 1} from @${user.username}'s gallery`}
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Trust card + stats */}
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
@@ -398,6 +430,39 @@ function PublicProfile({ user }: { user: User }) {
                 {team}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Playing history */}
+        {user.history && user.history.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Playing history
+            </p>
+            <div className="bg-card border border-border rounded-xl divide-y divide-border">
+              {user.history.map((h) => (
+                <div key={h.id} className="px-3 py-2.5 flex items-start gap-2.5">
+                  <span className="badge-stamp text-muted-foreground border-border flex-shrink-0 mt-0.5">
+                    {HISTORY_KIND_LABELS[h.kind]}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm">
+                      <span className="font-semibold">{h.name}</span>
+                      {h.years && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {h.years}
+                        </span>
+                      )}
+                    </p>
+                    {h.note && (
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                        {h.note}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -190,11 +190,27 @@ export class RemotePoachStore extends PoachStore {
 
   override updateProfile(
     patch: Partial<
-      Pick<UserRecord, "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username">
+      Pick<
+        UserRecord,
+        | "displayName"
+        | "bio"
+        | "location"
+        | "favoriteTeams"
+        | "avatar"
+        | "username"
+        | "history"
+        | "gallery"
+      >
     >,
   ): Res<User> {
     const res = super.updateProfile(patch);
-    if (res.ok) this.send("updateProfile", { patch });
+    // Send the locally-normalized history (engine assigns ids to blank rows)
+    // so client and server converge on the same entry ids.
+    if (res.ok) {
+      const normalized =
+        patch.history !== undefined ? { ...patch, history: res.value.history } : patch;
+      this.send("updateProfile", { patch: normalized });
+    }
     return res;
   }
 
