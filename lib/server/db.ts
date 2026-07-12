@@ -47,7 +47,9 @@ async function init(): Promise<Db> {
       ssl: url.includes("localhost") ? undefined : { rejectUnauthorized: false },
       max: 5,
     });
-    return drizzle(pool, { schema });
+    const db = drizzle(pool, { schema });
+    await migrateOnBoot(db);
+    return db;
   }
 
   // Local dev / test fallback: embedded Postgres persisted on disk.
@@ -59,6 +61,39 @@ async function init(): Promise<Db> {
   const db = drizzle(client, { schema });
   await ensureMigrated(db);
   return db;
+}
+
+/**
+ * Self-migrating production boot: apply any pending ./drizzle migrations on
+ * the first connection after a deploy. Best-effort — concurrent cold starts
+ * can race on the same pending migration, so on failure we verify the schema
+ * actually exists (another instance may have won) before treating it as
+ * fatal. `pnpm db:migrate` remains available for running migrations by hand.
+ */
+async function migrateOnBoot(
+  db: import("drizzle-orm/node-postgres").NodePgDatabase<typeof schema>,
+): Promise<void> {
+  try {
+    const { migrate } = await import("drizzle-orm/node-postgres/migrator");
+    await migrate(db, {
+      migrationsFolder: path.join(process.cwd(), "drizzle"),
+    });
+  } catch (error) {
+    const { sql } = await import("drizzle-orm");
+    const check = await db
+      .execute(
+        sql`select 1 from information_schema.tables where table_schema = 'public' and table_name = 'users'`,
+      )
+      .catch(() => null);
+    if (check && check.rows.length > 0) {
+      console.warn(
+        "[db] migrate-on-boot hit an error but the schema exists (likely a concurrent cold-start migration race):",
+        error,
+      );
+      return;
+    }
+    throw error;
+  }
 }
 
 const gm = globalThis as unknown as {
