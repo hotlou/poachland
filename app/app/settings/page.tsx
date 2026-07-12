@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { logOut } from "@/app/actions/auth";
+import { logOut, updatePassword } from "@/app/actions/auth";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import {
@@ -214,6 +214,131 @@ function IdentitiesSection() {
   );
 }
 
+/* ── Password ──────────────────────────────────────────────────────────────── */
+
+function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
+  const store = useStore();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (saving) return;
+    if (next.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+    if (next !== confirm) {
+      toast.error("Passwords don't match.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await updatePassword(next, hasPassword ? current : undefined);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(hasPassword ? "Password changed." : "Password set. You can use it to sign in now.");
+      setOpen(false);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      void store.refetch(); // pick up hasPassword on the session
+    } catch {
+      toast.error("Something went wrong. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md border border-border text-sm font-semibold text-foreground hover:border-accent hover:text-accent transition-colors"
+        >
+          {hasPassword ? "Change password" : "Set a password"}
+        </button>
+        <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+          {hasPassword
+            ? "You can sign in with your password or a magic link."
+            : "Optional — for password managers and faster sign-ins. Magic links keep working either way."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+      className="pt-1 space-y-2"
+    >
+      {/* Hidden username field helps password managers save the right login. */}
+      <input
+        type="email"
+        name="email"
+        autoComplete="username email"
+        value={store.sessionMe?.email ?? ""}
+        readOnly
+        hidden
+      />
+      {hasPassword && (
+        <input
+          type="password"
+          autoComplete="current-password"
+          placeholder="Current password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          className={inputCls}
+          aria-label="Current password"
+        />
+      )}
+      <input
+        type="password"
+        autoComplete="new-password"
+        placeholder="New password (8+ characters)"
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+        className={inputCls}
+        aria-label="New password"
+      />
+      <input
+        type="password"
+        autoComplete="new-password"
+        placeholder="Repeat new password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        className={inputCls}
+        aria-label="Repeat new password"
+      />
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving || !next || !confirm || (hasPassword && !current)}
+          className="flex-1 py-2 rounded-md bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-40"
+        >
+          {saving ? "Saving…" : hasPassword ? "Change password" : "Set password"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /* ── Page content ──────────────────────────────────────────────────────────── */
 
 function SettingsContent() {
@@ -239,6 +364,7 @@ function SettingsContent() {
             <span className="text-muted-foreground">Signed in as</span>
             <span className="font-semibold truncate">{sessionMe?.email}</span>
           </div>
+          <PasswordSection hasPassword={!!sessionMe?.hasPassword} />
           <button
             type="button"
             onClick={signOut}

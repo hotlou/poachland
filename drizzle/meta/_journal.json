@@ -15,6 +15,13 @@
       "when": 1783874976063,
       "tag": "0001_chief_frog_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783879667176,
+      "tag": "0002_uneven_jean_grey",
+      "breakpoints": true
     }
   ]
 }

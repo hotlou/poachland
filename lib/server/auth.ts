@@ -12,10 +12,22 @@
  * lib/server/session.ts so this module stays testable outside Next.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  scrypt,
+  timingSafeEqual,
+} from "node:crypto";
+import { promisify } from "node:util";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "./db";
 import { loginTokens, sessions, users, type UserRow } from "./schema";
+
+const scryptAsync = promisify(scrypt) as (
+  password: string,
+  salt: Buffer,
+  keylen: number,
+) => Promise<Buffer>;
 
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -240,6 +252,136 @@ export async function verifyMagicLink(
   });
 
   return { ok: true, sessionId, needsOnboarding: !user.username };
+}
+
+// ─── Passwords (optional, set after first magic-link sign-in) ───────────────
+
+const PASSWORD_MIN_LENGTH = 8;
+const MAX_FAILED_ATTEMPTS = 10;
+const LOCKOUT_MS = 15 * 60 * 1000;
+
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(password, salt, 64);
+  return `scrypt$${salt.toString("base64url")}$${key.toString("base64url")}`;
+}
+
+export async function verifyPasswordHash(
+  password: string,
+  stored: string,
+): Promise<boolean> {
+  const [scheme, saltB64, keyB64] = stored.split("$");
+  if (scheme !== "scrypt" || !saltB64 || !keyB64) return false;
+  const expected = Buffer.from(keyB64, "base64url");
+  const actual = await scryptAsync(password, Buffer.from(saltB64, "base64url"), expected.length);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export type PasswordSignInResult =
+  | { ok: true; sessionId: string; needsOnboarding: boolean }
+  | { ok: false; error: string };
+
+export async function signInWithPassword(
+  rawEmail: string,
+  password: string,
+): Promise<PasswordSignInResult> {
+  const email = normalizeEmail(rawEmail);
+  if (!email || !password) {
+    return { ok: false, error: "Enter your email and password." };
+  }
+
+  const db = await getDb();
+  const now = new Date();
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+
+  // Identical error for unknown email / no password / wrong password —
+  // don't leak which accounts exist or how they authenticate.
+  const genericError =
+    "That email + password combo didn't work. No password set yet? Sign in with a magic link, then add one in Settings.";
+
+  if (!user || !user.passwordHash) return { ok: false, error: genericError };
+
+  if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
+    return {
+      ok: false,
+      error: "Too many failed attempts. Try again in a few minutes, or use a magic link.",
+    };
+  }
+
+  const valid = await verifyPasswordHash(password, user.passwordHash);
+  if (!valid) {
+    const attempts = user.failedLoginAttempts + 1;
+    await db
+      .update(users)
+      .set({
+        failedLoginAttempts: attempts,
+        lockedUntil:
+          attempts >= MAX_FAILED_ATTEMPTS ? new Date(now.getTime() + LOCKOUT_MS) : null,
+      })
+      .where(eq(users.id, user.id));
+    return { ok: false, error: genericError };
+  }
+
+  const patch: Partial<typeof users.$inferInsert> = {
+    failedLoginAttempts: 0,
+    lockedUntil: null,
+  };
+  // Promote on every login so adding an email to ADMIN_EMAILS later works.
+  if (adminEmails().has(email) && !user.isAdmin) patch.isAdmin = true;
+  await db.update(users).set(patch).where(eq(users.id, user.id));
+
+  const sessionId = randomBytes(32).toString("base64url");
+  await db.insert(sessions).values({
+    id: sessionId,
+    userId: user.id,
+    expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+    lastSeenAt: now,
+  });
+
+  return { ok: true, sessionId, needsOnboarding: !user.username };
+}
+
+export type SetPasswordResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Set or change the signed-in user's password. Changing an existing password
+ * requires the current one; setting the first password doesn't (the session
+ * itself came from a verified magic link).
+ */
+export async function setPassword(
+  userId: string,
+  newPassword: string,
+  currentPassword?: string,
+): Promise<SetPasswordResult> {
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
+    return { ok: false, error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.` };
+  }
+  if (newPassword.length > 128) {
+    return { ok: false, error: "Password is too long (128 characters max)." };
+  }
+
+  const db = await getDb();
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) return { ok: false, error: "Account not found." };
+
+  if (user.passwordHash) {
+    if (!currentPassword) {
+      return { ok: false, error: "Enter your current password." };
+    }
+    const valid = await verifyPasswordHash(currentPassword, user.passwordHash);
+    if (!valid) return { ok: false, error: "Current password is incorrect." };
+  }
+
+  await db
+    .update(users)
+    .set({
+      passwordHash: await hashPassword(newPassword),
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    })
+    .where(eq(users.id, userId));
+
+  return { ok: true };
 }
 
 // ─── Sessions ────────────────────────────────────────────────────────────────

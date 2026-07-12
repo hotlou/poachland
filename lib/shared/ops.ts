@@ -53,6 +53,8 @@ export interface SessionMe extends UserRecord {
   isAdmin: boolean;
   /** True until completeOnboarding sets a username. */
   needsOnboarding: boolean;
+  /** Whether a password is set (magic link always works either way). */
+  hasPassword: boolean;
 }
 
 /** Admin-only view fetched separately (fetchAdminData). */

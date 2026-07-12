@@ -76,6 +76,10 @@ export const users = pgTable("users", {
   ratingsCount: integer("ratings_count").notNull().default(0),
   tradesCompleted: integer("trades_completed").notNull().default(0),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true, mode: "date" }),
+  // Optional password sign-in (set after the first magic-link login).
+  passwordHash: text("password_hash"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true, mode: "date" }),
 });
 
 // ─── Listings ────────────────────────────────────────────────────────────────

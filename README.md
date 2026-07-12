@@ -18,7 +18,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Notifications** — every marketplace event lands in the feed with a deep link.
 - **Saves** — watchlist for listings and ISO posts.
 - **Moderation** — report listings/users/deals, block traders (mutually hides content and prevents deals), admin dashboard with a report queue, dispute resolution, verification, and featuring.
-- **Accounts** — magic-link email sign-in (no passwords); first sign-in claims your username through onboarding. Sessions are httpOnly cookies backed by Postgres.
+- **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres.
 - **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
 
 **Routes:**
@@ -48,7 +48,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Fonts:** Barlow Condensed (display), Inter (body) via `next/font/google`
 - **Icons:** lucide-react
 - **Data:** Postgres (Neon in production, embedded PGlite for local dev) via Drizzle ORM
-- **Auth:** custom magic-link flow (Resend for email delivery), Postgres-backed sessions
+- **Auth:** custom magic-link flow (Resend for email delivery) + optional passwords (scrypt), Postgres-backed sessions
 - **State:** server-authoritative world snapshots with an optimistic client store
 - **Deployment:** Vercel
 

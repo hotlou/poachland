@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ExternalLink, Mail, MailCheck } from "lucide-react";
-import { sendMagicLink } from "@/app/actions/auth";
+import { ArrowRight, ExternalLink, KeyRound, Mail, MailCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { logInWithPassword, sendMagicLink } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 
 const RESEND_COOLDOWN_S = 30;
@@ -14,8 +15,11 @@ const inputCls =
 
 function LoginCard() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const urlError = searchParams.get("error");
 
+  const [mode, setMode] = useState<"magic" | "password">("magic");
+  const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -32,6 +36,28 @@ function LoginCard() {
     const t = window.setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => window.clearTimeout(t);
   }, [cooldown]);
+
+  const submitPassword = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !password || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await logInWithPassword(trimmed, password);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      // Full navigation (not router.push): the client store bootstrapped a
+      // signed-out snapshot, so a soft navigation would bounce off the auth
+      // gate before the next refetch. A fresh load re-bootstraps as us.
+      window.location.assign(res.needsOnboarding ? "/onboarding" : "/app");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const submit = async () => {
     const trimmed = email.trim();
@@ -126,14 +152,40 @@ function LoginCard() {
               </>
             ) : (
               <>
+                <div className="flex gap-1 mt-1 mb-4 bg-surface border border-border rounded-md p-1">
+                  {(
+                    [
+                      { key: "magic", label: "Magic link", icon: Mail },
+                      { key: "password", label: "Password", icon: KeyRound },
+                    ] as const
+                  ).map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setMode(key);
+                        setError(null);
+                      }}
+                      className={cn(
+                        "flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded text-xs font-semibold transition-colors",
+                        mode === key
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon size={13} /> {label}
+                    </button>
+                  ))}
+                </div>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                  Sign in / join with your email. No passwords — we email you a
-                  magic link.
+                  {mode === "magic"
+                    ? "We email you a sign-in link — no password needed. New accounts start here."
+                    : "Sign in with the password you set in Settings. Forgot it? A magic link always works."}
                 </p>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    void submit();
+                    void (mode === "magic" ? submit() : submitPassword());
                   }}
                   className="flex flex-col gap-3"
                 >
@@ -144,7 +196,8 @@ function LoginCard() {
                     />
                     <input
                       type="email"
-                      autoComplete="email"
+                      name="email"
+                      autoComplete="username email"
                       inputMode="email"
                       placeholder="you@example.com"
                       value={email}
@@ -156,13 +209,40 @@ function LoginCard() {
                       aria-label="Email address"
                     />
                   </div>
+                  {mode === "password" && (
+                    <div className="relative">
+                      <KeyRound
+                        size={15}
+                        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                      />
+                      <input
+                        type="password"
+                        name="password"
+                        autoComplete="current-password"
+                        placeholder="Your password"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setError(null);
+                        }}
+                        className={cn(inputCls, "pl-9")}
+                        aria-label="Password"
+                      />
+                    </div>
+                  )}
                   {error && <p className="text-xs text-red-400">{error}</p>}
                   <button
                     type="submit"
-                    disabled={!email.trim() || submitting}
+                    disabled={!email.trim() || (mode === "password" && !password) || submitting}
                     className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {submitting ? "Sending…" : "Email me a link"}
+                    {submitting
+                      ? mode === "magic"
+                        ? "Sending…"
+                        : "Signing in…"
+                      : mode === "magic"
+                        ? "Email me a link"
+                        : "Sign in"}
                     {!submitting && <ArrowRight size={16} />}
                   </button>
                 </form>

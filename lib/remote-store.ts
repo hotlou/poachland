@@ -49,7 +49,13 @@ import type {
 
 /** Strip session-only fields so a SessionMe can live in `state.users`. */
 function toUserRecord(me: SessionMe): UserRecord {
-  const { email: _email, isAdmin: _isAdmin, needsOnboarding: _needs, ...user } = me;
+  const {
+    email: _email,
+    isAdmin: _isAdmin,
+    needsOnboarding: _needs,
+    hasPassword: _hasPassword,
+    ...user
+  } = me;
   return user;
 }
 

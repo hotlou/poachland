@@ -397,6 +397,7 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
         email: viewerRow.email,
         isAdmin: viewerRow.isAdmin,
         needsOnboarding: !viewerRow.username,
+        hasPassword: !!viewerRow.passwordHash,
       }
     : null;
 
