@@ -297,7 +297,10 @@ function groupOffersByDeal(rows: OfferRow[]): Map<string, OfferRow[]> {
 
 const ACTIVITY_LIMIT = 50;
 
-export async function buildSnapshot(viewerId: string | null): Promise<WorldSnapshot> {
+export async function buildSnapshot(
+  viewerId: string | null,
+  impersonatorUsername?: string,
+): Promise<WorldSnapshot> {
   const db = await getDb();
 
   // Lazy expiry: sweep the viewer's open deals before reading.
@@ -409,6 +412,7 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
   }
 
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
+  const viewerIsAdmin = !!viewerRow?.isAdmin;
   const me: SessionMe | null = viewerRow
     ? {
         ...toUserRecord(viewerRow),
@@ -416,19 +420,63 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
         isAdmin: viewerRow.isAdmin,
         needsOnboarding: !viewerRow.username,
         hasPassword: !!viewerRow.passwordHash,
+        // Shadowban is masked to "active" for the user's own payload — they
+        // must never learn they're shadowbanned.
+        accountStatus:
+          viewerRow.status === "suspended"
+            ? "suspended"
+            : viewerRow.status === "banned"
+              ? "banned"
+              : "active",
+        suspendedUntil: viewerRow.suspendedUntil ? iso(viewerRow.suspendedUntil) : undefined,
+        moderationNote:
+          viewerRow.status === "suspended" || viewerRow.status === "banned"
+            ? viewerRow.moderationNote ?? undefined
+            : undefined,
+        impersonatedByAdmin: impersonatorUsername,
       }
     : null;
 
   const offersByDeal = groupOffersByDeal(offerRows);
 
+  // Content hiding: shadowbanned/suspended/banned users vanish from public
+  // discovery (browse, wanted board, activity, directory, spotlight) for
+  // everyone except themselves — and admins, who must see everything to
+  // moderate. Existing relationships (the viewer's own deals/threads) keep
+  // resolving via a relationship allowlist so nothing breaks mid-trade.
+  const hidden = new Set<string>();
+  if (!viewerIsAdmin) {
+    for (const u of userRows) {
+      if (u.id === viewerId) continue;
+      if (u.status === "shadowbanned" || u.status === "banned" || u.status === "suspended") {
+        hidden.add(u.id);
+      }
+    }
+  }
+  const related = new Set<string>();
+  if (viewerId) {
+    related.add(viewerId);
+    for (const d of dealRows) {
+      related.add(d.proposerId);
+      related.add(d.ownerId);
+    }
+    for (const t of threadRows) {
+      for (const p of t.participantIds) related.add(p);
+    }
+  }
+  const userVisible = (id: string) => !hidden.has(id) || related.has(id);
+
   return {
     v: 1,
     serverTime: new Date().toISOString(),
     me,
-    // Public profiles: onboarded users only, emails stripped.
-    users: userRows.filter((u) => u.username !== null).map(toUserRecord),
-    listings: listingRows.map(toListingRecord),
-    isoPosts: isoRows.map(toISORecord),
+    // Public profiles: onboarded users only, emails stripped, hidden users
+    // dropped (kept only if the viewer has a live relationship with them).
+    users: userRows
+      .filter((u) => u.username !== null && userVisible(u.id))
+      .map(toUserRecord),
+    listings: listingRows.filter((l) => userVisible(l.sellerId)).map(toListingRecord),
+    isoPosts: isoRows.filter((p) => !hidden.has(p.userId)).map(toISORecord),
     deals: dealRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
     threads: threadRows.map(toThreadRecord),
     messages: messageRows.map(toMessageRecord),
@@ -437,7 +485,10 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
     saves: saveRows.map(toSave),
     reports: reportRows.map(toReport),
     blocks: blockRows.map(toBlock),
-    activity: activityRows.map(toActivityEvent).reverse(), // chronological
+    activity: activityRows
+      .filter((a) => !hidden.has(a.actorId))
+      .map(toActivityEvent)
+      .reverse(), // chronological
     identities: identityRows.map(toIdentityRecord),
     paymentMethods: paymentRows.map(toPaymentMethod),
   };
@@ -513,7 +564,14 @@ export async function buildAdminData(): Promise<AdminData> {
     reports: reportRows.map(toReport),
     disputedDeals: disputedRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
     identityQueue: identityQueue.map(toIdentityRecord),
-    users: userRows.map((u) => ({ ...toUserRecord(u), email: u.email })),
+    users: userRows.map((u) => ({
+      ...toUserRecord(u),
+      email: u.email,
+      status: u.status,
+      suspendedUntil: u.suspendedUntil ? iso(u.suspendedUntil) : undefined,
+      moderationNote: u.moderationNote ?? undefined,
+      isAdmin: u.isAdmin,
+    })),
     stats: {
       users: userRows.length,
       verifiedUsers: userRows.filter((u) => u.isVerified).length,

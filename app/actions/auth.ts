@@ -7,6 +7,8 @@ import {
   requestMagicLink,
   setPassword,
   signInWithPassword,
+  startImpersonation,
+  stopImpersonation,
   type RequestMagicLinkResult,
   type SetPasswordResult,
 } from "@/lib/server/auth";
@@ -76,6 +78,32 @@ export async function updatePassword(
   } catch (error) {
     console.error("[auth] updatePassword failed:", error);
     return { ok: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+/** Admin "use as": begin viewing the app as another (non-admin) user. */
+export async function useAsUser(
+  targetUserId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const sessionId = await readSessionCookie();
+    if (!sessionId) return { ok: false, error: "Not signed in" };
+    return await startImpersonation(sessionId, targetUserId);
+  } catch (error) {
+    console.error("[auth] useAsUser failed:", error);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+/** Exit "use as" and return to the admin's own account. */
+export async function stopUsingAs(): Promise<{ ok: boolean }> {
+  try {
+    const sessionId = await readSessionCookie();
+    if (sessionId) await stopImpersonation(sessionId);
+    return { ok: true };
+  } catch (error) {
+    console.error("[auth] stopUsingAs failed:", error);
+    return { ok: false };
   }
 }
 

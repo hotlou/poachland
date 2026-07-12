@@ -42,6 +42,7 @@ import {
   ratings,
   reports,
   saves,
+  sessions,
   threads,
   users,
   type DealRow,
@@ -77,6 +78,15 @@ export async function executeOp<K extends OpName>(
   if (op.startsWith("admin") && !user.isAdmin) return err("Moderators only");
   if (op !== "completeOnboarding" && !user.username)
     return err("Complete onboarding first");
+  // Suspended/banned accounts can't write. (Shadowbanned accounts CAN — they
+  // must not notice; their content is hidden from others at the snapshot.)
+  if (user.status === "banned") return err("Your account has been banned.");
+  if (
+    user.status === "suspended" &&
+    (!user.suspendedUntil || user.suspendedUntil.getTime() > Date.now())
+  ) {
+    return err("Your account is suspended.");
+  }
   const db = await getDb();
   return handler(db, user, input);
 }
@@ -2013,6 +2023,66 @@ const handlers: Handlers = {
           "system",
           "You're verified ✓",
           "Your account passed identity review.",
+        );
+      }
+      return ok(null);
+    });
+  },
+
+  async adminSetUserStatus(db, user, { userId, status, days, note }) {
+    return db.transaction(async (tx) => {
+      const validStatuses = ["active", "shadowbanned", "suspended", "banned"];
+      if (!validStatuses.includes(status)) return err("Invalid status");
+      const target = await getUserRow(tx, userId);
+      if (!target) return err("User not found");
+      if (target.isAdmin) return err("You can't moderate another moderator");
+      if (userId === user.id) return err("You can't moderate your own account");
+
+      const set: Partial<typeof users.$inferInsert> = {
+        status,
+        moderationNote: note?.trim() || null,
+        suspendedUntil:
+          status === "suspended"
+            ? new Date(Date.now() + Math.max(1, Math.min(365, days ?? 7)) * 86_400_000)
+            : null,
+      };
+      await tx.update(users).set(set).where(eq(users.id, userId));
+
+      // End any active "use as" sessions pointing at a now-banned/suspended
+      // account so an admin isn't stranded impersonating a gated user.
+      if (status === "banned" || status === "suspended") {
+        await tx
+          .update(sessions)
+          .set({ impersonatingUserId: null })
+          .where(eq(sessions.impersonatingUserId, userId));
+      }
+
+      // Notify the user only for actions they're meant to see (never shadowban).
+      if (status === "suspended") {
+        await notify(
+          tx,
+          userId,
+          "system",
+          "Your account is suspended",
+          note?.trim()
+            ? note.trim()
+            : "A moderator suspended your account. It will lift automatically.",
+        );
+      } else if (status === "banned") {
+        await notify(
+          tx,
+          userId,
+          "system",
+          "Your account has been banned",
+          note?.trim() ? note.trim() : "A moderator banned your account for violating community guidelines.",
+        );
+      } else if (status === "active" && (target.status === "suspended" || target.status === "banned")) {
+        await notify(
+          tx,
+          userId,
+          "system",
+          "Your account is active again",
+          "A moderator restored your account. Trade clean out there.",
         );
       }
       return ok(null);

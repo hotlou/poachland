@@ -20,7 +20,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
-import { getDb } from "./db";
+import { getDb, type Db } from "./db";
 import { loginTokens, sessions, users, type UserRow } from "./schema";
 
 const scryptAsync = promisify(scrypt) as (
@@ -386,9 +386,44 @@ export async function setPassword(
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-export async function getSessionUser(
+export interface SessionContext {
+  /** The account the session actually belongs to. */
+  realUser: SessionUser;
+  /** The account requests act as — differs from realUser only under "use as". */
+  effectiveUser: SessionUser;
+  /** When impersonating, the admin's username (for the banner). */
+  impersonatorUsername?: string;
+}
+
+/**
+ * Lazily lift a suspension whose deadline has passed. Returns the possibly
+ * updated user row.
+ */
+async function liftExpiredSuspension(db: Db, user: SessionUser): Promise<SessionUser> {
+  if (
+    user.status === "suspended" &&
+    user.suspendedUntil &&
+    user.suspendedUntil.getTime() <= Date.now()
+  ) {
+    const [updated] = await db
+      .update(users)
+      .set({ status: "active", suspendedUntil: null })
+      .where(eq(users.id, user.id))
+      .returning();
+    return updated ?? user;
+  }
+  return user;
+}
+
+/**
+ * Resolve the session to its real + effective users (honoring admin "use as").
+ * Impersonation is only respected when the session's real user is currently an
+ * admin and the target is a non-admin — a demoted admin's impersonation dies
+ * automatically.
+ */
+export async function getSessionContext(
   sessionId: string,
-): Promise<SessionUser | null> {
+): Promise<SessionContext | null> {
   if (!sessionId) return null;
 
   const db = await getDb();
@@ -417,7 +452,61 @@ export async function getSessionUser(
       .where(eq(sessions.id, sessionId));
   }
 
-  return row.user;
+  const realUser = await liftExpiredSuspension(db, row.user);
+
+  // Honor "use as" only for a live admin impersonating a non-admin.
+  const impersonateId = row.session.impersonatingUserId;
+  if (impersonateId && realUser.isAdmin && impersonateId !== realUser.id) {
+    const [target] = await db.select().from(users).where(eq(users.id, impersonateId));
+    if (target && !target.isAdmin) {
+      return {
+        realUser,
+        effectiveUser: await liftExpiredSuspension(db, target),
+        impersonatorUsername: realUser.username ?? undefined,
+      };
+    }
+    // Stale/invalid impersonation target — clear it.
+    await db.update(sessions).set({ impersonatingUserId: null }).where(eq(sessions.id, sessionId));
+  }
+
+  return { realUser, effectiveUser: realUser };
+}
+
+export async function getSessionUser(
+  sessionId: string,
+): Promise<SessionUser | null> {
+  const ctx = await getSessionContext(sessionId);
+  return ctx?.effectiveUser ?? null;
+}
+
+/** Admin "use as": point the session at another (non-admin) user. */
+export async function startImpersonation(
+  sessionId: string,
+  targetUserId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ session: sessions, user: users })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.id, sessionId));
+  if (!row) return { ok: false, error: "Not signed in" };
+  if (!row.user.isAdmin) return { ok: false, error: "Moderators only" };
+  if (targetUserId === row.user.id) return { ok: false, error: "That's you" };
+  const [target] = await db.select().from(users).where(eq(users.id, targetUserId));
+  if (!target) return { ok: false, error: "User not found" };
+  if (target.isAdmin) return { ok: false, error: "Can't use as another moderator" };
+  await db
+    .update(sessions)
+    .set({ impersonatingUserId: targetUserId })
+    .where(eq(sessions.id, sessionId));
+  console.log(`[audit] admin ${row.user.username} started using-as @${target.username}`);
+  return { ok: true };
+}
+
+export async function stopImpersonation(sessionId: string): Promise<void> {
+  const db = await getDb();
+  await db.update(sessions).set({ impersonatingUserId: null }).where(eq(sessions.id, sessionId));
 }
 
 export async function destroySession(sessionId: string): Promise<void> {
