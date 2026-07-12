@@ -20,6 +20,10 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Moderation** — report listings/users/deals, block traders (mutually hides content and prevents deals), admin dashboard with a report queue, dispute resolution, verification, and featuring.
 - **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres.
 - **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
+- **Public profiles & SEO** — every trader gets a public page at `/u/username` (server-rendered metadata, dynamic branded OG images, sitemap, robots) plus a public `/traders` directory. Profiles carry a playing history (teams / tournaments / leagues — hints at what gear someone holds) and a photo gallery.
+- **Settle up, privately** — traders save payment handles (Venmo / PayPal / Cash App / Zelle / crypto); they are never public and are revealed only to the counterparty of an **accepted** deal.
+- **Deal proof** — both parties can attach proof photos (packed item, receipt, label) alongside tracking numbers; proof surfaces in the deal room and as evidence in disputes.
+- **Roadmap** — middleman/escrow for high-value deals; public listing pages; native app wrappers. Deliberately not built yet: trust features ship first, bloat waits for demand.
 
 **Routes:**
 - `/` — Landing page

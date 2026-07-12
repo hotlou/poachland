@@ -107,6 +107,7 @@ export class RemotePoachStore extends PoachStore {
       blocks: snap.blocks,
       activity: snap.activity,
       identities: snap.identities ?? [],
+      paymentMethods: snap.paymentMethods ?? [],
     };
     this.sessionMe = me;
     this.ready = true;
