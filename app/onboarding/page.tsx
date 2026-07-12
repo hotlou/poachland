@@ -156,9 +156,9 @@ export default function OnboardingPage() {
         </p>
         <button
           onClick={() => router.push("/app")}
-          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-8 py-3.5 rounded-full hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity"
         >
-          Enter Poachland <ArrowRight size={18} />
+          Enter Poachland <ArrowRight size={16} />
         </button>
       </div>
     );
@@ -168,7 +168,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Top bar */}
-      <header className="flex items-center justify-between px-5 py-4">
+      <header className="relative flex items-center px-5 py-4">
         {step > 0 ? (
           <button
             onClick={() => setStep(step - 1)}
@@ -182,8 +182,11 @@ export default function OnboardingPage() {
             Poachland
           </span>
         )}
-        {/* Progress dots */}
-        <div className="flex items-center gap-1.5" aria-label={`Step ${step + 1} of ${TOTAL_STEPS}`}>
+        {/* Progress dots — centered in the bar */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5"
+          aria-label={`Step ${step + 1} of ${TOTAL_STEPS}`}
+        >
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
             <span
               key={i}
@@ -250,9 +253,9 @@ export default function OnboardingPage() {
             <div className="mt-auto">
               <button
                 onClick={() => setStep(1)}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity"
               >
-                Let&apos;s set you up <ArrowRight size={18} />
+                Let&apos;s set you up <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -381,9 +384,9 @@ export default function OnboardingPage() {
               <button
                 onClick={() => setStep(2)}
                 disabled={!identityValid}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Continue <ArrowRight size={18} />
+                Continue <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -415,9 +418,9 @@ export default function OnboardingPage() {
                         onClick={() => toggleTeam(team)}
                         aria-pressed={selected}
                         className={cn(
-                          "px-3.5 py-1.5 rounded-full border text-xs font-semibold transition-colors inline-flex items-center gap-1.5",
+                          "px-3.5 py-1.5 rounded-full border text-[13px] font-medium transition-colors inline-flex items-center gap-1.5",
                           selected
-                            ? "border-accent bg-accent text-accent-foreground"
+                            ? "border-accent bg-accent text-accent-foreground shadow-sm"
                             : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground",
                         )}
                       >
@@ -457,7 +460,7 @@ export default function OnboardingPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
                   Pick an avatar
                 </p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {STOCK_AVATARS.map((src) => {
                     const selected = avatar === src;
                     return (
@@ -517,9 +520,9 @@ export default function OnboardingPage() {
             <div className="mt-auto pt-8">
               <button
                 onClick={() => setStep(3)}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity"
               >
-                Continue <ArrowRight size={18} />
+                Continue <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -581,9 +584,9 @@ export default function OnboardingPage() {
             <div className="mt-auto pt-8">
               <button
                 onClick={handleCreate}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity"
               >
-                Finish setup <Check size={18} strokeWidth={3} />
+                Finish setup <Check size={16} strokeWidth={3} />
               </button>
               <p className="text-center text-xs text-muted-foreground mt-4">
                 Free forever. No fees, no card, no catch.

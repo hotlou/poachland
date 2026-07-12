@@ -45,10 +45,12 @@ const inputCls =
 
 function SettingsSkeleton() {
   return (
-    <div className="px-4 pt-5 space-y-4 animate-pulse">
-      <div className="h-32 bg-surface rounded-xl" />
-      <div className="h-20 bg-surface rounded-xl" />
-      <div className="h-20 bg-surface rounded-xl" />
+    <div className="px-4 pt-5 animate-pulse md:grid md:grid-cols-2 md:gap-6">
+      <div className="space-y-4">
+        <div className="h-32 bg-surface rounded-xl" />
+        <div className="h-20 bg-surface rounded-xl" />
+      </div>
+      <div className="h-40 bg-surface rounded-xl mt-4 md:mt-0" />
     </div>
   );
 }
@@ -207,7 +209,7 @@ function IdentitiesSection() {
         <button
           type="submit"
           disabled={!handle.trim()}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold shadow-sm hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Plus size={14} /> Link identity
         </button>
@@ -325,14 +327,14 @@ function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
         <button
           type="submit"
           disabled={saving || !next || !confirm || (hasPassword && !current)}
-          className="flex-1 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
+          className="flex-1 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold shadow-sm hover:bg-accent/90 transition-colors disabled:opacity-40"
         >
           {saving ? "Saving…" : hasPassword ? "Change password" : "Set password"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="px-4 py-2 rounded-full border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="px-4 py-2.5 rounded-full border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>
@@ -357,40 +359,45 @@ function SettingsContent() {
 
   return (
     <div className="px-4 pt-5 pb-8 space-y-7">
-      {/* Account */}
-      <section>
-        <SectionTitle icon={UserCircle}>Account</SectionTitle>
-        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Mail size={14} className="text-muted-foreground flex-shrink-0" />
-            <span className="text-muted-foreground">Signed in as</span>
-            <span className="font-semibold truncate">{sessionMe?.email}</span>
-          </div>
-          <PasswordSection hasPassword={!!sessionMe?.hasPassword} />
-          <button
-            type="button"
-            onClick={signOut}
-            disabled={signingOut}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-red-700/60 hover:text-red-700 dark:hover:border-red-400/60 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-          >
-            <LogOut size={15} /> {signingOut ? "Signing out…" : "Sign out"}
-          </button>
-        </div>
-      </section>
+      {/* Account + Appearance | Identities — two columns at md+ */}
+      <div className="flex flex-col gap-7 md:grid md:grid-cols-2 md:items-start md:gap-6">
+        <div className="flex flex-col gap-7">
+          {/* Account */}
+          <section>
+            <SectionTitle icon={UserCircle}>Account</SectionTitle>
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Mail size={14} className="text-muted-foreground flex-shrink-0" />
+                <span className="text-muted-foreground">Signed in as</span>
+                <span className="font-semibold truncate">{sessionMe?.email}</span>
+              </div>
+              <PasswordSection hasPassword={!!sessionMe?.hasPassword} />
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={signingOut}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-red-700/60 hover:text-red-700 dark:hover:border-red-400/60 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+              >
+                <LogOut size={15} /> {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            </div>
+          </section>
 
-      {/* Appearance */}
-      <section>
-        <SectionTitle icon={SunMoon}>Appearance</SectionTitle>
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Day mode by default. Night market if you&apos;re into that.
-          </p>
-          <ThemeToggle withLabel className="flex-shrink-0" />
+          {/* Appearance */}
+          <section>
+            <SectionTitle icon={SunMoon}>Appearance</SectionTitle>
+            <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Day mode by default. Night market if you&apos;re into that.
+              </p>
+              <ThemeToggle withLabel className="flex-shrink-0" />
+            </div>
+          </section>
         </div>
-      </section>
 
-      {/* Linked identities */}
-      <IdentitiesSection />
+        {/* Linked identities */}
+        <IdentitiesSection />
+      </div>
 
       {/* Blocked traders */}
       <section>
@@ -421,7 +428,7 @@ function SettingsContent() {
                   <AlertDialogTrigger asChild>
                     <button
                       type="button"
-                      className="flex-shrink-0 px-3 py-1.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+                      className="flex-shrink-0 px-3.5 py-1.5 rounded-full border border-border bg-card text-[13px] font-medium text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
                     >
                       Unblock
                     </button>

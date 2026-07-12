@@ -156,7 +156,7 @@ function StatsSection({ stats }: { stats: AdminData["stats"] }) {
   return (
     <section>
       <SectionHeading icon={LayoutGrid} title="The state of the land" />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {tiles.map((t) => (
           <div
             key={t.label}
@@ -359,6 +359,12 @@ function IdentityQueueSection({
 /* ── 3. Reports queue ────────────────────────────────────────────────────── */
 
 type ResolveAction = "remove-listing" | "warn-user" | "dismiss";
+
+/** Quiet chip-style tab trigger — overrides the boxed shadcn segmented look. */
+const chipTabCls =
+  "flex-none h-auto rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors " +
+  "data-[state=active]:border-accent data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-sm " +
+  "dark:data-[state=active]:border-accent dark:data-[state=active]:bg-accent dark:data-[state=active]:text-accent-foreground";
 
 const RESOLVE_COPY: Record<
   ResolveAction,
@@ -599,11 +605,11 @@ function ReportsSection({
     <section>
       <SectionHeading icon={Flag} title="Reports queue" count={pending.length} />
       <Tabs defaultValue="pending">
-        <TabsList className="mb-2">
-          <TabsTrigger value="pending">
+        <TabsList className="mb-2 h-auto w-auto justify-start gap-2 rounded-none bg-transparent p-0 flex-wrap">
+          <TabsTrigger value="pending" className={chipTabCls}>
             Pending{pending.length > 0 ? ` (${pending.length})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="handled">
+          <TabsTrigger value="handled" className={chipTabCls}>
             Handled{handled.length > 0 ? ` (${handled.length})` : ""}
           </TabsTrigger>
         </TabsList>
@@ -1062,18 +1068,25 @@ function ListingsSection({
 function AdminSkeleton() {
   return (
     <div className="space-y-10 animate-pulse">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="h-16 bg-card border border-border rounded-xl" />
         ))}
       </div>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="space-y-2">
-          <div className="h-5 w-40 bg-card rounded" />
-          <div className="h-24 bg-card border border-border rounded-xl" />
-          <div className="h-24 bg-card border border-border rounded-xl" />
-        </div>
-      ))}
+      <div className="grid gap-10 md:grid-cols-2 md:gap-6">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="space-y-2">
+            <div className="h-5 w-40 bg-card rounded" />
+            <div className="h-24 bg-card border border-border rounded-xl" />
+            <div className="h-24 bg-card border border-border rounded-xl" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2">
+        <div className="h-5 w-40 bg-card rounded" />
+        <div className="h-24 bg-card border border-border rounded-xl" />
+        <div className="h-24 bg-card border border-border rounded-xl" />
+      </div>
     </div>
   );
 }
@@ -1123,7 +1136,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-sm border-b border-border">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/app"
@@ -1144,27 +1157,30 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6 pb-16 space-y-10">
+      <main className="max-w-5xl mx-auto px-4 py-6 pb-16 space-y-10">
         {!ready || denied || !data ? (
           <AdminSkeleton />
         ) : (
           <>
             <StatsSection stats={data.stats} />
-            <IdentityQueueSection
-              queue={data.identityQueue}
-              findUser={findUser}
-              onReview={(identity, status, note) =>
-                run("adminReviewIdentity", { identityId: identity.id, status, note })
-              }
-            />
-            <ReportsSection
-              reports={data.reports}
-              findUser={findUser}
-              findDisputedDeal={findDisputedDeal}
-              onResolve={(report, action, note) =>
-                run("adminResolveReport", { reportId: report.id, action, note })
-              }
-            />
+            {/* Review queues, side by side on desktop */}
+            <div className="grid gap-10 md:grid-cols-2 md:gap-6 items-start">
+              <IdentityQueueSection
+                queue={data.identityQueue}
+                findUser={findUser}
+                onReview={(identity, status, note) =>
+                  run("adminReviewIdentity", { identityId: identity.id, status, note })
+                }
+              />
+              <ReportsSection
+                reports={data.reports}
+                findUser={findUser}
+                findDisputedDeal={findDisputedDeal}
+                onResolve={(report, action, note) =>
+                  run("adminResolveReport", { reportId: report.id, action, note })
+                }
+              />
+            </div>
             <DisputesSection
               disputes={data.disputedDeals}
               findUser={findUser}
@@ -1172,16 +1188,19 @@ export default function AdminPage() {
                 run("adminResolveDispute", { dealId: deal.id, outcome, note })
               }
             />
-            <UsersSection
-              users={data.users}
-              onSetVerified={(userId, verified) =>
-                run("adminSetUserVerified", { userId, verified })
-              }
-            />
-            <ListingsSection
-              onSetFeatured={(id, featured) => run("adminSetListingFeatured", { id, featured })}
-              onRemove={(id, reason) => run("adminRemoveListing", { id, reason })}
-            />
+            {/* Rosters, side by side on desktop */}
+            <div className="grid gap-10 md:grid-cols-2 md:gap-6 items-start">
+              <UsersSection
+                users={data.users}
+                onSetVerified={(userId, verified) =>
+                  run("adminSetUserVerified", { userId, verified })
+                }
+              />
+              <ListingsSection
+                onSetFeatured={(id, featured) => run("adminSetListingFeatured", { id, featured })}
+                onRemove={(id, reason) => run("adminRemoveListing", { id, reason })}
+              />
+            </div>
           </>
         )}
       </main>

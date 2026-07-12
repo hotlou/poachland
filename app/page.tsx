@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 // ── Shared button styles ─────────────────────────────────────────────────────
 
 const pillPrimary =
-  "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold rounded-full hover:opacity-90 transition-opacity";
+  "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
 const pillSecondary =
-  "inline-flex items-center justify-center gap-2 bg-card text-foreground border border-border font-semibold rounded-full hover:border-accent/50 hover:text-accent transition-colors";
+  "inline-flex items-center justify-center gap-2 bg-card text-foreground border border-border text-sm font-semibold rounded-full shadow-sm hover:border-accent/50 hover:text-accent transition-colors";
 
 /** Top-bar nav: text link + join pill when signed out, enter pill when signed in. */
 function HeaderNav() {
@@ -29,7 +29,7 @@ function HeaderNav() {
   const signedIn = ready && !!store.sessionMe;
   if (signedIn) {
     return (
-      <Link href="/app" className={cn(pillPrimary, "text-sm px-5 py-2")}>
+      <Link href="/app" className={cn(pillPrimary, "px-5 py-2")}>
         Enter Poachland
       </Link>
     );
@@ -42,7 +42,7 @@ function HeaderNav() {
       >
         Log in
       </Link>
-      <Link href="/login" className={cn(pillPrimary, "text-sm px-5 py-2")}>
+      <Link href="/login" className={cn(pillPrimary, "px-5 py-2")}>
         Join free
       </Link>
     </div>
@@ -56,7 +56,7 @@ function PrimaryCta({ className }: { className: string }) {
   const signedIn = ready && !!store.sessionMe;
   return (
     <Link href={signedIn ? "/app" : "/login"} className={className}>
-      Start poaching <ArrowRight size={18} />
+      Start poaching <ArrowRight size={16} />
     </Link>
   );
 }
@@ -73,7 +73,7 @@ function StatsStrip() {
     { label: "Fees", value: "$0" },
   ];
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-6">
       {items.map(({ label, value }) => (
         <div key={label} className="flex flex-col items-center text-center">
           <span className="font-display font-black text-3xl tracking-tight leading-none">
@@ -90,7 +90,7 @@ function StatsStrip() {
 
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-6">
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="flex flex-col items-center gap-2.5">
           <div className="h-7 w-10 rounded bg-secondary animate-pulse" />
@@ -112,12 +112,12 @@ function CrateStrip() {
     );
   }
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5">
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-5 px-5 lg:grid lg:grid-cols-4 lg:overflow-visible lg:mx-0 lg:px-0 lg:pb-0">
       {listings.map((listing) => (
         <Link
           key={listing.id}
           href={`/app/listings/${listing.id}`}
-          className="flex-shrink-0 w-36 rounded-xl overflow-hidden border border-border bg-card card-lift"
+          className="flex-shrink-0 w-36 lg:w-auto rounded-xl overflow-hidden border border-border bg-card card-lift"
         >
           <div className="relative aspect-square bg-surface">
             {/* plain img: listing photos may be user-uploaded data URLs */}
@@ -156,11 +156,11 @@ function CrateStrip() {
 
 function CrateSkeleton() {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5">
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-5 px-5 lg:grid lg:grid-cols-4 lg:overflow-visible lg:mx-0 lg:px-0 lg:pb-0">
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="flex-shrink-0 w-36 rounded-xl overflow-hidden border border-border bg-card"
+          className="flex-shrink-0 w-36 lg:w-auto rounded-xl overflow-hidden border border-border bg-card"
         >
           <div className="aspect-square bg-secondary animate-pulse" />
           <div className="p-2.5 space-y-1.5">
@@ -184,7 +184,7 @@ function WantedPreview() {
     );
   }
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid gap-3 md:grid-cols-3">
       {posts.map((post) => (
         <Link
           key={post.id}
@@ -218,7 +218,7 @@ function WantedPreview() {
 
 function WantedSkeleton() {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid gap-3 md:grid-cols-3">
       {[0, 1, 2].map((i) => (
         <div
           key={i}
@@ -250,7 +250,7 @@ function TraderCountLine() {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
         {/* Header */}
         <header className="flex items-center justify-between px-5 py-4">
           <span className="font-display font-black text-xl tracking-tight text-accent">
@@ -260,8 +260,8 @@ export default function LandingPage() {
         </header>
 
         {/* Hero */}
-        <section className="px-5 pt-12 pb-10">
-          <div className="max-w-sm mx-auto text-center">
+        <section className="px-5 pt-12 pb-10 md:pt-16">
+          <div className="max-w-2xl mx-auto text-center">
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="badge-stamp text-accent border-accent">
                 Ultimate frisbee only
@@ -270,22 +270,22 @@ export default function LandingPage() {
                 Free to list
               </span>
             </div>
-            <h1 className="font-display font-black text-5xl leading-[1.05] tracking-tight mb-5">
+            <h1 className="font-display font-black text-5xl md:text-6xl leading-[1.05] tracking-tight mb-5">
               Trade jerseys.
               <br />
               <span className="text-accent">Collect discs.</span>
               <br />
               Trust each other.
             </h1>
-            <p className="text-muted-foreground text-base leading-relaxed mb-8 text-pretty">
+            <p className="text-muted-foreground text-base leading-relaxed mb-8 text-pretty max-w-md mx-auto">
               A marketplace built by players, for players. List your gear, find
               rare stuff, propose trades. No fees, no middleman.
             </p>
-            <div className="flex flex-col gap-3">
-              <PrimaryCta className={cn(pillPrimary, "text-base px-8 py-3.5")} />
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
               <Link
                 href="/app/browse"
-                className={cn(pillSecondary, "text-base px-8 py-3.5")}
+                className={cn(pillSecondary, "px-6 py-3")}
               >
                 Browse the crate
               </Link>
@@ -338,7 +338,7 @@ export default function LandingPage() {
           <h2 className="font-display font-bold text-2xl tracking-tight mb-6">
             Built for the community
           </h2>
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-3">
             {[
               {
                 icon: ArrowLeftRight,
@@ -373,7 +373,7 @@ export default function LandingPage() {
             ].map(({ icon: Icon, title, desc }) => (
               <div
                 key={title}
-                className="bg-card border border-border rounded-xl p-4 flex gap-4 items-start"
+                className="bg-card border border-border rounded-xl p-4 md:p-5 flex gap-4 items-start md:flex-col md:gap-3.5"
               >
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent-dim flex items-center justify-center">
                   <Icon size={19} className="text-accent" />
@@ -414,7 +414,7 @@ export default function LandingPage() {
 
         {/* CTA footer */}
         <section className="px-5 pt-9 pb-12 border-t border-border">
-          <div className="bg-card border border-border rounded-xl p-7 text-center">
+          <div className="bg-card border border-border rounded-xl p-7 md:p-10 text-center">
             <h2 className="font-display font-black text-3xl tracking-tight mb-2 text-balance">
               What are you hunting?
             </h2>
@@ -428,7 +428,7 @@ export default function LandingPage() {
               <TraderCountLine />
             </Hydrated>
             <div className="flex flex-col items-center gap-3">
-              <PrimaryCta className={cn(pillPrimary, "text-sm px-7 py-3")} />
+              <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
               <Link
                 href="/app"
                 className="text-xs text-muted-foreground hover:text-accent underline underline-offset-4 transition-colors"
