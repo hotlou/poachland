@@ -78,7 +78,7 @@ function EditForm({ me }: { me: User }) {
   };
 
   const inputClass =
-    "w-full bg-surface border border-border rounded-md px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors";
+    "w-full bg-input border border-border rounded-md px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent transition-colors";
   const labelClass =
     "block text-xs font-display font-bold uppercase tracking-wider text-muted-foreground mb-1.5";
 
@@ -216,7 +216,7 @@ function EditForm({ me }: { me: User }) {
             {teams.map((team) => (
               <span
                 key={team}
-                className="inline-flex items-center gap-1 text-xs bg-surface border border-border px-2 py-1 rounded-sm text-foreground"
+                className="inline-flex items-center gap-1 text-xs bg-card border border-border px-2.5 py-1 rounded-full text-foreground"
               >
                 {team}
                 <button
@@ -249,7 +249,7 @@ function EditForm({ me }: { me: User }) {
             type="button"
             onClick={addTeam}
             aria-label="Add team"
-            className="w-11 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-accent hover:border-accent transition-colors"
+            className="w-11 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-accent hover:border-accent transition-colors"
           >
             <Plus size={16} />
           </button>
@@ -261,13 +261,13 @@ function EditForm({ me }: { me: User }) {
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 py-2.5 rounded-md bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-60"
+          className="flex-1 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-60"
         >
           Save changes
         </button>
         <Link
           href="/app/profile"
-          className="px-4 py-2.5 rounded-md border border-border text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          className="px-4 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </Link>
@@ -293,8 +293,8 @@ export default function EditProfilePage() {
             className="text-muted-foreground hover:text-foreground transition-colors"
           />
         </Link>
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight">
-          Edit Profile
+        <h1 className="font-display font-bold text-xl tracking-tight">
+          Edit profile
         </h1>
       </header>
       <Hydrated fallback={<EditSkeleton />}>

@@ -31,7 +31,7 @@ import type { ISOStatus } from "@/lib/types";
 
 const ISO_STATUS_STYLES: Record<ISOStatus, string> = {
   active: "text-accent border-accent",
-  found: "text-emerald-400 border-emerald-400",
+  found: "text-emerald-700 border-emerald-600 dark:text-emerald-400 dark:border-emerald-400",
   closed: "text-muted-foreground border-border",
 };
 
@@ -53,8 +53,8 @@ function ProfileSkeleton() {
           <div className="h-3 w-24 bg-surface rounded" />
         </div>
       </div>
-      <div className="h-24 bg-surface rounded-lg" />
-      <div className="h-16 bg-surface rounded-lg" />
+      <div className="h-24 bg-surface rounded-xl" />
+      <div className="h-16 bg-surface rounded-xl" />
     </div>
   );
 }
@@ -81,7 +81,7 @@ function WantedTab({ userId }: { userId: string }) {
     return (
       <div className="text-center py-12">
         <Search size={24} className="mx-auto text-muted-foreground mb-3" />
-        <p className="font-display font-bold uppercase text-muted-foreground mb-1">
+        <p className="font-display font-bold text-muted-foreground mb-1">
           Not hunting anything
         </p>
         <p className="text-sm text-muted-foreground mb-3">
@@ -97,7 +97,7 @@ function WantedTab({ userId }: { userId: string }) {
   return (
     <div className="flex flex-col gap-3">
       {posts.map((post) => (
-        <div key={post.id} className="bg-card border border-border rounded-lg p-4">
+        <div key={post.id} className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="badge-stamp text-muted-foreground border-border">
@@ -131,14 +131,14 @@ function WantedTab({ userId }: { userId: string }) {
                 <button
                   type="button"
                   onClick={() => setStatus(post.id, "found", "Nice poach. Marked found.")}
-                  className="flex-1 py-1.5 rounded-md bg-accent text-accent-foreground text-xs font-semibold"
+                  className="flex-1 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-semibold"
                 >
                   Mark found
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatus(post.id, "closed", "Hunt closed.")}
-                  className="flex-1 py-1.5 rounded-md border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex-1 py-1.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Close
                 </button>
@@ -147,7 +147,7 @@ function WantedTab({ userId }: { userId: string }) {
               <button
                 type="button"
                 onClick={() => setStatus(post.id, "active", "Back on the hunt.")}
-                className="flex-1 py-1.5 rounded-md border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                className="flex-1 py-1.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
                 Reopen hunt
               </button>
@@ -169,7 +169,7 @@ function HistoryTab({ userId }: { userId: string }) {
     return (
       <div className="text-center py-12">
         <History size={24} className="mx-auto text-muted-foreground mb-3" />
-        <p className="font-display font-bold uppercase text-muted-foreground mb-1">
+        <p className="font-display font-bold text-muted-foreground mb-1">
           No completed deals yet
         </p>
         <p className="text-sm text-muted-foreground mb-3">
@@ -190,7 +190,7 @@ function HistoryTab({ userId }: { userId: string }) {
           <Link
             key={deal.id}
             href={`/app/trades/${deal.id}`}
-            className="bg-card border border-border rounded-lg p-3 flex items-center gap-3 card-lift"
+            className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 card-lift"
           >
             <div className="w-10 h-10 rounded-full overflow-hidden border border-border flex-shrink-0">
               <img
@@ -256,7 +256,7 @@ function ProfileContent() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <h2 className="font-display font-bold text-xl uppercase tracking-tight truncate">
+              <h2 className="font-display font-bold text-xl tracking-tight truncate">
                 {me.displayName}
               </h2>
               {me.isVerified && (
@@ -288,21 +288,21 @@ function ProfileContent() {
         <div className="flex gap-2 mt-4">
           <Link
             href="/app/profile/edit"
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md bg-accent text-accent-foreground text-sm font-semibold"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
           >
-            <Pencil size={14} /> Edit Profile
+            <Pencil size={14} /> Edit profile
           </Link>
           <Link
             href="/app/settings"
             aria-label="Settings"
-            className="w-10 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+            className="w-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground transition-colors"
           >
             <Settings size={17} />
           </Link>
         </div>
 
         {/* Trust card */}
-        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-lg p-4">
+        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
@@ -338,14 +338,14 @@ function ProfileContent() {
         <IdentityChips userId={me.id} ownProfile />
 
         {/* Stats row */}
-        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-lg">
+        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl">
           {[
             { label: "Active Listings", value: stats.activeListings },
             { label: "Trades Done", value: stats.completedDeals },
             { label: "Saves Received", value: stats.savesReceived },
           ].map(({ label, value }) => (
             <div key={label} className="py-3 px-1 text-center">
-              <p className="font-display font-bold text-xl">{value}</p>
+              <p className="font-display font-bold text-2xl">{value}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                 {label}
               </p>
@@ -359,7 +359,7 @@ function ProfileContent() {
             {me.favoriteTeams.map((team) => (
               <span
                 key={team}
-                className="text-xs bg-surface border border-border px-2 py-0.5 rounded-sm text-foreground"
+                className="text-xs bg-card border border-border px-2.5 py-0.5 rounded-full text-foreground"
               >
                 {team}
               </span>
@@ -400,7 +400,7 @@ function ProfileContent() {
           (myListings.length === 0 ? (
             <div className="text-center py-12">
               <Package size={24} className="mx-auto text-muted-foreground mb-3" />
-              <p className="font-display font-bold uppercase text-muted-foreground mb-1">
+              <p className="font-display font-bold text-muted-foreground mb-1">
                 Nothing listed yet
               </p>
               <p className="text-sm text-muted-foreground mb-3">
@@ -426,13 +426,13 @@ function ProfileContent() {
         <button
           type="button"
           onClick={shareProfile}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-md border border-border text-sm font-semibold text-foreground hover:border-accent transition-colors"
+          className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-foreground hover:border-accent transition-colors"
         >
           <Link2 size={15} /> Share profile
         </button>
         <Link
           href="/app/saved"
-          className="flex items-center justify-center gap-2 py-2.5 rounded-md border border-border text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <Bookmark size={15} /> Saved items <ArrowRight size={13} />
         </Link>
@@ -445,8 +445,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight">
-          My Profile
+        <h1 className="font-display font-bold text-xl tracking-tight">
+          Your profile
         </h1>
         <Link href="/app/settings" aria-label="Settings">
           <Settings

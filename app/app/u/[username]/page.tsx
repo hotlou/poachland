@@ -56,8 +56,8 @@ function PageSkeleton() {
           <div className="h-3 w-24 bg-surface rounded" />
         </div>
       </div>
-      <div className="h-24 bg-surface rounded-lg" />
-      <div className="h-16 bg-surface rounded-lg" />
+      <div className="h-24 bg-surface rounded-xl" />
+      <div className="h-16 bg-surface rounded-xl" />
     </div>
   );
 }
@@ -92,14 +92,14 @@ function ReportUserDialog({ user }: { user: User }) {
         <button
           type="button"
           aria-label="Report user"
-          className="w-10 h-10 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
+          className="w-10 h-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground transition-colors"
         >
           <Flag size={16} />
         </button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="font-display font-bold uppercase tracking-tight">
+          <DialogTitle className="font-display font-bold tracking-tight">
             Report @{user.username}
           </DialogTitle>
           <DialogDescription>
@@ -127,13 +127,13 @@ function ReportUserDialog({ user }: { user: User }) {
           value={details}
           onChange={(e) => setDetails(e.target.value.slice(0, 500))}
           placeholder="Anything else the mods should know? (optional)"
-          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm min-h-16 resize-y placeholder:text-muted-foreground focus:outline-none focus:border-accent"
+          className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm min-h-16 resize-y placeholder:text-muted-foreground focus:outline-none focus:border-accent"
         />
         <button
           type="button"
           onClick={submit}
           disabled={!reason}
-          className="w-full py-2.5 rounded-md bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-50"
+          className="w-full py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-50"
         >
           File report
         </button>
@@ -151,7 +151,7 @@ function BlockedView({ user, iBlockedThem }: { user: User; iBlockedThem: boolean
       <div className="w-20 h-20 rounded-full overflow-hidden mx-auto mb-4 grayscale opacity-40 border border-border">
         <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
       </div>
-      <h2 className="font-display font-bold text-xl uppercase tracking-tight mb-1">
+      <h2 className="font-display font-bold text-xl tracking-tight mb-1">
         @{user.username}
       </h2>
       {iBlockedThem ? (
@@ -164,7 +164,7 @@ function BlockedView({ user, iBlockedThem }: { user: User; iBlockedThem: boolean
             <AlertDialogTrigger asChild>
               <button
                 type="button"
-                className="mt-5 px-5 py-2 rounded-md border border-border text-sm font-semibold text-foreground hover:border-accent transition-colors"
+                className="mt-5 px-5 py-2 rounded-full border border-border bg-card text-sm font-semibold text-foreground hover:border-accent transition-colors"
               >
                 Unblock @{user.username}
               </button>
@@ -228,7 +228,7 @@ function PublicProfile({ user }: { user: User }) {
   return (
     <>
       {isSelf && (
-        <div className="mx-4 mt-4 bg-accent/10 border border-accent/40 rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
+        <div className="mx-4 mt-4 bg-accent/10 border border-accent/40 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
           <p className="text-xs text-foreground">
             This is your public profile — how other traders see you.
           </p>
@@ -253,7 +253,7 @@ function PublicProfile({ user }: { user: User }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <h2 className="font-display font-bold text-xl uppercase tracking-tight truncate">
+              <h2 className="font-display font-bold text-xl tracking-tight truncate">
                 {user.displayName}
               </h2>
               {user.isVerified && (
@@ -287,7 +287,7 @@ function PublicProfile({ user }: { user: User }) {
             <button
               type="button"
               onClick={message}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md bg-accent text-accent-foreground text-sm font-semibold"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
             >
               <MessageCircle size={15} /> Message
             </button>
@@ -297,7 +297,7 @@ function PublicProfile({ user }: { user: User }) {
                 <button
                   type="button"
                   aria-label="Block user"
-                  className="w-10 h-10 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400 transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-red-700 hover:border-red-700 dark:hover:text-red-400 dark:hover:border-red-400 transition-colors"
                 >
                   <Ban size={16} />
                 </button>
@@ -332,7 +332,7 @@ function PublicProfile({ user }: { user: User }) {
         )}
 
         {/* Trust card */}
-        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-lg p-4">
+        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
@@ -366,14 +366,14 @@ function PublicProfile({ user }: { user: User }) {
         <IdentityChips userId={user.id} ownProfile={isSelf} />
 
         {/* Stats row */}
-        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-lg">
+        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl">
           {[
             { label: "Active Listings", value: stats.activeListings },
             { label: "Trades Done", value: stats.completedDeals },
             { label: "Saves Received", value: stats.savesReceived },
           ].map(({ label, value }) => (
             <div key={label} className="py-3 px-1 text-center">
-              <p className="font-display font-bold text-xl">{value}</p>
+              <p className="font-display font-bold text-2xl">{value}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
                 {label}
               </p>
@@ -387,7 +387,7 @@ function PublicProfile({ user }: { user: User }) {
             {user.favoriteTeams.map((team) => (
               <span
                 key={team}
-                className="text-xs bg-surface border border-border px-2 py-0.5 rounded-sm text-foreground"
+                className="text-xs bg-card border border-border px-2.5 py-0.5 rounded-full text-foreground"
               >
                 {team}
               </span>
@@ -400,7 +400,7 @@ function PublicProfile({ user }: { user: User }) {
       <section className="px-4 pt-5">
         <div className="flex items-center gap-1.5 mb-3">
           <Package size={15} className="text-accent" />
-          <h3 className="font-display font-bold text-base uppercase tracking-tight">
+          <h3 className="font-display font-bold text-base tracking-tight">
             On the block
           </h3>
           <span className="badge-stamp text-muted-foreground border-border ml-1">
@@ -425,13 +425,13 @@ function PublicProfile({ user }: { user: User }) {
         <section className="px-4 pt-6">
           <div className="flex items-center gap-1.5 mb-3">
             <Search size={15} className="text-accent" />
-            <h3 className="font-display font-bold text-base uppercase tracking-tight">
+            <h3 className="font-display font-bold text-base tracking-tight">
               Hunting for
             </h3>
           </div>
           <div className="flex flex-col gap-2">
             {isoPosts.map((post) => (
-              <div key={post.id} className="bg-card border border-border rounded-lg p-3">
+              <div key={post.id} className="bg-card border border-border rounded-xl p-3">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className="badge-stamp text-accent border-accent">
                     ISO {post.itemType}
@@ -458,7 +458,7 @@ function PublicProfile({ user }: { user: User }) {
       <section className="px-4 pt-6 pb-8">
         <div className="flex items-center gap-1.5 mb-3">
           <Star size={15} className="text-accent" />
-          <h3 className="font-display font-bold text-base uppercase tracking-tight">
+          <h3 className="font-display font-bold text-base tracking-tight">
             Recent ratings
           </h3>
         </div>
@@ -471,7 +471,7 @@ function PublicProfile({ user }: { user: User }) {
             {ratings.map((r) => {
               const overall = (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
               return (
-                <div key={r.id} className="bg-card border border-border rounded-lg p-3">
+                <div key={r.id} className="bg-card border border-border rounded-xl p-3">
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <Link
                       href={`/app/u/${r.fromUser.username}`}
@@ -498,7 +498,7 @@ function PublicProfile({ user }: { user: User }) {
                           size={11}
                           className={cn(
                             s <= Math.round(overall)
-                              ? "fill-yellow-400 text-yellow-400"
+                              ? "fill-amber-500 text-amber-500 dark:fill-yellow-400 dark:text-yellow-400"
                               : "fill-transparent text-muted-foreground",
                           )}
                           strokeWidth={1.5}
@@ -539,7 +539,7 @@ function PublicProfileContent() {
     return (
       <div className="px-4 py-20 text-center">
         <UserX size={28} className="mx-auto text-muted-foreground mb-3" />
-        <h2 className="font-display font-bold text-xl uppercase tracking-tight mb-1">
+        <h2 className="font-display font-bold text-xl tracking-tight mb-1">
           No such trader
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
@@ -572,8 +572,8 @@ export default function PublicProfilePage() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight">
-          Trader Profile
+        <h1 className="font-display font-bold text-xl tracking-tight">
+          Trader profile
         </h1>
       </header>
       <Hydrated fallback={<PageSkeleton />}>

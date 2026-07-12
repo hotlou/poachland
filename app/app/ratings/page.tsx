@@ -29,7 +29,7 @@ function StarRow({ value, size = 12 }: { value: number; size?: number }) {
           size={size}
           className={
             s <= Math.round(value)
-              ? "fill-yellow-400 text-yellow-400"
+              ? "fill-amber-500 text-amber-500 dark:fill-yellow-400 dark:text-yellow-400"
               : "fill-transparent text-muted-foreground"
           }
           strokeWidth={1.5}
@@ -56,7 +56,7 @@ function DimensionBar({
     <div className="flex items-center gap-3">
       <Icon size={14} className="text-muted-foreground flex-shrink-0" />
       <span className="text-xs text-muted-foreground w-28 flex-shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full bg-accent rounded-full transition-all"
           style={{ width: `${Math.min(100, (value / max) * 100)}%` }}
@@ -77,7 +77,7 @@ function RatingRow({ rating, tab }: { rating: HydratedRating; tab: Tab }) {
   const listingTitle = rating.deal?.listing?.title;
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4">
+    <div className="bg-card border border-border rounded-xl p-4">
       <div className="flex items-center justify-between gap-2 mb-2">
         <Link
           href={`/app/u/${person.username}`}
@@ -138,14 +138,14 @@ function RatingRow({ rating, tab }: { rating: HydratedRating; tab: Tab }) {
 function PageSkeleton() {
   return (
     <div className="px-4 mt-4 space-y-3">
-      <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="h-10 w-2/3 bg-surface rounded-sm animate-pulse" />
         <div className="h-2 w-full bg-surface rounded-sm animate-pulse" />
         <div className="h-2 w-full bg-surface rounded-sm animate-pulse" />
         <div className="h-2 w-full bg-surface rounded-sm animate-pulse" />
       </div>
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="bg-card border border-border rounded-lg p-4 space-y-2">
+        <div key={i} className="bg-card border border-border rounded-xl p-4 space-y-2">
           <div className="h-3 w-1/3 bg-surface rounded-sm animate-pulse" />
           <div className="h-2.5 w-4/5 bg-surface rounded-sm animate-pulse" />
         </div>
@@ -169,7 +169,7 @@ function RatingsContent() {
     <>
       {/* Trust overview */}
       <div className="px-4 mt-4">
-        <div className="bg-card border border-border rounded-lg p-4">
+        <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-accent flex-shrink-0">
               {/* plain img: avatars may be data URLs */}
@@ -232,7 +232,7 @@ function RatingsContent() {
       {/* Pending ratings */}
       {pending.length > 0 && (
         <div className="px-4 mt-5">
-          <h2 className="font-display font-bold text-sm uppercase tracking-wider mb-2">
+          <h2 className="text-[11px] font-display font-bold uppercase tracking-widest text-muted-foreground mb-2">
             Rate your recent deals
           </h2>
           <div className="space-y-2">
@@ -242,7 +242,7 @@ function RatingsContent() {
                 <Link
                   key={deal.id}
                   href={`/app/trades/${deal.id}`}
-                  className="flex items-center gap-3 bg-card border border-accent/60 rounded-lg p-3 card-lift"
+                  className="flex items-center gap-3 bg-card border border-accent/60 rounded-xl p-3 card-lift"
                 >
                   <span className="w-9 h-9 rounded-full overflow-hidden border border-border flex-shrink-0">
                     {/* plain img: avatars may be data URLs */}
@@ -285,10 +285,10 @@ function RatingsContent() {
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "px-3 py-1.5 rounded-sm text-xs font-display font-bold uppercase tracking-wide border transition-colors",
+              "px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors",
               tab === key
                 ? "bg-accent text-accent-foreground border-accent"
-                : "bg-transparent text-muted-foreground border-border hover:text-foreground",
+                : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
             {label} <span className="tabular-nums">({count})</span>
@@ -300,7 +300,7 @@ function RatingsContent() {
         {rows.length === 0 ? (
           <div className="text-center py-14 px-6">
             <Star size={28} className="mx-auto mb-3 text-muted-foreground" />
-            <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+            <p className="font-display font-bold text-xl text-muted-foreground mb-1">
               {tab === "received" ? "No ratings yet." : "Nothing given yet."}
             </p>
             <p className="text-sm text-muted-foreground mb-5">
@@ -310,7 +310,7 @@ function RatingsContent() {
             </p>
             <Link
               href="/app/trades"
-              className="inline-block bg-accent text-accent-foreground px-4 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+              className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-sm font-semibold"
             >
               Check your trades
             </Link>
@@ -332,8 +332,8 @@ export default function RatingsPage() {
           <Link href="/app/profile" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft size={20} />
           </Link>
-          <h1 className="font-display font-bold text-xl uppercase tracking-tight">
-            Reputation
+          <h1 className="font-display font-bold text-xl tracking-tight">
+            Your reputation
           </h1>
         </div>
       </header>
