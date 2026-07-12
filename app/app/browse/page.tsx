@@ -342,9 +342,14 @@ function BrowseContent() {
           {/* Traders matching the query */}
           {traders.length > 0 && (
             <div className="mb-4">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
-                Traders
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
+                  Traders
+                </p>
+                <Link href="/traders" className="text-xs text-accent font-semibold">
+                  See all traders →
+                </Link>
+              </div>
               <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 pb-1">
                 {traders.map((u) => (
                   <Link

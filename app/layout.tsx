@@ -12,6 +12,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com"),
   title: "Poachland — The Ultimate Frisbee Marketplace",
   description:
     "Buy, sell, and trade ultimate frisbee jerseys and discs. Community-built, trust-first.",
@@ -22,6 +23,9 @@ export const metadata: Metadata = {
     title: "Poachland",
     description: "The ultimate frisbee collector marketplace.",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 
