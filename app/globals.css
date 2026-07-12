@@ -186,20 +186,29 @@
   }
 }
 
-/* Stamp badge — bordered, slightly rotated feel, like a hand-stamped tag */
+/* Stamp badge — bordered, like a hand-stamped tag. Quiet, not shouty. */
 .badge-stamp {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   font-family: var(--font-display), var(--font-sans);
-  font-weight: 700;
-  font-size: 0.65rem;
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  border-width: 1.5px;
+  border-width: 1px;
   border-style: solid;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 6px;
+}
+
+/* Hide scrollbars on intentional horizontal rails (crate strips, photo rows) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Soft filled pill — the "rare find" / "$0 fees" look */
