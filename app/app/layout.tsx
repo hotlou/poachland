@@ -2,7 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AccountGate } from "@/components/account-gate";
 import { BottomNav } from "@/components/bottom-nav";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { TopNav } from "@/components/top-nav";
 import { useHydrated, useStore } from "@/lib/store-context";
 
@@ -31,13 +33,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNav />
-      <main className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl">
-        {children}
-      </main>
-      <div className="md:hidden">
-        <BottomNav />
-      </div>
+      <ImpersonationBanner />
+      <AccountGate>
+        <TopNav />
+        <main className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl">
+          {children}
+        </main>
+        <div className="md:hidden">
+          <BottomNav />
+        </div>
+      </AccountGate>
     </div>
   );
 }
