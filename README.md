@@ -18,7 +18,8 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Notifications** — every marketplace event lands in the feed with a deep link.
 - **Saves** — watchlist for listings and ISO posts.
 - **Moderation** — report listings/users/deals, block traders (mutually hides content and prevents deals), admin dashboard with a report queue, dispute resolution, verification, and featuring.
-- **Accounts** — onboarding creates a real account; a demo user-switcher (Settings) lets you play both sides of a negotiation.
+- **Accounts** — magic-link email sign-in (no passwords); first sign-in claims your username through onboarding. Sessions are httpOnly cookies backed by Postgres.
+- **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
 
 **Routes:**
 - `/` — Landing page
@@ -37,7 +38,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/app/ratings` — reputation dashboard
 - `/app/profile`, `/app/profile/edit`, `/app/u/[username]` — profiles
 - `/app/saved` — saved items
-- `/app/settings` — demo user switcher, blocks, reset data
+- `/app/settings` — account, linked identities, blocked traders
 - `/admin` — moderation dashboard
 
 ## Tech stack
@@ -46,29 +47,35 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **UI:** React 19, TypeScript, Tailwind CSS v4, shadcn/ui
 - **Fonts:** Barlow Condensed (display), Inter (body) via `next/font/google`
 - **Icons:** lucide-react
-- **State:** a client-side domain engine (see below) persisted to `localStorage`
-- **Deployment:** Vercel-ready, zero config, no env vars
+- **Data:** Postgres (Neon in production, embedded PGlite for local dev) via Drizzle ORM
+- **Auth:** custom magic-link flow (Resend for email delivery), Postgres-backed sessions
+- **State:** server-authoritative world snapshots with an optimistic client store
+- **Deployment:** Vercel
 
 ## Architecture
 
-All marketplace logic lives in a single domain engine, cleanly separated from the view layer:
+Server-authoritative, optimistic client:
 
 ```
 lib/
-  types.ts           # Domain model. *Record types are persisted; hydrated views for rendering.
-  engine.ts          # PoachStore — THE api. Deal state machine, reputation, matching,
-                     # notifications, moderation. Every mutation returns Res<T> (ok | error).
-  seed.ts            # Internally-consistent demo world (deals in every lifecycle state).
-  store-context.tsx  # React binding: useStore() (auto re-render), useHydrated().
-  constants.ts       # Labels, colors, stock photos, report reasons.
-  format.ts          # timeAgo, formatDate, money…
+  types.ts           # Domain model (shared client/server)
+  shared/ops.ts      # THE CONTRACT: every mutation op + WorldSnapshot shape
+  engine.ts          # PoachStore — the rules engine the client runs optimistically
+  remote-store.ts    # RemotePoachStore: applies mutations locally for instant UI,
+                     # dispatches to the server, reconciles with its snapshot
+  store-context.tsx  # React binding: useStore(), useHydrated(); refetch on focus/45s
+  server/
+    schema.ts        # Drizzle Postgres schema (all tables + auth + identities)
+    db.ts            # Neon (pg Pool) in prod; embedded PGlite locally, auto-migrated
+    auth.ts          # magic links (Resend), sessions, ADMIN_EMAILS promotion
+    engine.ts        # executeOp(): every rule re-enforced in SQL transactions
+    snapshot.ts      # buildSnapshot(): the viewer's world, privacy-scoped
 
-components/
-  listing-card, trust-badge, save-button, offer-card, deal-status-badge,
-  star-rating-input, photo-picker, photo-gallery, hydrated, bottom-nav
+app/actions/         # the only client→server doorway (dispatchOp / fetchBootstrap)
+drizzle/             # committed SQL migrations (pnpm db:generate / db:migrate)
 ```
 
-Pages never touch storage or business rules — they call engine methods. **To move to a real backend**, re-implement the `PoachStore` API against a database (the README's schema below maps 1:1 to `lib/types.ts`) and swap the provider; no page changes required.
+Every mutation runs twice: once in the browser for instant feedback, then on the server inside a transaction with row locks — the server's snapshot is authoritative and reconciles the client on every response, tab focus, and a 45s poll. Deal/listing ids are client-generated (validated server-side) so optimistic navigation never breaks.
 
 ### Deal state machine
 
@@ -82,20 +89,37 @@ open ──accept──▶ accepted ──both confirm──▶ completed ──
 
 Accepting locks every listing in the offer (status `pending`) and auto-declines competing deals that involve those items. Completion flips listings to `traded`/`sold`/`claimed`, increments trade counts, recomputes trust, and awards badges.
 
-## Database schema (for the real-backend phase)
-
-The persisted shape in `lib/types.ts` (`DBState`) maps directly to tables: `users` (with rating baselines), `listings`, `iso_posts`, `deals` + `offers` (absolute proposer/owner sides), `threads` + `messages`, `ratings`, `notifications`, `saves`, `reports`, `blocks`, `activity`. Constraint worth keeping: **ratings unlock only after both parties confirm the deal complete** — enforced in `rateDeal`.
-
 ## Run it
 
 ```bash
 pnpm install
-pnpm dev        # localhost:3000
+pnpm dev        # localhost:3000 — no env vars needed locally:
+                # uses embedded PGlite (./.pglite) and logs magic links
+                # to the console / shows a DEV link on /login
 pnpm build      # production build
-npx vercel      # deploy
 ```
 
-No env vars needed. All state is per-browser (localStorage); Settings → "Reset demo data" restores the seed world. Settings → "Switch trader" lets you demo both sides of a deal.
+### Deploy (Vercel + Neon + Resend)
+
+Environment variables (Vercel → Settings → Environment Variables):
+
+| Var | Value |
+|-----|-------|
+| `DATABASE_URL` | Neon **pooled** connection string |
+| `RESEND_API_KEY` | Resend API key (verify a sending domain!) |
+| `EMAIL_FROM` | e.g. `Poachland <login@yourdomain.com>` |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `ADMIN_EMAILS` | comma-separated moderator emails |
+
+Then run migrations once against the database:
+
+```bash
+DATABASE_URL="postgresql://…-pooler…/neondb?sslmode=require" pnpm db:migrate
+```
+
+Production starts with a clean marketplace (no fake users — that's the point).
+`SEED_DEMO=yes node scripts/db-seed-demo.mjs` can populate a staging DB with
+the demo world; it refuses to run on a non-empty database.
 
 ## Product principles
 

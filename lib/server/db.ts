@@ -17,17 +17,23 @@ import * as schema from "./schema";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-let dbPromise: Promise<Db> | null = null;
+/**
+ * The singleton must live on globalThis, not at module level: the Next dev
+ * server compiles separate module graphs for server actions and route
+ * handlers, and two module-level singletons would open the same PGlite data
+ * directory twice (which fails). One process — one connection.
+ */
+const g = globalThis as unknown as { __poachDbPromise?: Promise<Db> | null };
 
 export function getDb(): Promise<Db> {
-  if (!dbPromise) {
-    dbPromise = init().catch((error) => {
+  if (!g.__poachDbPromise) {
+    g.__poachDbPromise = init().catch((error) => {
       // Don't cache a failed initialization — allow retry on the next call.
-      dbPromise = null;
+      g.__poachDbPromise = null;
       throw error;
     });
   }
-  return dbPromise;
+  return g.__poachDbPromise;
 }
 
 async function init(): Promise<Db> {
@@ -55,25 +61,28 @@ async function init(): Promise<Db> {
   return db;
 }
 
-let migratedPromise: Promise<void> | null = null;
+const gm = globalThis as unknown as {
+  __poachMigratedPromise?: Promise<void> | null;
+};
 
 /**
  * Applies the SQL migrations in ./drizzle to a PGlite database. Runs at most
- * once per process; used automatically by the PGlite path of getDb().
+ * once per process (globalThis-keyed for the same module-graph reason as
+ * getDb); used automatically by the PGlite path of getDb().
  */
 export function ensureMigrated(
   db: import("drizzle-orm/pglite").PgliteDatabase<typeof schema>,
 ): Promise<void> {
-  if (!migratedPromise) {
-    migratedPromise = (async () => {
+  if (!gm.__poachMigratedPromise) {
+    gm.__poachMigratedPromise = (async () => {
       const { migrate } = await import("drizzle-orm/pglite/migrator");
       await migrate(db, {
         migrationsFolder: path.join(process.cwd(), "drizzle"),
       });
     })().catch((error) => {
-      migratedPromise = null;
+      gm.__poachMigratedPromise = null;
       throw error;
     });
   }
-  return migratedPromise;
+  return gm.__poachMigratedPromise;
 }
