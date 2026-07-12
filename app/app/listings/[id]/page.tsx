@@ -79,9 +79,9 @@ export default function ListingDetailPage() {
 
 function DetailSkeleton() {
   return (
-    <div className="animate-pulse">
-      <div className="aspect-[4/3] bg-surface" />
-      <div className="px-4 pt-4 space-y-3">
+    <div className="animate-pulse md:px-6 md:pt-6 lg:grid lg:grid-cols-[1.1fr_1fr] lg:gap-8 lg:items-start">
+      <div className="aspect-[4/3] bg-surface md:rounded-xl" />
+      <div className="px-4 pt-4 md:px-0 md:pt-5 lg:pt-0 space-y-3">
         <div className="h-4 w-24 bg-surface rounded-sm" />
         <div className="h-7 w-3/4 bg-surface rounded-sm" />
         <div className="h-4 w-1/2 bg-surface rounded-sm" />
@@ -119,232 +119,247 @@ function ListingDetail({ id }: { id: string }) {
     .slice(0, 8);
 
   return (
-    <div className="min-h-screen bg-background pb-44">
-      {/* Photo hero with floating controls */}
-      <div className="relative">
-        <PhotoGallery photos={listing.photos} alt={listing.title} />
-        <div className="absolute top-3 left-3 z-10">
-          <button
-            type="button"
-            aria-label="Go back"
-            onClick={() => router.back()}
-            className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        </div>
-        {!isOwner && (
-          <div className="absolute top-3 right-3 z-10">
-            <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-              <SaveButton
-                targetType="listing"
-                targetId={listing.id}
-                size={17}
-                className="text-white hover:text-accent"
-              />
+    <div className="min-h-screen bg-background pb-44 lg:pb-0">
+      <div className="md:px-6 md:pt-6 lg:grid lg:grid-cols-[1.1fr_1fr] lg:gap-8 lg:items-start">
+        {/* Photo hero with floating controls */}
+        <div className="relative lg:sticky lg:top-20">
+          <div className="md:rounded-xl md:overflow-hidden">
+            <PhotoGallery photos={listing.photos} alt={listing.title} />
+          </div>
+          <div className="absolute top-3 left-3 z-10">
+            <button
+              type="button"
+              aria-label="Go back"
+              onClick={() => router.back()}
+              className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          </div>
+          {!isOwner && (
+            <div className="absolute top-3 right-3 z-10">
+              <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                <SaveButton
+                  targetType="listing"
+                  targetId={listing.id}
+                  size={17}
+                  className="text-white hover:text-accent"
+                />
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-
-      <div className="px-4 pt-4">
-        {isRemoved && (
-          <div className="mb-4 p-3 rounded-xl border border-red-600/40 bg-red-600/10 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-400">
-            You removed this listing. Only you can see it now.
-          </div>
-        )}
-
-        {/* Stamp row */}
-        <div className="flex gap-1.5 flex-wrap mb-3">
-          <span className={cn("badge-stamp", CONDITION_COLORS[listing.condition])}>
-            {listing.condition}
-          </span>
-          <span className={cn("badge-stamp", LISTING_TYPE_COLORS[listing.listingType])}>
-            {LISTING_TYPE_LABELS[listing.listingType]}
-          </span>
-          {listing.isRare && (
-            <span className="badge-stamp text-accent border-accent">Rare</span>
           )}
-          {listing.status !== "active" && (
+        </div>
+
+        <div className="px-4 pt-4 md:px-0 md:pt-5 lg:pt-0 lg:min-w-0">
+          {isRemoved && (
+            <div className="mb-4 p-3 rounded-xl border border-red-600/40 bg-red-600/10 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-400">
+              You removed this listing. Only you can see it now.
+            </div>
+          )}
+
+          {/* Stamp row */}
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            <span className={cn("badge-stamp", CONDITION_COLORS[listing.condition])}>
+              {listing.condition}
+            </span>
+            <span className={cn("badge-stamp", LISTING_TYPE_COLORS[listing.listingType])}>
+              {LISTING_TYPE_LABELS[listing.listingType]}
+            </span>
+            {listing.isRare && (
+              <span className="badge-stamp text-accent border-accent">Rare</span>
+            )}
+            {listing.status !== "active" && (
+              <span
+                className={cn(
+                  "badge-stamp",
+                  listing.status === "pending"
+                    ? "text-amber-700 border-amber-600 dark:text-yellow-400 dark:border-yellow-400"
+                    : listing.status === "removed"
+                      ? "text-red-700 border-red-600 dark:text-red-400 dark:border-red-400"
+                      : "text-foreground border-foreground",
+                )}
+              >
+                {LISTING_STATUS_LABELS[listing.status]}
+              </span>
+            )}
+          </div>
+
+          {/* Team / year */}
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
+            {listing.team}
+            {listing.year ? ` · ${listing.year}` : ""}
+          </p>
+
+          {/* Title */}
+          <h1 className="font-display font-bold text-2xl tracking-tight leading-tight text-balance mb-3">
+            {listing.title}
+          </h1>
+
+          {/* Price / trade line */}
+          <div className="mb-4">
+            {listing.listingType === "free" ? (
+              <p className="font-display font-bold text-2xl text-pop">
+                Free to a good home
+              </p>
+            ) : listing.askingPrice ? (
+              <div className="flex items-baseline gap-2">
+                <span className="font-display font-bold text-3xl text-foreground">
+                  {money(listing.askingPrice)}
+                </span>
+                {listing.listingType === "trade+cash" && (
+                  <span className="text-sm text-accent font-semibold">or trade</span>
+                )}
+              </div>
+            ) : (
+              <p className="font-display font-bold text-xl text-accent">
+                Open to trades
+              </p>
+            )}
+            {listing.tradeFor && (
+              <div className="mt-3 p-3 bg-accent-dim border border-accent/30 rounded-xl">
+                <p className="text-[10px] font-display font-bold uppercase tracking-widest text-accent mb-0.5">
+                  Hunting for
+                </p>
+                <p className="text-sm text-foreground">{listing.tradeFor}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Inline actions — desktop only; the sticky bar covers mobile/tablet */}
+          <div className="hidden lg:flex flex-col gap-3 mb-6">
+            {isOwner && (
+              <OpenDealsNotice
+                listing={listing}
+                className="rounded-xl border border-accent/30 bg-accent-dim px-4 py-2.5"
+              />
+            )}
+            <ActionRow listing={listing} isOwner={isOwner} />
+          </div>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-2 flex-wrap mb-4 text-xs text-muted-foreground">
+            {listing.size && (
+              <span className="badge-stamp text-muted-foreground border-border">
+                Size {listing.size}
+              </span>
+            )}
+            <span className="badge-stamp text-muted-foreground border-border">
+              {listing.level}
+            </span>
+            {listing.division && (
+              <span className="badge-stamp text-muted-foreground border-border">
+                {listing.division}
+              </span>
+            )}
+            <span className="flex items-center gap-1 ml-1">
+              <Eye size={12} /> {listing.views}
+            </span>
+            <span className="flex items-center gap-1">
+              <Heart size={12} /> {listing.saves}
+            </span>
+            <span>· listed {timeAgo(listing.createdAt)}</span>
+          </div>
+
+          {/* Tags */}
+          {listing.tags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mb-4">
+              {listing.tags.map((tag) => (
+                <Link
+                  key={tag}
+                  href={`/app/browse?q=${encodeURIComponent(tag)}`}
+                  className="text-xs text-muted-foreground bg-card px-2.5 py-0.5 rounded-full border border-border hover:border-accent hover:text-accent transition-colors"
+                >
+                  #{tag}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Description */}
+          {listing.description && (
+            <div className="mb-4">
+              <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground mb-2">
+                The story
+              </h3>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                {listing.description}
+              </p>
+            </div>
+          )}
+
+          {/* Shipping */}
+          <div className="mb-5 flex items-center gap-3 p-3 bg-card rounded-xl border border-border">
+            {listing.shippingPreference === "local-only" ? (
+              <MapPin size={16} className="text-muted-foreground flex-shrink-0" />
+            ) : (
+              <Package size={16} className="text-muted-foreground flex-shrink-0" />
+            )}
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-foreground">Shipping</p>
+              <p className="text-xs text-muted-foreground">{shipping.detail}</p>
+            </div>
             <span
               className={cn(
                 "badge-stamp",
-                listing.status === "pending"
-                  ? "text-amber-700 border-amber-600 dark:text-yellow-400 dark:border-yellow-400"
-                  : listing.status === "removed"
-                    ? "text-red-700 border-red-600 dark:text-red-400 dark:border-red-400"
-                    : "text-foreground border-foreground",
+                listing.shippingPreference === "seller-pays"
+                  ? "text-accent border-accent"
+                  : "text-muted-foreground border-border",
               )}
             >
-              {LISTING_STATUS_LABELS[listing.status]}
+              {shipping.badge}
             </span>
-          )}
-        </div>
-
-        {/* Team / year */}
-        <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
-          {listing.team}
-          {listing.year ? ` · ${listing.year}` : ""}
-        </p>
-
-        {/* Title */}
-        <h1 className="font-display font-bold text-2xl tracking-tight leading-tight text-balance mb-3">
-          {listing.title}
-        </h1>
-
-        {/* Price / trade line */}
-        <div className="mb-4">
-          {listing.listingType === "free" ? (
-            <p className="font-display font-bold text-2xl text-pop">
-              Free to a good home
-            </p>
-          ) : listing.askingPrice ? (
-            <div className="flex items-baseline gap-2">
-              <span className="font-display font-bold text-3xl text-foreground">
-                {money(listing.askingPrice)}
-              </span>
-              {listing.listingType === "trade+cash" && (
-                <span className="text-sm text-accent font-semibold">or trade</span>
-              )}
-            </div>
-          ) : (
-            <p className="font-display font-bold text-xl text-accent">
-              Open to trades
-            </p>
-          )}
-          {listing.tradeFor && (
-            <div className="mt-3 p-3 bg-accent-dim border border-accent/30 rounded-xl">
-              <p className="text-[10px] font-display font-bold uppercase tracking-widest text-accent mb-0.5">
-                Hunting for
-              </p>
-              <p className="text-sm text-foreground">{listing.tradeFor}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Meta row */}
-        <div className="flex items-center gap-2 flex-wrap mb-4 text-xs text-muted-foreground">
-          {listing.size && (
-            <span className="badge-stamp text-muted-foreground border-border">
-              Size {listing.size}
-            </span>
-          )}
-          <span className="badge-stamp text-muted-foreground border-border">
-            {listing.level}
-          </span>
-          {listing.division && (
-            <span className="badge-stamp text-muted-foreground border-border">
-              {listing.division}
-            </span>
-          )}
-          <span className="flex items-center gap-1 ml-1">
-            <Eye size={12} /> {listing.views}
-          </span>
-          <span className="flex items-center gap-1">
-            <Heart size={12} /> {listing.saves}
-          </span>
-          <span>· listed {timeAgo(listing.createdAt)}</span>
-        </div>
-
-        {/* Tags */}
-        {listing.tags.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mb-4">
-            {listing.tags.map((tag) => (
-              <Link
-                key={tag}
-                href={`/app/browse?q=${encodeURIComponent(tag)}`}
-                className="text-xs text-muted-foreground bg-card px-2.5 py-0.5 rounded-full border border-border hover:border-accent hover:text-accent transition-colors"
-              >
-                #{tag}
-              </Link>
-            ))}
           </div>
-        )}
 
-        {/* Description */}
-        {listing.description && (
-          <div className="mb-4">
-            <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground mb-2">
-              The story
+          {/* Seller card */}
+          <div className="border-t border-border pt-4 mb-2">
+            <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground mb-3">
+              {isOwner ? "You, the seller" : "Seller"}
             </h3>
-            <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-              {listing.description}
-            </p>
-          </div>
-        )}
-
-        {/* Shipping */}
-        <div className="mb-5 flex items-center gap-3 p-3 bg-card rounded-xl border border-border">
-          {listing.shippingPreference === "local-only" ? (
-            <MapPin size={16} className="text-muted-foreground flex-shrink-0" />
-          ) : (
-            <Package size={16} className="text-muted-foreground flex-shrink-0" />
-          )}
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-foreground">Shipping</p>
-            <p className="text-xs text-muted-foreground">{shipping.detail}</p>
-          </div>
-          <span
-            className={cn(
-              "badge-stamp",
-              listing.shippingPreference === "seller-pays"
-                ? "text-accent border-accent"
-                : "text-muted-foreground border-border",
-            )}
-          >
-            {shipping.badge}
-          </span>
-        </div>
-
-        {/* Seller card */}
-        <div className="border-t border-border pt-4 mb-2">
-          <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground mb-3">
-            {isOwner ? "You, the seller" : "Seller"}
-          </h3>
-          <Link
-            href={`/app/u/${seller.username}`}
-            className="flex items-start gap-3 p-3 bg-card rounded-xl border border-border card-lift"
-          >
-            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-border flex-shrink-0">
-              {/* plain img: avatars may be data URLs */}
-              <img
-                src={seller.avatar}
-                alt={seller.displayName}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="font-semibold text-sm">{seller.displayName}</p>
-                {seller.isVerified && (
-                  <BadgeCheck size={14} className="text-accent flex-shrink-0" />
-                )}
-                <p className="text-xs text-muted-foreground">@{seller.username}</p>
-              </div>
-              <div className="mt-1">
-                <TrustScore
-                  score={seller.trustScore}
-                  trades={seller.tradesCompleted}
-                  size="sm"
+            <Link
+              href={`/app/u/${seller.username}`}
+              className="flex items-start gap-3 p-3 bg-card rounded-xl border border-border card-lift"
+            >
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-border flex-shrink-0">
+                {/* plain img: avatars may be data URLs */}
+                <img
+                  src={seller.avatar}
+                  alt={seller.displayName}
+                  className="w-full h-full object-cover"
                 />
               </div>
-              {seller.badges.length > 0 && (
-                <div className="flex gap-1 mt-1.5 flex-wrap">
-                  {seller.badges.slice(0, 3).map((b) => (
-                    <TrustBadge key={b.id} badge={b} />
-                  ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-semibold text-sm">{seller.displayName}</p>
+                  {seller.isVerified && (
+                    <BadgeCheck size={14} className="text-accent flex-shrink-0" />
+                  )}
+                  <p className="text-xs text-muted-foreground">@{seller.username}</p>
                 </div>
-              )}
-              <p className="text-[11px] text-muted-foreground mt-1.5">
-                Member since {formatMonthYear(seller.memberSince)}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-muted-foreground mt-1 flex-shrink-0" />
-          </Link>
-        </div>
+                <div className="mt-1">
+                  <TrustScore
+                    score={seller.trustScore}
+                    trades={seller.tradesCompleted}
+                    size="sm"
+                  />
+                </div>
+                {seller.badges.length > 0 && (
+                  <div className="flex gap-1 mt-1.5 flex-wrap">
+                    {seller.badges.slice(0, 3).map((b) => (
+                      <TrustBadge key={b.id} badge={b} />
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Member since {formatMonthYear(seller.memberSince)}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-muted-foreground mt-1 flex-shrink-0" />
+            </Link>
+          </div>
 
-        {/* Report */}
-        {!isOwner && <ReportButton listingId={listing.id} />}
+          {/* Report */}
+          {!isOwner && <ReportButton listingId={listing.id} />}
+        </div>
       </div>
 
       {/* Related rails */}
@@ -403,7 +418,7 @@ function NotFoundState() {
         </button>
         <Link
           href="/app/browse"
-          className="px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm"
+          className="px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm shadow-sm"
         >
           Browse the rack
         </Link>
@@ -414,13 +429,13 @@ function NotFoundState() {
 
 function ListingRail({ title, listings }: { title: string; listings: Listing[] }) {
   return (
-    <div className="mt-6">
-      <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground px-4 mb-3">
+    <div className="mt-6 lg:mt-10">
+      <h3 className="font-display font-bold text-xs uppercase tracking-widest text-muted-foreground px-4 md:px-6 mb-3">
         {title}
       </h3>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar px-4 md:px-6 pb-2">
         {listings.map((l) => (
-          <ListingCard key={l.id} listing={l} className="w-40 flex-shrink-0" />
+          <ListingCard key={l.id} listing={l} className="w-40 md:w-48 flex-shrink-0" />
         ))}
       </div>
     </div>
@@ -500,7 +515,7 @@ function ReportButton({ listingId }: { listingId: string }) {
             type="button"
             disabled={!reason}
             onClick={submit}
-            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full disabled:opacity-40"
+            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full shadow-sm disabled:opacity-40"
           >
             File report
           </button>
@@ -513,63 +528,89 @@ function ReportButton({ listingId }: { listingId: string }) {
 // ─── Sticky CTA bar ──────────────────────────────────────────────────────────
 
 function CtaBar({ listing, isOwner }: { listing: Listing; isOwner: boolean }) {
-  const store = useStore();
-
-  const activeDeal = isOwner ? null : store.activeDealForListing(listing.id);
-  const openDeals = isOwner ? store.openDealsOnListing(listing.id) : [];
-
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-40">
-      <div className="max-w-lg mx-auto bg-background/95 backdrop-blur border-t border-border">
-        {isOwner && openDeals.length > 0 && listing.status !== "removed" && (
-          <div className="border-b border-accent/30 bg-accent-dim px-4 py-2">
-            <p className="text-[11px] font-display font-bold uppercase tracking-widest text-accent mb-1">
-              {openDeals.length} open {openDeals.length === 1 ? "offer/claim" : "offers/claims"} on this
-            </p>
-            <div className="flex flex-col gap-0.5 max-h-24 overflow-y-auto">
-              {openDeals.map((d) => (
-                <Link
-                  key={d.id}
-                  href={`/app/trades/${d.id}`}
-                  className="flex items-center justify-between text-xs text-foreground hover:text-accent transition-colors py-0.5"
-                >
-                  <span className="truncate">
-                    {DEAL_KIND_LABELS[d.kind]} from @{d.proposer.username}
-                  </span>
-                  <span className="flex items-center gap-1 text-muted-foreground flex-shrink-0 ml-2">
-                    {d.status === "accepted" ? "agreed" : "open"}
-                    <ArrowRight size={12} />
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
+    <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 lg:hidden">
+      <div className="max-w-lg md:max-w-3xl mx-auto bg-background/95 backdrop-blur border-t border-border">
+        {isOwner && (
+          <OpenDealsNotice
+            listing={listing}
+            className="border-b border-accent/30 bg-accent-dim px-4 py-2"
+          />
         )}
 
         <div className="px-4 py-3">
-          {isOwner ? (
-            <OwnerActions listing={listing} />
-          ) : activeDeal ? (
-            <Link
-              href={`/app/trades/${activeDeal.id}`}
-              className="flex items-center justify-between gap-2 bg-accent-dim border border-accent/40 rounded-xl px-4 py-3.5"
-            >
-              <span className="text-sm font-semibold text-accent">
-                You have an active deal on this
-              </span>
-              <span className="flex items-center gap-1 text-xs text-accent font-display font-bold uppercase tracking-wide">
-                Deal room <ArrowRight size={14} />
-              </span>
-            </Link>
-          ) : listing.status === "active" ? (
-            <BuyerActions listing={listing} />
-          ) : (
-            <GoneBar listing={listing} />
-          )}
+          <ActionRow listing={listing} isOwner={isOwner} />
         </div>
       </div>
     </div>
   );
+}
+
+/** Owner-only: the little stack of open offers/claims. Renders nothing when quiet. */
+function OpenDealsNotice({
+  listing,
+  className,
+}: {
+  listing: Listing;
+  className?: string;
+}) {
+  const store = useStore();
+  const openDeals = store.openDealsOnListing(listing.id);
+
+  if (openDeals.length === 0 || listing.status === "removed") return null;
+
+  return (
+    <div className={className}>
+      <p className="text-[11px] font-display font-bold uppercase tracking-widest text-accent mb-1">
+        {openDeals.length} open {openDeals.length === 1 ? "offer/claim" : "offers/claims"} on this
+      </p>
+      <div className="flex flex-col gap-0.5 max-h-24 overflow-y-auto">
+        {openDeals.map((d) => (
+          <Link
+            key={d.id}
+            href={`/app/trades/${d.id}`}
+            className="flex items-center justify-between text-xs text-foreground hover:text-accent transition-colors py-0.5"
+          >
+            <span className="truncate">
+              {DEAL_KIND_LABELS[d.kind]} from @{d.proposer.username}
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground flex-shrink-0 ml-2">
+              {d.status === "accepted" ? "agreed" : "open"}
+              <ArrowRight size={12} />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The state-dependent action row, shared by the sticky bar and the desktop column. */
+function ActionRow({ listing, isOwner }: { listing: Listing; isOwner: boolean }) {
+  const store = useStore();
+  const activeDeal = isOwner ? null : store.activeDealForListing(listing.id);
+
+  if (isOwner) return <OwnerActions listing={listing} />;
+
+  if (activeDeal) {
+    return (
+      <Link
+        href={`/app/trades/${activeDeal.id}`}
+        className="flex items-center justify-between gap-2 bg-accent-dim border border-accent/40 rounded-xl px-4 py-3"
+      >
+        <span className="text-sm font-semibold text-accent">
+          You have an active deal on this
+        </span>
+        <span className="flex items-center gap-1 text-xs font-semibold text-accent">
+          Deal room <ArrowRight size={14} />
+        </span>
+      </Link>
+    );
+  }
+
+  if (listing.status === "active") return <BuyerActions listing={listing} />;
+
+  return <GoneBar listing={listing} />;
 }
 
 /** Owner view: edit / remove. */
@@ -602,7 +643,7 @@ function OwnerActions({ listing }: { listing: Listing }) {
             }
           }}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full",
+            "flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full shadow-sm",
             !isActive && "opacity-40",
           )}
         >
@@ -666,9 +707,9 @@ function BuyerActions({ listing }: { listing: Listing }) {
       {canTrade && (
         <Link
           href={`/app/trades/new?listing=${listing.id}`}
-          className="flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3.5 rounded-full"
+          className="flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full shadow-sm"
         >
-          <Repeat2 size={16} /> Propose Trade
+          <Repeat2 size={16} /> Propose trade
         </Link>
       )}
       {canBuyNow && (
@@ -684,7 +725,7 @@ function BuyerActions({ listing }: { listing: Listing }) {
 function GoneBar({ listing }: { listing: Listing }) {
   return (
     <div className="flex gap-2 items-center">
-      <div className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full border border-border bg-card text-muted-foreground font-semibold text-sm cursor-not-allowed select-none">
+      <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full border border-border bg-card text-muted-foreground font-semibold text-sm cursor-not-allowed select-none">
         {listing.status === "pending"
           ? "Locked in a deal"
           : "This one's been poached."}
@@ -733,9 +774,9 @@ function BuyNowButton({ listing, primary }: { listing: Listing; primary: boolean
         <button
           type="button"
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 font-semibold text-sm py-3.5 rounded-full transition-colors",
+            "flex-1 flex items-center justify-center gap-2 font-semibold text-sm py-3 rounded-full transition-colors",
             primary
-              ? "bg-accent text-accent-foreground"
+              ? "bg-accent text-accent-foreground shadow-sm"
               : "border border-accent bg-card text-accent hover:bg-accent-dim dark:bg-transparent",
           )}
         >
@@ -810,9 +851,9 @@ function MakeOfferButton({ listing }: { listing: Listing }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-1 flex items-center justify-center gap-2 border border-border bg-card text-foreground font-semibold text-sm py-3.5 rounded-full hover:border-accent hover:text-accent transition-colors"
+        className="flex-1 flex items-center justify-center gap-2 border border-border bg-card text-foreground font-semibold text-sm py-3 rounded-full hover:border-accent hover:text-accent transition-colors"
       >
-        Make Offer
+        Make offer
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm bg-card border-border">
@@ -858,7 +899,7 @@ function MakeOfferButton({ listing }: { listing: Listing }) {
           <button
             type="button"
             onClick={submit}
-            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full"
+            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full shadow-sm"
           >
             Send offer
           </button>
@@ -893,9 +934,9 @@ function ClaimButton({ listing }: { listing: Listing }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-1 flex items-center justify-center gap-2 bg-pop text-pop-foreground font-semibold text-sm py-3.5 rounded-full"
+        className="flex-1 flex items-center justify-center gap-2 bg-pop text-pop-foreground font-semibold text-sm py-3 rounded-full shadow-sm"
       >
-        <Gift size={16} /> Claim It
+        <Gift size={16} /> Claim it
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm bg-card border-border">
@@ -918,7 +959,7 @@ function ClaimButton({ listing }: { listing: Listing }) {
           <button
             type="button"
             onClick={submit}
-            className="w-full bg-pop text-pop-foreground font-semibold text-sm py-3 rounded-full"
+            className="w-full bg-pop text-pop-foreground font-semibold text-sm py-3 rounded-full shadow-sm"
           >
             Send claim
           </button>
