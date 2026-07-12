@@ -1,19 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, Inter } from "next/font/google";
+import { Geist } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { ThemeProvider } from "@/components/theme-provider";
 import { StoreProvider } from "@/lib/store-context";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const barlow = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["600", "700", "800", "900"],
-  variable: "--font-barlow",
+  variable: "--font-geist",
 });
 
 export const metadata: Metadata = {
@@ -34,7 +29,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0e0e0e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f4ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0e0e" },
+  ],
 };
 
 export default function RootLayout({
@@ -43,13 +41,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-background" style={{ colorScheme: "dark" }}>
-      <body
-        className={`${inter.variable} ${barlow.variable} font-sans antialiased bg-background text-foreground`}
-      >
-        <StoreProvider>{children}</StoreProvider>
-        <Toaster position="top-center" richColors />
-        <Analytics />
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geist.variable} font-sans antialiased bg-background text-foreground`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <StoreProvider>{children}</StoreProvider>
+          <Toaster position="top-center" richColors />
+        </ThemeProvider>
       </body>
     </html>
   );

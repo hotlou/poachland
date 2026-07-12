@@ -8,9 +8,9 @@ import { useStore } from "@/lib/store-context";
 import type { Deal, Offer } from "@/lib/types";
 
 const OFFER_STATUS_STYLES: Record<Offer["status"], string> = {
-  pending: "text-yellow-400 border-yellow-400",
-  accepted: "text-accent border-accent",
-  declined: "text-red-400 border-red-400",
+  pending: "text-amber-700 border-amber-600 bg-amber-500/10 dark:text-yellow-400 dark:border-yellow-400 dark:bg-transparent",
+  accepted: "text-accent border-accent bg-accent/10 dark:bg-transparent",
+  declined: "text-red-700 border-red-600 bg-red-500/10 dark:text-red-400 dark:border-red-400 dark:bg-transparent",
   superseded: "text-muted-foreground border-border",
   withdrawn: "text-muted-foreground border-border",
   expired: "text-muted-foreground border-border",
@@ -128,7 +128,7 @@ export function OfferCard({
         </p>
       )}
       {offer.status === "pending" && (
-        <p className="mt-2 text-[11px] text-yellow-400/80">{timeUntil(offer.expiresAt)}</p>
+        <p className="mt-2 text-[11px] text-amber-700/90 dark:text-yellow-400/80">{timeUntil(offer.expiresAt)}</p>
       )}
     </div>
   );
