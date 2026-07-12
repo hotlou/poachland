@@ -345,6 +345,23 @@ export interface ActivityEvent {
   linkTo?: string;
 }
 
+// ─── Linked real-life identities (reputation scaffolding) ────────────────────
+
+export type IdentityProvider = "instagram" | "facebook" | "usau" | "other";
+export type IdentityStatus = "unverified" | "pending" | "verified" | "rejected";
+
+export interface IdentityRecord {
+  id: string;
+  userId: string;
+  provider: IdentityProvider;
+  handle: string;
+  url?: string;
+  status: IdentityStatus;
+  submittedAt: string;
+  verifiedAt?: string;
+  reviewerNote?: string;
+}
+
 // ─── Persisted DB shape ──────────────────────────────────────────────────────
 
 export interface DBState {
@@ -362,4 +379,6 @@ export interface DBState {
   reports: Report[];
   blocks: Block[];
   activity: ActivityEvent[];
+  /** Linked real-life identities (IG / FB / USAU) for reputation binding. */
+  identities?: IdentityRecord[];
 }
