@@ -61,21 +61,23 @@ export default function CreateISOPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="Back"
-          className="text-foreground hover:text-accent transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="font-display font-bold text-lg tracking-tight">
-          Post wanted / ISO
-        </h1>
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3">
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="text-foreground hover:text-accent transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="font-display font-bold text-lg tracking-tight">
+            Post wanted / ISO
+          </h1>
+        </div>
       </header>
 
-      <div className="px-4 py-6">
+      <div className="px-4 md:px-6 py-6 max-w-2xl mx-auto">
         <h2 className="font-display font-bold text-2xl tracking-tight mb-1">
           What are you hunting?
         </h2>
@@ -90,7 +92,7 @@ export default function CreateISOPage() {
             <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">
               Item type
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(["jersey", "disc"] as ItemType[]).map((t) => (
                 <button
                   key={t}
@@ -100,9 +102,9 @@ export default function CreateISOPage() {
                     if (t === "disc") setSize("");
                   }}
                   className={cn(
-                    "flex-1 py-3 rounded-full font-display font-bold capitalize text-sm border transition-colors",
+                    "px-3.5 py-1.5 rounded-full capitalize text-[13px] font-medium border transition-colors",
                     itemType === t
-                      ? "bg-accent text-accent-foreground border-accent"
+                      ? "bg-accent text-accent-foreground border-accent shadow-sm"
                       : "bg-card text-muted-foreground border-border hover:text-foreground",
                   )}
                 >
@@ -167,16 +169,16 @@ export default function CreateISOPage() {
               <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">
                 Size (optional)
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {JERSEY_SIZES.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setSize(s === size ? "" : s)}
                     className={cn(
-                      "flex-1 py-2 rounded-full text-xs font-semibold border transition-colors",
+                      "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
                       size === s
-                        ? "bg-accent text-accent-foreground border-accent"
+                        ? "bg-accent text-accent-foreground border-accent shadow-sm"
                         : "bg-card text-muted-foreground border-border hover:text-foreground",
                     )}
                   >
@@ -214,9 +216,9 @@ export default function CreateISOPage() {
           type="button"
           onClick={submit}
           disabled={!descValid || submitting}
-          className="w-full mt-8 bg-accent text-accent-foreground font-display font-bold py-4 rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          className="w-full mt-8 bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
         >
-          {submitting ? "Pinning…" : "Pin It to the Board"}
+          {submitting ? "Pinning…" : "Pin it to the board"}
         </button>
 
         <p className="flex items-start gap-2 text-[11px] text-muted-foreground mt-4 leading-relaxed">

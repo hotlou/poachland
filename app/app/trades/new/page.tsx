@@ -32,10 +32,10 @@ const STEP_TITLES: Record<StepKey, string> = {
 
 function FlowSkeleton() {
   return (
-    <div className="px-4 py-6 space-y-4">
+    <div className="px-4 md:px-6 py-6 space-y-4 max-w-2xl mx-auto">
       <div className="h-20 bg-card border border-border rounded-xl animate-pulse" />
       <div className="h-5 w-2/3 bg-surface rounded-full animate-pulse" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="aspect-square bg-card border border-border rounded-xl animate-pulse" />
         ))}
@@ -114,7 +114,7 @@ function TradeComparison({
   cash: number;
 }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+    <div className="bg-card border border-border rounded-xl p-3 md:p-4 grid grid-cols-[1fr_auto_1fr] items-start gap-2 md:gap-4">
       <div>
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold mb-2">
           Your items
@@ -165,7 +165,7 @@ function GuardScreen({
       <p className="text-sm text-muted-foreground leading-relaxed mb-6">{body}</p>
       <Link
         href={href}
-        className="inline-block bg-accent text-accent-foreground font-display font-bold text-sm px-6 py-3 rounded-full"
+        className="inline-block bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm"
       >
         {cta}
       </Link>
@@ -248,7 +248,7 @@ function NewTradeContent() {
         <div className="w-full max-w-xs space-y-3">
           <Link
             href={`/app/trades/${sent.dealId}`}
-            className="block w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full text-center"
+            className="block w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full text-center shadow-sm"
           >
             Go to deal room
           </Link>
@@ -313,8 +313,8 @@ function NewTradeContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3">
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button onClick={goBack} aria-label="Back" className="text-foreground">
             <ArrowLeft size={20} />
           </button>
@@ -327,7 +327,7 @@ function NewTradeContent() {
 
       <Hydrated fallback={<FlowSkeleton />}>
         {guard ?? (
-          <div className="px-4 py-5 space-y-5">
+          <div className="px-4 md:px-6 py-5 space-y-5 max-w-2xl mx-auto">
             {target && stepKey !== "target" && <TargetCard listing={target} />}
 
             {/* ── Step: pick a target ── */}
@@ -364,7 +364,7 @@ function NewTradeContent() {
                     <p className="text-xs text-muted-foreground mb-3">
                       Pick one or more of your active listings to put on the table.
                     </p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {myListings.map((listing) => {
                         const selected = selectedIds.includes(listing.id);
                         return (
@@ -412,7 +412,7 @@ function NewTradeContent() {
                       type="button"
                       disabled={!canContinue}
                       onClick={() => setStepIndex(stepIndex + 1)}
-                      className="mt-5 w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full disabled:opacity-40 transition-opacity"
+                      className="mt-5 w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm disabled:opacity-40 transition-opacity"
                     >
                       Continue
                     </button>
@@ -463,7 +463,7 @@ function NewTradeContent() {
                 <button
                   type="button"
                   onClick={() => setStepIndex(stepIndex + 1)}
-                  className="w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full"
+                  className="w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm"
                 >
                   Continue
                 </button>
@@ -518,9 +518,9 @@ function NewTradeContent() {
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full flex items-center justify-center gap-2"
+                  className="w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm flex items-center justify-center gap-2"
                 >
-                  <Send size={16} /> Send proposal
+                  <Send size={15} /> Send proposal
                 </button>
               </div>
             )}
@@ -562,7 +562,7 @@ function TargetPicker({
       <p className="text-xs text-muted-foreground mb-3">
         Whose gear are you after? Pick a listing to open a trade on.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {candidates.map((listing) => (
           <button
             key={listing.id}
