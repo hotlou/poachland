@@ -14,5 +14,7 @@ next.user-config.*
 # Common ignores
 node_modules/
 .next/
+.pglite/
+.pglite-smoke/
 .DS_Store*.tsbuildinfo
 tsconfig.tsbuildinfo
