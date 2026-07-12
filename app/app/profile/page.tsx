@@ -45,7 +45,7 @@ const ISO_STATUS_LABELS: Record<ISOStatus, string> = {
 
 function ProfileSkeleton() {
   return (
-    <div className="px-4 pt-5 space-y-4 animate-pulse">
+    <div className="px-4 md:px-6 pt-5 space-y-4 animate-pulse">
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-full bg-surface" />
         <div className="flex-1 space-y-2">
@@ -240,13 +240,35 @@ function ProfileContent() {
     }
   };
 
+  const bio = me.bio ? (
+    <p className="text-sm text-muted-foreground leading-relaxed">{me.bio}</p>
+  ) : null;
+
+  const actions = (
+    <div className="flex gap-2">
+      <Link
+        href="/app/profile/edit"
+        className="flex-1 md:flex-none md:px-6 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
+      >
+        <Pencil size={14} /> Edit profile
+      </Link>
+      <Link
+        href="/app/settings"
+        aria-label="Settings"
+        className="w-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Settings size={17} />
+      </Link>
+    </div>
+  );
+
   return (
     <>
       {/* Hero */}
-      <div className="px-4 pt-5 pb-4 border-b border-border">
-        <div className="flex items-start gap-4">
+      <div className="px-4 md:px-6 pt-5 md:pt-6 pb-4 border-b border-border">
+        <div className="flex items-start gap-4 md:gap-6">
           <div className="relative flex-shrink-0">
-            <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-accent ring-offset-2 ring-offset-background">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-2 ring-accent ring-offset-2 ring-offset-background">
               <img
                 src={me.avatar}
                 alt={me.displayName}
@@ -264,7 +286,7 @@ function ProfileContent() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">@{me.username}</p>
-            <div className="flex flex-col gap-0.5 mt-2 text-xs text-muted-foreground">
+            <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-0.5 md:gap-x-4 mt-2 text-xs text-muted-foreground">
               {me.location && (
                 <span className="flex items-center gap-1">
                   <MapPin size={11} /> {me.location}
@@ -275,91 +297,77 @@ function ProfileContent() {
                 {formatMonthYear(me.memberSince)}
               </span>
             </div>
+            {bio && <div className="hidden md:block mt-3">{bio}</div>}
+            <div className="hidden md:block mt-4">{actions}</div>
           </div>
         </div>
 
-        {me.bio && (
-          <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-            {me.bio}
-          </p>
-        )}
+        {bio && <div className="mt-3 md:hidden">{bio}</div>}
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-4">
-          <Link
-            href="/app/profile/edit"
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
-          >
-            <Pencil size={14} /> Edit profile
-          </Link>
-          <Link
-            href="/app/settings"
-            aria-label="Settings"
-            className="w-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Settings size={17} />
-          </Link>
-        </div>
+        {/* Actions (mobile) */}
+        <div className="mt-4 md:hidden">{actions}</div>
 
-        {/* Trust card */}
-        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                Trust Score
-              </p>
-              <TrustScore score={me.trustScore} trades={me.tradesCompleted} size="lg" />
+        {/* Trust card + stats */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Trust Score
+                </p>
+                <TrustScore score={me.trustScore} trades={me.tradesCompleted} size="lg" />
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="font-display font-bold text-3xl text-accent leading-none">
+                  {me.tradesCompleted}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                  Trades done
+                </p>
+              </div>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="font-display font-bold text-3xl text-accent leading-none">
-                {me.tradesCompleted}
-              </p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                Trades done
-              </p>
-            </div>
+            {me.badges.length > 0 && (
+              <div className="flex gap-1.5 mt-3 flex-wrap">
+                {me.badges.map((b) => (
+                  <TrustBadge key={b.id} badge={b} size="sm" />
+                ))}
+              </div>
+            )}
+            <Link
+              href="/app/ratings"
+              className="inline-flex items-center gap-1 text-xs text-accent font-semibold mt-3"
+            >
+              See all ratings <ArrowRight size={12} />
+            </Link>
           </div>
-          {me.badges.length > 0 && (
-            <div className="flex gap-1.5 mt-3 flex-wrap">
-              {me.badges.map((b) => (
-                <TrustBadge key={b.id} badge={b} size="sm" />
-              ))}
-            </div>
-          )}
-          <Link
-            href="/app/ratings"
-            className="inline-flex items-center gap-1 text-xs text-accent font-semibold mt-3"
-          >
-            See all ratings <ArrowRight size={12} />
-          </Link>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl md:content-center">
+            {[
+              { label: "Active Listings", value: stats.activeListings },
+              { label: "Trades Done", value: stats.completedDeals },
+              { label: "Saves Received", value: stats.savesReceived },
+            ].map(({ label, value }) => (
+              <div key={label} className="py-3 px-1 text-center">
+                <p className="font-display font-bold text-2xl">{value}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
+                  {label}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Linked identities */}
         <IdentityChips userId={me.id} ownProfile />
 
-        {/* Stats row */}
-        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl">
-          {[
-            { label: "Active Listings", value: stats.activeListings },
-            { label: "Trades Done", value: stats.completedDeals },
-            { label: "Saves Received", value: stats.savesReceived },
-          ].map(({ label, value }) => (
-            <div key={label} className="py-3 px-1 text-center">
-              <p className="font-display font-bold text-2xl">{value}</p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
-                {label}
-              </p>
-            </div>
-          ))}
-        </div>
-
         {/* Favorite teams */}
         {me.favoriteTeams.length > 0 && (
-          <div className="flex gap-1.5 mt-3 flex-wrap">
+          <div className="flex gap-2 mt-3 flex-wrap">
             {me.favoriteTeams.map((team) => (
               <span
                 key={team}
-                className="text-xs bg-card border border-border px-2.5 py-0.5 rounded-full text-foreground"
+                className="text-[13px] bg-card border border-border px-3 py-1 rounded-full text-foreground"
               >
                 {team}
               </span>
@@ -369,7 +377,7 @@ function ProfileContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border">
+      <div className="px-4 md:px-6 pt-4 flex flex-wrap gap-2">
         {(
           [
             { key: "listings", label: "Listings", icon: Package },
@@ -382,10 +390,10 @@ function ProfileContent() {
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors",
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
               tab === key
-                ? "border-accent text-accent"
-                : "border-transparent text-muted-foreground",
+                ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
             <Icon size={13} />
@@ -395,7 +403,7 @@ function ProfileContent() {
       </div>
 
       {/* Tab content */}
-      <div className="px-4 py-4">
+      <div className="px-4 md:px-6 py-4">
         {tab === "listings" &&
           (myListings.length === 0 ? (
             <div className="text-center py-12">
@@ -411,7 +419,7 @@ function ProfileContent() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {myListings.map((l) => (
                 <ListingCard key={l.id} listing={l} />
               ))}
@@ -422,17 +430,17 @@ function ProfileContent() {
       </div>
 
       {/* Footer actions */}
-      <div className="px-4 pb-6 flex flex-col gap-2">
+      <div className="px-4 md:px-6 pb-6 md:pb-8 flex flex-col md:flex-row gap-2">
         <button
           type="button"
           onClick={shareProfile}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-foreground hover:border-accent transition-colors"
+          className="md:flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-foreground hover:border-accent transition-colors"
         >
           <Link2 size={15} /> Share profile
         </button>
         <Link
           href="/app/saved"
-          className="flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          className="md:flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           <Bookmark size={15} /> Saved items <ArrowRight size={13} />
         </Link>
@@ -444,7 +452,7 @@ function ProfileContent() {
 export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center justify-between">
         <h1 className="font-display font-bold text-xl tracking-tight">
           Your profile
         </h1>

@@ -81,15 +81,17 @@ function DealRow({ deal, meId }: { deal: Deal; meId: string }) {
 
 function DealsSkeleton() {
   return (
-    <div className="px-4 space-y-3">
-      <div className="flex gap-2 pb-1">
+    <div className="px-4 md:px-6">
+      <div className="flex flex-wrap gap-2 pb-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="h-8 w-24 bg-surface rounded-full animate-pulse" />
         ))}
       </div>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 bg-card border border-border rounded-xl animate-pulse" />
-      ))}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 bg-card border border-border rounded-xl animate-pulse" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -130,7 +132,7 @@ function DealsContent() {
         <p className="text-sm text-muted-foreground mb-6">Go poach something.</p>
         <Link
           href="/app/browse"
-          className="inline-block bg-accent text-accent-foreground font-display font-bold text-sm px-6 py-3 rounded-full"
+          className="inline-block bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm"
         >
           Browse the market
         </Link>
@@ -141,23 +143,23 @@ function DealsContent() {
   return (
     <div>
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto px-4 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-wrap gap-2 px-4 md:px-6 pb-3">
         {tabs.map(({ key, deals }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
               tab === key
-                ? "bg-accent text-accent-foreground border-accent"
+                ? "bg-accent text-accent-foreground border-accent shadow-sm"
                 : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
             {TAB_LABELS[key]}
             <span
               className={cn(
-                "text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none",
+                "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none",
                 tab === key
                   ? "bg-accent-foreground/15 text-accent-foreground"
                   : "bg-surface text-muted-foreground",
@@ -170,9 +172,9 @@ function DealsContent() {
       </div>
 
       {/* Rows */}
-      <div className="px-4 space-y-3 pb-6">
+      <div className="px-4 md:px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-3">
         {activeTab.deals.length === 0 ? (
-          <div className="text-center py-14 border border-dashed border-border rounded-xl">
+          <div className="col-span-full text-center py-14 border border-dashed border-border rounded-xl">
             <p className="text-sm text-muted-foreground">{TAB_EMPTY_COPY[tab]}</p>
           </div>
         ) : (
@@ -186,15 +188,15 @@ function DealsContent() {
 export default function TradesPage() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center justify-between">
         <h1 className="font-display font-bold text-2xl tracking-tight text-foreground">
           Deals
         </h1>
         <Link
           href="/app/trades/new"
-          className="flex items-center gap-1.5 bg-accent text-accent-foreground font-display font-bold text-xs px-3.5 py-2 rounded-full"
+          className="flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm"
         >
-          <Plus size={14} strokeWidth={3} /> New trade
+          <Plus size={15} /> New trade
         </Link>
       </header>
       <div className="py-4">

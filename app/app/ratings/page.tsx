@@ -137,7 +137,7 @@ function RatingRow({ rating, tab }: { rating: HydratedRating; tab: Tab }) {
 
 function PageSkeleton() {
   return (
-    <div className="px-4 mt-4 space-y-3">
+    <div className="px-4 md:px-6 mt-4 space-y-3">
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="h-10 w-2/3 bg-surface rounded-sm animate-pulse" />
         <div className="h-2 w-full bg-surface rounded-sm animate-pulse" />
@@ -168,37 +168,39 @@ function RatingsContent() {
   return (
     <>
       {/* Trust overview */}
-      <div className="px-4 mt-4">
-        <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-accent flex-shrink-0">
-              {/* plain img: avatars may be data URLs */}
-              <img
-                src={me.avatar}
-                alt={me.displayName}
-                className="object-cover w-full h-full"
-              />
+      <div className="px-4 md:px-6 mt-4">
+        <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4 md:p-5 md:grid md:grid-cols-2 md:gap-x-8 md:items-center">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-accent flex-shrink-0">
+                {/* plain img: avatars may be data URLs */}
+                <img
+                  src={me.avatar}
+                  alt={me.displayName}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{me.displayName}</p>
+                <TrustScore score={me.trustScore} trades={me.tradesCompleted} size="lg" />
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="font-semibold truncate">{me.displayName}</p>
-              <TrustScore score={me.trustScore} trades={me.tradesCompleted} size="lg" />
-            </div>
+
+            {me.badges.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap mt-3">
+                {me.badges.map((b) => (
+                  <TrustBadge key={b.id} badge={b} size="sm" />
+                ))}
+              </div>
+            )}
           </div>
 
-          {me.badges.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap mb-4">
-              {me.badges.map((b) => (
-                <TrustBadge key={b.id} badge={b} size="sm" />
-              ))}
-            </div>
-          )}
-
           {summary.count === 0 ? (
-            <p className="text-xs text-muted-foreground border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground border-t border-border mt-4 pt-3 md:border-t-0 md:mt-0 md:pt-0">
               No ratings on the books yet. Close out a deal and the numbers start talking.
             </p>
           ) : (
-            <div className="space-y-3 border-t border-border pt-3">
+            <div className="space-y-3 border-t border-border mt-4 pt-3 md:border-t-0 md:mt-0 md:pt-0">
               <DimensionBar
                 label="Communication"
                 icon={MessageSquare}
@@ -231,7 +233,7 @@ function RatingsContent() {
 
       {/* Pending ratings */}
       {pending.length > 0 && (
-        <div className="px-4 mt-5">
+        <div className="px-4 md:px-6 mt-5">
           <h2 className="text-[11px] font-display font-bold uppercase tracking-widest text-muted-foreground mb-2">
             Rate your recent deals
           </h2>
@@ -273,7 +275,7 @@ function RatingsContent() {
       )}
 
       {/* Received / Given tabs */}
-      <div className="px-4 mt-6 flex gap-2">
+      <div className="px-4 md:px-6 mt-6 flex flex-wrap gap-2">
         {(
           [
             { key: "received", label: "Received", count: received.length },
@@ -285,9 +287,9 @@ function RatingsContent() {
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+              "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
               tab === key
-                ? "bg-accent text-accent-foreground border-accent"
+                ? "bg-accent text-accent-foreground border-accent shadow-sm"
                 : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
@@ -296,7 +298,7 @@ function RatingsContent() {
         ))}
       </div>
 
-      <div className="px-4 mt-4 space-y-3 pb-6">
+      <div className="px-4 md:px-6 mt-4 space-y-3 pb-6">
         {rows.length === 0 ? (
           <div className="text-center py-14 px-6">
             <Star size={28} className="mx-auto mb-3 text-muted-foreground" />
@@ -327,7 +329,7 @@ export default function RatingsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3">
         <div className="flex items-center gap-3">
           <Link href="/app/profile" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft size={20} />

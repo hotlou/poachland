@@ -187,26 +187,30 @@ function EditForm({ listing }: { listing: Listing }) {
   return (
     <div className="min-h-screen bg-background pb-8">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
-        <button type="button" aria-label="Go back" onClick={() => router.back()}>
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg tracking-tight">
-            Edit listing
-          </h1>
-          <p className="text-xs text-muted-foreground truncate">{listing.title}</p>
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+        <div className="mx-auto w-full max-w-2xl flex items-center gap-3">
+          <button type="button" aria-label="Go back" onClick={() => router.back()}>
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-display font-bold text-lg tracking-tight">
+              Edit listing
+            </h1>
+            <p className="text-xs text-muted-foreground truncate">{listing.title}</p>
+          </div>
         </div>
       </header>
 
       {!isActive && (
-        <div className="mx-4 mt-4 p-3 rounded-xl border border-amber-600/40 bg-amber-500/10 text-sm text-amber-700 dark:border-yellow-400/40 dark:bg-yellow-400/10 dark:text-yellow-400">
-          Only active listings can be edited — this one is{" "}
-          {listing.status === "pending" ? "locked in a deal" : listing.status}.
+        <div className="mx-auto w-full max-w-2xl px-4">
+          <div className="mt-4 p-3 rounded-xl border border-amber-600/40 bg-amber-500/10 text-sm text-amber-700 dark:border-yellow-400/40 dark:bg-yellow-400/10 dark:text-yellow-400">
+            Only active listings can be edited — this one is{" "}
+            {listing.status === "pending" ? "locked in a deal" : listing.status}.
+          </div>
         </div>
       )}
 
-      <div className="px-4 py-6 flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-2xl px-4 py-6 flex flex-col gap-6">
         {/* Photos */}
         <section>
           <FieldLabel>Photos</FieldLabel>
@@ -249,7 +253,7 @@ function EditForm({ listing }: { listing: Listing }) {
             value={year}
             onChange={(e) => setYear(e.target.value)}
             placeholder="e.g. 2022"
-            className={inputClass}
+            className={cn(inputClass, "max-w-xs")}
           />
         </section>
 
@@ -259,7 +263,7 @@ function EditForm({ listing }: { listing: Listing }) {
           <div className="flex gap-2 flex-wrap">
             {LEVELS.map((l) => (
               <Chip key={l} selected={level === l} onClick={() => setLevel(l)}>
-                {l}
+                {cap(l)}
               </Chip>
             ))}
           </div>
@@ -276,7 +280,7 @@ function EditForm({ listing }: { listing: Listing }) {
                   selected={division === d}
                   onClick={() => setDivision(division === d ? undefined : d)}
                 >
-                  {d}
+                  {cap(d)}
                 </Chip>
               ))}
             </div>
@@ -293,7 +297,7 @@ function EditForm({ listing }: { listing: Listing }) {
                   key={s}
                   selected={size === s}
                   onClick={() => setSize(size === s ? "" : s)}
-                  className="w-12 justify-center"
+                  className="min-w-12 justify-center"
                 >
                   {s}
                 </Chip>
@@ -351,7 +355,7 @@ function EditForm({ listing }: { listing: Listing }) {
             <FieldLabel>
               {listingType === "trade+cash" ? "Cash value (optional)" : "Asking price"}
             </FieldLabel>
-            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors">
+            <div className="flex items-center gap-2 max-w-xs bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors">
               <span className="text-muted-foreground">$</span>
               <input
                 type="number"
@@ -394,27 +398,15 @@ function EditForm({ listing }: { listing: Listing }) {
         {/* Shipping */}
         <section>
           <FieldLabel>Shipping preference</FieldLabel>
-          <div className="flex flex-col gap-2">
+          <div className="flex gap-2 flex-wrap">
             {SHIPPING_OPTIONS.map(({ value, label }) => (
-              <button
+              <Chip
                 key={value}
-                type="button"
+                selected={shippingPreference === value}
                 onClick={() => setShippingPreference(value)}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl border text-left text-sm transition-colors",
-                  shippingPreference === value
-                    ? "border-accent bg-accent-dim text-foreground"
-                    : "border-border bg-card text-muted-foreground",
-                )}
               >
-                <span
-                  className={cn(
-                    "w-2 h-2 rounded-full flex-shrink-0",
-                    shippingPreference === value ? "bg-accent" : "bg-border",
-                  )}
-                />
                 {label}
-              </button>
+              </Chip>
             ))}
           </div>
         </section>
@@ -451,7 +443,7 @@ function EditForm({ listing }: { listing: Listing }) {
             type="button"
             onClick={save}
             disabled={saving}
-            className="w-full bg-accent text-accent-foreground font-semibold py-4 rounded-full disabled:opacity-50"
+            className="w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save changes"}
           </button>
@@ -469,6 +461,9 @@ function EditForm({ listing }: { listing: Listing }) {
 
 const inputClass =
   "w-full bg-card border border-border rounded-lg px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
+
+/** Sentence-case display for lowercase enum values ("club" → "Club"). */
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -494,9 +489,9 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors inline-flex items-center",
+        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors inline-flex items-center",
         selected
-          ? "bg-accent text-accent-foreground border-accent"
+          ? "bg-accent text-accent-foreground border-accent shadow-sm"
           : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
         className,
       )}

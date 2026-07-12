@@ -39,7 +39,7 @@ export default function WantedBoardPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 pt-3 pb-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 pt-3 pb-3">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <h1 className="font-display font-bold text-xl tracking-tight">
@@ -51,13 +51,13 @@ export default function WantedBoardPage() {
           </div>
           <Link
             href="/app/wanted/create"
-            className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3.5 py-2 rounded-full text-xs font-display font-bold shrink-0"
+            className="hidden md:inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm shrink-0"
           >
-            <Plus size={14} /> Post ISO
+            <Plus size={15} /> Post ISO
           </Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(
               [
                 { key: "all", label: "All", icon: null },
@@ -70,22 +70,22 @@ export default function WantedBoardPage() {
                 type="button"
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+                  "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
                   filter === key
-                    ? "bg-accent text-accent-foreground border-accent"
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
                     : "bg-card text-muted-foreground border-border hover:text-foreground",
                 )}
               >
-                {Icon && <Icon size={12} />}
+                {Icon && <Icon size={13} />}
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex rounded-full bg-card border border-border overflow-hidden">
+          <div className="flex flex-wrap gap-2">
             {(
               [
                 { key: "newest", label: "Newest" },
-                { key: "most-saved", label: "Most Saved" },
+                { key: "most-saved", label: "Most saved" },
               ] as const
             ).map(({ key, label }) => (
               <button
@@ -93,10 +93,10 @@ export default function WantedBoardPage() {
                 type="button"
                 onClick={() => setSort(key)}
                 className={cn(
-                  "px-3 py-1.5 text-[11px] font-semibold transition-colors",
+                  "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
                   sort === key
-                    ? "bg-surface text-accent"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-card text-muted-foreground border-border hover:text-foreground",
                 )}
               >
                 {label}
@@ -110,8 +110,8 @@ export default function WantedBoardPage() {
         <Board filter={filter} sort={sort} />
       </Hydrated>
 
-      {/* Floating post FAB */}
-      <div className="fixed bottom-20 inset-x-0 z-40 pointer-events-none">
+      {/* Floating post FAB — mobile only; desktop has the header button */}
+      <div className="fixed bottom-20 inset-x-0 z-40 pointer-events-none md:hidden">
         <div className="max-w-lg mx-auto flex justify-end px-4">
           <Link
             href="/app/wanted/create"
@@ -128,13 +128,14 @@ export default function WantedBoardPage() {
 
 function BoardSkeleton() {
   return (
-    <div className="p-4 flex flex-col gap-5">
-      {[0, 1, 2].map((i) => (
+    <div className="px-4 md:px-6 pt-5 pb-8 columns-1 md:columns-2 lg:columns-3 gap-5">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
           className={cn(
-            "bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm h-36 animate-pulse",
+            "bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm h-36 animate-pulse mb-5 break-inside-avoid",
             ROTATIONS[i % ROTATIONS.length],
+            i > 2 && "hidden md:block",
           )}
         />
       ))}
@@ -213,23 +214,23 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
         </p>
         <Link
           href="/app/wanted/create"
-          className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-full text-xs font-display font-bold"
+          className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm"
         >
-          <Plus size={14} /> Post an ISO
+          <Plus size={15} /> Post an ISO
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="px-4 pt-5 pb-8 flex flex-col gap-5">
+    <div className="px-4 md:px-6 pt-5 pb-8 columns-1 md:columns-2 lg:columns-3 gap-5">
       {posts.map((post, i) => {
         const mine = post.userId === me.id;
         return (
           <div
             key={post.id}
             className={cn(
-              "relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4 shadow-md shadow-amber-950/10 dark:shadow-black/40",
+              "relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4 shadow-md shadow-amber-950/10 dark:shadow-black/40 mb-5 break-inside-avoid",
               ROTATIONS[i % ROTATIONS.length],
             )}
           >
@@ -309,14 +310,14 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                   <button
                     type="button"
                     onClick={() => updateStatus(post, "found")}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-accent text-accent text-[11px] font-display font-bold hover:bg-accent/10 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-accent text-accent text-xs font-semibold hover:bg-accent/10 transition-colors"
                   >
                     <Check size={12} strokeWidth={2.5} /> Mark found
                   </button>
                   <button
                     type="button"
                     onClick={() => updateStatus(post, "closed")}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-muted-foreground text-[11px] font-display font-bold hover:text-foreground transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-muted-foreground text-xs font-semibold hover:text-foreground transition-colors"
                   >
                     <X size={12} strokeWidth={2.5} /> Close
                   </button>
@@ -325,7 +326,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                 <button
                   type="button"
                   onClick={() => openResponder(post)}
-                  className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3.5 py-1.5 rounded-full text-[11px] font-display font-bold"
+                  className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-sm"
                 >
                   <PackageCheck size={13} /> I have this
                 </button>
@@ -362,9 +363,9 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
               </p>
               <Link
                 href="/app/create"
-                className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-full text-xs font-display font-bold"
+                className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm"
               >
-                <Plus size={14} /> List an item
+                <Plus size={15} /> List an item
               </Link>
             </div>
           ) : (
@@ -421,7 +422,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                 type="button"
                 onClick={sendResponse}
                 disabled={!selectedListingId}
-                className="w-full bg-accent text-accent-foreground font-display font-bold py-3 rounded-full text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-accent text-accent-foreground font-semibold py-3 rounded-full text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Send it
               </button>

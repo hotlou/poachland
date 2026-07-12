@@ -125,7 +125,7 @@ function NotFound() {
       </p>
       <Link
         href="/app/inbox"
-        className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-6 py-3 rounded-full"
+        className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm"
       >
         Back to inbox
       </Link>
@@ -172,7 +172,7 @@ function ThreadContent({ threadId }: { threadId: string }) {
   return (
     <div>
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <Link href="/app/inbox" aria-label="Back to inbox" className="text-foreground">
           <ArrowLeft size={20} />
         </Link>
@@ -194,66 +194,71 @@ function ThreadContent({ threadId }: { threadId: string }) {
         </Link>
       </header>
 
-      <ContextCard thread={thread} />
+      {/* Column: capped on md+ so bubbles don't stretch absurdly wide */}
+      <div className="md:max-w-2xl md:mx-auto">
+        <ContextCard thread={thread} />
 
-      {/* Messages */}
-      <div className="px-4 pt-4 pb-24 space-y-3">
-        {messages.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-10">
-            No messages yet. Say something worth trading over.
-          </p>
-        )}
-        {messages.map((m, i) => (
-          <div key={m.id}>
-            {needsStamp(messages[i - 1], m) && <TimeStamp iso={m.createdAt} />}
-            {m.kind === "system" ? (
-              <p className="text-center text-xs italic text-muted-foreground py-1 px-6">
-                {m.content}
-              </p>
-            ) : m.kind === "offer" ? (
-              <OfferMessage message={m} meId={me.id} />
-            ) : (
-              <MessageBubble message={m} mine={m.senderId === me.id} avatar={other.avatar} />
-            )}
-          </div>
-        ))}
-        <div ref={bottomRef} />
+        {/* Messages */}
+        <div className="px-4 pt-4 pb-24 space-y-3">
+          {messages.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-10">
+              No messages yet. Say something worth trading over.
+            </p>
+          )}
+          {messages.map((m, i) => (
+            <div key={m.id}>
+              {needsStamp(messages[i - 1], m) && <TimeStamp iso={m.createdAt} />}
+              {m.kind === "system" ? (
+                <p className="text-center text-xs italic text-muted-foreground py-1 px-6">
+                  {m.content}
+                </p>
+              ) : m.kind === "offer" ? (
+                <OfferMessage message={m} meId={me.id} />
+              ) : (
+                <MessageBubble message={m} mine={m.senderId === me.id} avatar={other.avatar} />
+              )}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Composer */}
-      <div className="fixed bottom-16 inset-x-0 z-40 bg-surface/95 backdrop-blur-sm border-t border-border">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          {blocked ? (
-            <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-1.5">
-              <ShieldOff size={15} className="flex-shrink-0" />
-              You can&apos;t message this user.
-            </p>
-          ) : (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                placeholder={`Message @${other.username}...`}
-                className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
-              />
-              <button
-                type="button"
-                onClick={send}
-                disabled={!draft.trim()}
-                aria-label="Send message"
-                className="w-10 h-10 rounded-full bg-accent flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
-              >
-                <Send size={16} className="text-accent-foreground" />
-              </button>
-            </div>
-          )}
+      {/* Composer — above BottomNav on mobile; column-width, docked to the bottom on md+ */}
+      <div className="fixed bottom-16 md:bottom-0 inset-x-0 z-40 pointer-events-none">
+        <div className="pointer-events-auto bg-surface/95 backdrop-blur-sm border-t border-border md:max-w-2xl md:mx-auto md:border-x md:rounded-t-2xl">
+          <div className="max-w-lg md:max-w-none mx-auto px-4 py-3">
+            {blocked ? (
+              <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-1.5">
+                <ShieldOff size={15} className="flex-shrink-0" />
+                You can&apos;t message this user.
+              </p>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder={`Message @${other.username}...`}
+                  className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={send}
+                  disabled={!draft.trim()}
+                  aria-label="Send message"
+                  className="w-10 h-10 rounded-full bg-accent flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
+                >
+                  <Send size={16} className="text-accent-foreground" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -263,7 +268,7 @@ function ThreadContent({ threadId }: { threadId: string }) {
 function ThreadSkeleton() {
   return (
     <div>
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <Link href="/app/inbox" aria-label="Back to inbox" className="text-foreground">
           <ArrowLeft size={20} />
         </Link>
@@ -273,7 +278,7 @@ function ThreadSkeleton() {
           <div className="h-3 w-20 bg-surface rounded animate-pulse" />
         </div>
       </header>
-      <div className="px-4 pt-4 space-y-3">
+      <div className="px-4 pt-4 space-y-3 md:max-w-2xl md:mx-auto">
         <div className="h-14 bg-card border border-border rounded-lg animate-pulse" />
         <div className="h-10 w-3/4 bg-surface rounded-xl animate-pulse" />
         <div className="h-10 w-2/3 bg-surface rounded-xl animate-pulse ml-auto" />

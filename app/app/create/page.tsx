@@ -6,7 +6,6 @@ import { ArrowLeft, Disc3, Flame, Shirt, X } from "lucide-react";
 import { toast } from "sonner";
 import { PhotoPicker } from "@/components/photo-picker";
 import { Switch } from "@/components/ui/switch";
-import { CONDITION_COLORS } from "@/lib/constants";
 import type { CreateListingInput } from "@/lib/engine";
 import { useStore } from "@/lib/store-context";
 import { cn } from "@/lib/utils";
@@ -57,6 +56,18 @@ const MAX_TAGS = 8;
 
 const inputCls =
   "w-full bg-card border border-border rounded-lg px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
+
+/** Sentence-case display for lowercase enum values ("club" → "Club"). */
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Shared option-chip style: quiet at rest, accent when selected. */
+const chipCls = (active: boolean) =>
+  cn(
+    "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
+    active
+      ? "bg-accent text-accent-foreground border-accent shadow-sm"
+      : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
+  );
 
 function FieldLabel({
   children,
@@ -189,25 +200,27 @@ export default function CreateListingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="Go back"
-          className="text-foreground hover:text-accent transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1">
-          <h1 className="font-display font-bold text-lg tracking-tight">
-            Post a listing
-          </h1>
-          <p className="text-xs text-muted-foreground">No fees. Ever. That&apos;s the point.</p>
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+        <div className="mx-auto w-full max-w-2xl flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Go back"
+            className="text-foreground hover:text-accent transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex-1">
+            <h1 className="font-display font-bold text-lg tracking-tight">
+              Post a listing
+            </h1>
+            <p className="text-xs text-muted-foreground">No fees. Ever. That&apos;s the point.</p>
+          </div>
         </div>
       </header>
 
       <form
-        className="px-4 py-6 flex flex-col gap-10"
+        className="mx-auto w-full max-w-2xl px-4 py-6 flex flex-col gap-10"
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
@@ -231,9 +244,9 @@ export default function CreateListingPage() {
                 onClick={() => setItemType(value)}
                 aria-pressed={itemType === value}
                 className={cn(
-                  "flex-1 flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 font-display font-bold text-sm transition-colors",
+                  "flex-1 flex flex-col items-center gap-1.5 py-4 rounded-xl border font-display font-bold text-sm transition-colors",
                   itemType === value
-                    ? "bg-accent text-accent-foreground border-accent"
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
                     : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
                 )}
               >
@@ -294,7 +307,7 @@ export default function CreateListingPage() {
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
                 placeholder="e.g. 2022"
-                className={inputCls}
+                className={cn(inputCls, "max-w-xs")}
               />
             </div>
 
@@ -308,14 +321,9 @@ export default function CreateListingPage() {
                     type="button"
                     onClick={() => setLevel(l)}
                     aria-pressed={level === l}
-                    className={cn(
-                      "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
-                      level === l
-                        ? "bg-accent text-accent-foreground border-accent"
-                        : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
-                    )}
+                    className={chipCls(level === l)}
                   >
-                    {l}
+                    {cap(l)}
                   </button>
                 ))}
               </div>
@@ -332,14 +340,9 @@ export default function CreateListingPage() {
                       type="button"
                       onClick={() => setDivision(division === d ? null : d)}
                       aria-pressed={division === d}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
-                        division === d
-                          ? "bg-accent text-accent-foreground border-accent"
-                          : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
-                      )}
+                      className={chipCls(division === d)}
                     >
-                      {d}
+                      {cap(d)}
                     </button>
                   ))}
                 </div>
@@ -357,12 +360,7 @@ export default function CreateListingPage() {
                       type="button"
                       onClick={() => setSize(s)}
                       aria-pressed={size === s}
-                      className={cn(
-                        "w-12 py-2 rounded-full text-xs font-semibold border transition-colors",
-                        size === s
-                          ? "bg-accent text-accent-foreground border-accent"
-                          : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
-                      )}
+                      className={cn(chipCls(size === s), "min-w-12 text-center")}
                     >
                       {s}
                     </button>
@@ -381,12 +379,7 @@ export default function CreateListingPage() {
                     type="button"
                     onClick={() => setCondition(c)}
                     aria-pressed={condition === c}
-                    className={cn(
-                      "badge-stamp px-2.5 py-1.5 border transition-colors",
-                      condition === c
-                        ? cn(CONDITION_COLORS[c], "bg-surface-raised")
-                        : "text-muted-foreground border-border hover:border-muted-foreground",
-                    )}
+                    className={chipCls(condition === c)}
                   >
                     {c}
                   </button>
@@ -414,9 +407,9 @@ export default function CreateListingPage() {
                 onClick={() => setListingType(value)}
                 aria-pressed={listingType === value}
                 className={cn(
-                  "flex flex-col gap-1 p-3.5 rounded-xl border-2 text-left transition-colors card-lift",
+                  "flex flex-col gap-1 p-3.5 rounded-xl border text-left transition-colors card-lift",
                   listingType === value
-                    ? LISTING_TYPE_SELECTED[value]
+                    ? cn(LISTING_TYPE_SELECTED[value], "shadow-sm")
                     : "border-border bg-card hover:border-muted-foreground",
                 )}
               >
@@ -445,7 +438,7 @@ export default function CreateListingPage() {
                 </FieldLabel>
                 <div
                   className={cn(
-                    "flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors",
+                    "flex items-center gap-2 max-w-xs bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors",
                     attempted && errors.price && "border-red-600 dark:border-red-400",
                   )}
                 >
@@ -490,34 +483,23 @@ export default function CreateListingPage() {
             {/* Shipping */}
             <div>
               <FieldLabel>Shipping preference</FieldLabel>
-              <div className="flex flex-col gap-2" role="radiogroup" aria-label="Shipping preference">
-                {SHIPPING_OPTIONS.map(({ value, label, desc }) => (
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Shipping preference">
+                {SHIPPING_OPTIONS.map(({ value, label }) => (
                   <button
                     key={value}
                     type="button"
                     role="radio"
                     aria-checked={shippingPref === value}
                     onClick={() => setShippingPref(value)}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors",
-                      shippingPref === value
-                        ? "border-accent bg-accent-dim"
-                        : "border-border bg-card hover:border-muted-foreground",
-                    )}
+                    className={chipCls(shippingPref === value)}
                   >
-                    <span
-                      className={cn(
-                        "w-2 h-2 rounded-full shrink-0",
-                        shippingPref === value ? "bg-accent" : "bg-border",
-                      )}
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold">{label}</span>
-                      <span className="block text-xs text-muted-foreground">{desc}</span>
-                    </span>
+                    {label}
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {SHIPPING_OPTIONS.find((o) => o.value === shippingPref)?.desc}
+              </p>
             </div>
           </div>
         </section>
@@ -637,7 +619,7 @@ export default function CreateListingPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-accent text-accent-foreground font-semibold py-4 rounded-full hover:opacity-90 transition-opacity disabled:opacity-60"
+            className="w-full bg-accent text-accent-foreground text-sm font-semibold py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity disabled:opacity-60"
           >
             {submitting ? "Posting…" : "Post listing — it's free"}
           </button>

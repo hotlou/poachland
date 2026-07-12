@@ -15,8 +15,8 @@ type Tab = "listings" | "wanted";
 
 function TabsSkeleton() {
   return (
-    <div className="px-4 py-4">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="px-4 md:px-6 py-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="aspect-[4/3] bg-surface animate-pulse" />
@@ -129,9 +129,9 @@ export default function SavedPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 pt-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 pt-3 pb-3">
         <h1 className="font-display font-bold text-xl tracking-tight mb-3">Saved</h1>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap gap-2">
           {(
             [
               { key: "listings", label: "Listings", icon: Heart, count: listings.length },
@@ -143,16 +143,23 @@ export default function SavedPage() {
               type="button"
               onClick={() => setTab(key)}
               className={cn(
-                "flex items-center gap-1.5 pb-2.5 text-xs font-display font-bold uppercase tracking-wider border-b-2 -mb-px transition-colors",
+                "inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
                 tab === key
-                  ? "text-accent border-accent"
-                  : "text-muted-foreground border-transparent hover:text-foreground",
+                  ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                  : "bg-card text-muted-foreground border-border hover:text-foreground",
               )}
             >
               <Icon size={13} />
               {label}
               <Hydrated fallback={null}>
-                <span className="tabular-nums">({count})</span>
+                <span
+                  className={cn(
+                    "min-w-4 h-4 px-1 rounded-full text-[10px] font-semibold tabular-nums flex items-center justify-center",
+                    tab === key ? "bg-accent-foreground/15" : "bg-surface",
+                  )}
+                >
+                  {count}
+                </span>
               </Hydrated>
             </button>
           ))}
@@ -161,7 +168,7 @@ export default function SavedPage() {
 
       <Hydrated fallback={<TabsSkeleton />}>
         {tab === "listings" ? (
-          <div className="px-4 py-4">
+          <div className="px-4 md:px-6 py-4">
             {listings.length === 0 ? (
               <div className="text-center py-16 px-6">
                 <Heart size={28} className="mx-auto mb-3 text-muted-foreground" />
@@ -173,13 +180,13 @@ export default function SavedPage() {
                 </p>
                 <Link
                   href="/app/browse"
-                  className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
+                  className="inline-block bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm"
                 >
                   Browse the market
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 {listings.map((listing) => (
                   <ListingCard key={listing.id} listing={listing} />
                 ))}
@@ -187,7 +194,7 @@ export default function SavedPage() {
             )}
           </div>
         ) : (
-          <div className="px-4 py-5">
+          <div className="px-4 md:px-6 py-5">
             {isoPosts.length === 0 ? (
               <div className="text-center py-16 px-6">
                 <Bookmark size={28} className="mx-auto mb-3 text-muted-foreground" />
@@ -199,13 +206,13 @@ export default function SavedPage() {
                 </p>
                 <Link
                   href="/app/wanted"
-                  className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
+                  className="inline-block bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm"
                 >
                   Scan the Wanted Board
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 items-start">
                 {isoPosts.map((post, i) => (
                   <SavedISOCard key={post.id} post={post} index={i} />
                 ))}

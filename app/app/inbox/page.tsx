@@ -31,7 +31,7 @@ function ThreadRow({ thread }: { thread: Thread }) {
   return (
     <Link
       href={`/app/inbox/${thread.id}`}
-      className="flex items-start gap-3 px-4 py-4 hover:bg-surface transition-colors"
+      className="flex items-start gap-3 px-4 md:px-6 py-4 hover:bg-surface transition-colors"
     >
       {/* plain img: avatars may be data URLs */}
       <div className="relative w-12 h-12 rounded-full overflow-hidden bg-surface border border-border flex-shrink-0">
@@ -134,7 +134,7 @@ function MessagesTab({ threads }: { threads: Thread[] }) {
         </p>
         <Link
           href="/app/browse"
-          className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-6 py-3 rounded-full"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm"
         >
           Browse the market
         </Link>
@@ -171,13 +171,13 @@ function DealsTab({ yourMove, others, meId }: { yourMove: Deal[]; others: Deal[]
     );
   }
   return (
-    <div className="px-4 py-4 space-y-5">
+    <div className="px-4 md:px-6 py-4 space-y-5">
       {yourMove.length > 0 && (
         <section>
           <h2 className="font-display font-bold uppercase tracking-widest text-xs text-accent mb-2">
             Your move
           </h2>
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {yourMove.map((d) => (
               <DealRow key={d.id} deal={d} meId={meId} />
             ))}
@@ -189,7 +189,7 @@ function DealsTab({ yourMove, others, meId }: { yourMove: Deal[]; others: Deal[]
           <h2 className="font-display font-bold uppercase tracking-widest text-xs text-muted-foreground mb-2">
             In play
           </h2>
-          <div className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
             {others.map((d) => (
               <DealRow key={d.id} deal={d} meId={meId} />
             ))}
@@ -227,16 +227,16 @@ function InboxContent() {
 
   return (
     <div>
-      <div className="flex gap-2 px-4 pt-4 pb-3">
+      <div className="flex flex-wrap gap-2 px-4 md:px-6 pt-4 pb-3">
         {tabs.map(({ key, label, badge }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
               tab === key
-                ? "bg-accent text-accent-foreground border-accent"
+                ? "bg-accent text-accent-foreground border-accent shadow-sm"
                 : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
@@ -268,14 +268,14 @@ function InboxContent() {
 function InboxSkeleton() {
   return (
     <div>
-      <div className="flex gap-2 px-4 pt-4 pb-3">
+      <div className="flex flex-wrap gap-2 px-4 md:px-6 pt-4 pb-3">
         {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="h-8 w-28 bg-surface rounded-full animate-pulse" />
         ))}
       </div>
       <div className="divide-y divide-border">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-start gap-3 px-4 py-4">
+          <div key={i} className="flex items-start gap-3 px-4 md:px-6 py-4">
             <div className="w-12 h-12 rounded-full bg-surface animate-pulse flex-shrink-0" />
             <div className="flex-1 space-y-2 pt-1">
               <div className="h-3.5 w-32 bg-surface rounded animate-pulse" />
@@ -291,7 +291,7 @@ function InboxSkeleton() {
 export default function InboxPage() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3">
         <h1 className="font-display font-bold text-2xl tracking-tight text-foreground">
           Inbox
         </h1>

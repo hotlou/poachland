@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { TopNav } from "@/components/top-nav";
 import { useHydrated, useStore } from "@/lib/store-context";
 
 /** Everything under /app requires a session. */
@@ -30,8 +31,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="pb-20 max-w-lg mx-auto">{children}</main>
-      <BottomNav />
+      <TopNav />
+      <main className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl">
+        {children}
+      </main>
+      <div className="md:hidden">
+        <BottomNav />
+      </div>
     </div>
   );
 }

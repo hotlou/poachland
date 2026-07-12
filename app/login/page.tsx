@@ -90,8 +90,8 @@ function LoginCard() {
       </header>
 
       <main className="flex-1 flex items-center justify-center px-5 pb-16">
-        <div className="w-full max-w-sm">
-          <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="w-full max-w-md">
+          <div className="bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-2 mb-5">
               <span className="badge-stamp text-accent border-accent">
                 Ultimate frisbee only
@@ -218,7 +218,7 @@ function LoginCard() {
                     disabled={
                       !email.trim() || (usePassword && !password) || submitting
                     }
-                    className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {submitting
                       ? usePassword
