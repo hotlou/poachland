@@ -40,6 +40,15 @@ export interface Badge {
   type: BadgeType;
 }
 
+/** One line of a trader's playing résumé — surfaces what gear they may have. */
+export interface HistoryEntry {
+  id: string;
+  kind: "team" | "tournament" | "league";
+  name: string;
+  years?: string; // free-form, e.g. "2016-2019"
+  note?: string;
+}
+
 export interface UserRecord {
   id: string;
   username: string;
@@ -48,6 +57,10 @@ export interface UserRecord {
   bio: string;
   location: string;
   favoriteTeams: string[];
+  /** Playing history (public). */
+  history?: HistoryEntry[];
+  /** Profile photo gallery (public, max 4). */
+  gallery?: string[];
   memberSince: string;
   isVerified: boolean;
   badges: Badge[];
@@ -166,6 +179,8 @@ export interface FulfillmentState {
   shippedAt?: string;
   tracking?: string;
   receivedAt?: string;
+  /** Proof of shipment/handoff (packed item, receipt) — visible to both parties. */
+  proofPhotos?: string[];
 }
 
 export interface DealRecord {
@@ -345,6 +360,21 @@ export interface ActivityEvent {
   linkTo?: string;
 }
 
+// ─── Payment handles (PRIVATE — revealed only inside accepted deals) ─────────
+
+export type PaymentKind = "venmo" | "paypal" | "cashapp" | "zelle" | "crypto" | "other";
+
+export interface PaymentMethod {
+  id: string;
+  userId: string;
+  kind: PaymentKind;
+  /** Optional display label, e.g. "BTC" or "personal". */
+  label?: string;
+  /** Handle / address, e.g. "@hotlou" or a wallet address. */
+  value: string;
+  createdAt: string;
+}
+
 // ─── Linked real-life identities (reputation scaffolding) ────────────────────
 
 export type IdentityProvider = "instagram" | "facebook" | "usau" | "other";
@@ -381,4 +411,9 @@ export interface DBState {
   activity: ActivityEvent[];
   /** Linked real-life identities (IG / FB / USAU) for reputation binding. */
   identities?: IdentityRecord[];
+  /**
+   * Payment handles. PRIVATE: a snapshot only ever contains the viewer's own
+   * plus those of counterparties in the viewer's ACCEPTED deals.
+   */
+  paymentMethods?: PaymentMethod[];
 }

@@ -35,6 +35,8 @@ import type {
   Deal,
   IdentityProvider,
   IdentityRecord,
+  PaymentKind,
+  PaymentMethod,
   ISOPost,
   ISOStatus,
   Listing,
@@ -105,6 +107,7 @@ export class RemotePoachStore extends PoachStore {
       blocks: snap.blocks,
       activity: snap.activity,
       identities: snap.identities ?? [],
+      paymentMethods: snap.paymentMethods ?? [],
     };
     this.sessionMe = me;
     this.ready = true;
@@ -188,11 +191,27 @@ export class RemotePoachStore extends PoachStore {
 
   override updateProfile(
     patch: Partial<
-      Pick<UserRecord, "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username">
+      Pick<
+        UserRecord,
+        | "displayName"
+        | "bio"
+        | "location"
+        | "favoriteTeams"
+        | "avatar"
+        | "username"
+        | "history"
+        | "gallery"
+      >
     >,
   ): Res<User> {
     const res = super.updateProfile(patch);
-    if (res.ok) this.send("updateProfile", { patch });
+    // Send the locally-normalized history (engine assigns ids to blank rows)
+    // so client and server converge on the same entry ids.
+    if (res.ok) {
+      const normalized =
+        patch.history !== undefined ? { ...patch, history: res.value.history } : patch;
+      this.send("updateProfile", { patch: normalized });
+    }
     return res;
   }
 
@@ -453,6 +472,40 @@ export class RemotePoachStore extends PoachStore {
   override removeIdentity(id: string): Res {
     const res = super.removeIdentity(id);
     if (res.ok) this.send("removeIdentity", { id });
+    return res;
+  }
+
+  // ── Payment handles (private) ───────────────────────────────────────────────
+
+  override addPaymentMethod(input: {
+    id?: string;
+    kind: PaymentKind;
+    label?: string;
+    value: string;
+  }): Res<PaymentMethod> {
+    const res = super.addPaymentMethod(input);
+    if (res.ok) {
+      this.send("addPaymentMethod", {
+        id: res.value.id,
+        kind: res.value.kind,
+        label: res.value.label,
+        value: res.value.value,
+      });
+    }
+    return res;
+  }
+
+  override removePaymentMethod(id: string): Res {
+    const res = super.removePaymentMethod(id);
+    if (res.ok) this.send("removePaymentMethod", { id });
+    return res;
+  }
+
+  // ── Deal proof ──────────────────────────────────────────────────────────────
+
+  override attachProof(dealId: string, photos: string[]): Res {
+    const res = super.attachProof(dealId, photos);
+    if (res.ok) this.send("attachProof", { dealId, photos });
     return res;
   }
 }

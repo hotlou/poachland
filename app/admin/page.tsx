@@ -112,6 +112,22 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** data: URLs can't be opened as top-level navigations — route them via a blob. */
+async function openPhoto(src: string) {
+  if (!src.startsWith("data:")) {
+    window.open(src, "_blank", "noopener,noreferrer");
+    return;
+  }
+  try {
+    const blob = await (await fetch(src)).blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    toast.error("Couldn't open the photo");
+  }
+}
+
 const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string }> = {
   pending: {
     label: "Pending",
@@ -770,6 +786,32 @@ function DisputesSection({
                     <span className="font-bold text-red-700 dark:text-red-400">Dispute:</span> {deal.disputeReason}
                   </p>
                 )}
+                {/* Proof photos each party attached — evidence for the call. */}
+                {[deal.proposerId, deal.ownerId].map((partyId) => {
+                  const photos = deal.fulfillment[partyId]?.proofPhotos ?? [];
+                  if (photos.length === 0) return null;
+                  const party = findUser(partyId);
+                  return (
+                    <div key={partyId}>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+                        Proof from {party?.username ?? "unknown"}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {photos.map((src, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => void openPhoto(src)}
+                            aria-label={`Open proof photo ${i + 1} from ${party?.username ?? "party"}`}
+                            className="w-12 h-12 rounded-lg overflow-hidden border border-border hover:border-accent transition-colors"
+                          >
+                            <img src={src} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
                 <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
                 <div className="flex gap-2 pt-1">
                   <Button

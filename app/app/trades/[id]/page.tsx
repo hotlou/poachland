@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -8,24 +8,33 @@ import {
   ArrowLeft,
   ArrowRightLeft,
   Ban,
+  Bitcoin,
   Check,
   CheckCircle2,
+  CircleDollarSign,
+  Copy,
+  DollarSign,
   Handshake,
+  ImagePlus,
+  Landmark,
   MessageCircle,
   Package,
   PartyPopper,
   Send,
   ShieldAlert,
+  Smartphone,
   Star,
   Truck,
   Undo2,
+  Wallet,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
 import type { OfferTermsInput } from "@/lib/engine";
-import type { Deal, HydratedRating, Listing, User } from "@/lib/types";
+import type { Deal, HydratedRating, Listing, PaymentKind, User } from "@/lib/types";
+import { fileToDataUrl } from "@/lib/image";
 import { DEAL_KIND_LABELS } from "@/lib/constants";
 import { formatDate, timeAgo, timeUntil } from "@/lib/format";
 import { Hydrated } from "@/components/hydrated";
@@ -370,6 +379,229 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
   );
 }
 
+// ─── Settle up (payment handles) ──────────────────────────────────────────────
+
+const PAYMENT_KIND_META: Record<PaymentKind, { label: string; icon: React.ElementType }> = {
+  venmo: { label: "Venmo", icon: Smartphone },
+  paypal: { label: "PayPal", icon: CircleDollarSign },
+  cashapp: { label: "Cash App", icon: DollarSign },
+  zelle: { label: "Zelle", icon: Landmark },
+  crypto: { label: "Crypto", icon: Bitcoin },
+  other: { label: "Other", icon: Wallet },
+};
+
+/** Keep long values (crypto addresses) readable: trim the middle, not the end. */
+function truncateMiddle(value: string, max = 24): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, 12)}…${value.slice(-9)}`;
+}
+
+/** data: URLs can't be opened as top-level navigations — route them via a blob. */
+async function openPhoto(src: string) {
+  if (!src.startsWith("data:")) {
+    window.open(src, "_blank", "noopener,noreferrer");
+    return;
+  }
+  try {
+    const blob = await (await fetch(src)).blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    toast.error("Couldn't open the photo");
+  }
+}
+
+function SettleUpBlock({ other }: { other: User }) {
+  const store = useStore();
+  const theirs = store.paymentMethodsFor(other.id);
+  const mine = store.myPaymentMethods();
+
+  const copy = (value: string) => {
+    if (!navigator.clipboard) {
+      toast.error("Couldn't copy — grab it by hand");
+      return;
+    }
+    navigator.clipboard.writeText(value).then(
+      () => toast.success("Copied"),
+      () => toast.error("Couldn't copy — grab it by hand"),
+    );
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Wallet size={16} className="text-accent" />
+        <h3 className="font-display font-bold text-sm text-foreground">Settle up</h3>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Cash is part of this deal — here&apos;s how @{other.username} gets paid.
+      </p>
+
+      {theirs.length === 0 ? (
+        <p className="text-sm text-muted-foreground bg-surface border border-border rounded-lg px-3 py-2.5">
+          @{other.username} hasn&apos;t added payment handles yet — ask in the chat.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {theirs.map((m) => {
+            const meta = PAYMENT_KIND_META[m.kind];
+            const Icon = meta.icon;
+            return (
+              <div
+                key={m.id}
+                className="flex items-center gap-2 bg-surface border border-border rounded-lg pl-2 pr-1 py-1.5"
+              >
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[11px] font-medium text-muted-foreground flex-shrink-0">
+                  <Icon size={11} /> {meta.label}
+                  {m.label ? ` · ${m.label}` : ""}
+                </span>
+                <span
+                  className="flex-1 min-w-0 font-mono text-[13px] text-foreground truncate"
+                  title={m.value}
+                >
+                  {truncateMiddle(m.value)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copy(m.value)}
+                  aria-label={`Copy ${meta.label} handle`}
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-accent transition-colors"
+                >
+                  <Copy size={13} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted-foreground mt-2.5">
+        {mine.length > 0 ? (
+          <>
+            Your {mine.length === 1 ? "handle is" : "handles are"} visible to @{other.username}{" "}
+            for this deal too.
+          </>
+        ) : (
+          <>
+            @{other.username} can&apos;t see any handles for you yet —{" "}
+            <Link href="/app/settings" className="text-accent font-semibold hover:underline">
+              Add yours
+            </Link>
+            .
+          </>
+        )}
+      </p>
+      <p className="text-[11px] text-muted-foreground/70 mt-1">
+        Settle directly. Poachland escrow is on the roadmap.
+      </p>
+    </div>
+  );
+}
+
+// ─── Proof photos ─────────────────────────────────────────────────────────────
+
+const MAX_PROOF_PHOTOS = 4;
+
+function ProofSection({ deal, me, other }: { deal: Deal; me: User; other: User }) {
+  const store = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const myPhotos = deal.fulfillment[me.id]?.proofPhotos ?? [];
+  const theirPhotos = deal.fulfillment[other.id]?.proofPhotos ?? [];
+  const room = MAX_PROOF_PHOTOS - myPhotos.length;
+
+  const onFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    if (files.length > room) {
+      toast.error(`Only ${room} proof slot${room === 1 ? "" : "s"} left`);
+    }
+    setUploading(true);
+    const photos: string[] = [];
+    for (const file of files.slice(0, room)) {
+      try {
+        photos.push(await fileToDataUrl(file, 800));
+      } catch {
+        toast.error(`Couldn't read ${file.name}`);
+      }
+    }
+    setUploading(false);
+    if (photos.length === 0) return;
+    const res = store.attachProof(deal.id, photos);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Added ${photos.length} proof photo${photos.length > 1 ? "s" : ""}`);
+  };
+
+  const photoRow = (label: string, photos: string[]) =>
+    photos.length > 0 && (
+      <div>
+        <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {photos.map((src, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => void openPhoto(src)}
+              aria-label={`Open proof photo ${i + 1}`}
+              className="w-14 h-14 rounded-lg overflow-hidden border border-border hover:border-accent transition-colors"
+            >
+              <img src={src} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold mb-2">
+        Proof
+      </p>
+      {(myPhotos.length > 0 || theirPhotos.length > 0) && (
+        <div className="space-y-2.5 mb-3">
+          {photoRow("Your proof", myPhotos)}
+          {photoRow(`@${other.username}'s proof`, theirPhotos)}
+        </div>
+      )}
+      {room > 0 ? (
+        <>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="w-full border border-border bg-card text-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full flex items-center justify-center gap-1.5 hover:border-accent hover:text-accent transition-colors disabled:opacity-50"
+          >
+            <ImagePlus size={14} /> {uploading ? "Adding…" : "Add proof photos"}
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center mt-1.5">
+            Up to 4 photos — packed item, receipt, tracking label.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              void onFiles(files);
+            }}
+          />
+        </>
+      ) : (
+        <p className="text-[11px] text-muted-foreground text-center">
+          Your proof is maxed out at 4 photos.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Fulfillment panel ────────────────────────────────────────────────────────
 
 function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: User }) {
@@ -528,6 +760,10 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
           You&apos;ve confirmed — waiting on @{other.username}.
         </div>
       )}
+
+      <div className="border-t border-border mt-3 pt-3">
+        <ProofSection deal={deal} me={me} other={other} />
+      </div>
 
       <div className="flex items-center justify-center gap-4 mt-3">
         <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
@@ -733,6 +969,7 @@ function DealRoom({ id }: { id: string }) {
   const iAmProposer = deal.proposerId === me.id;
   const other = iAmProposer ? deal.owner : deal.proposer;
   const current = deal.currentOffer;
+  const movesCash = current.cashFromProposer > 0 || current.cashFromOwner > 0;
   const myTurn = deal.status === "open" && current.byUserId !== me.id;
   const canRate = store.canRateDeal(deal.id);
   const myRating = store.ratingsBy(me.id).find((r) => r.dealId === deal.id);
@@ -1003,7 +1240,19 @@ function DealRoom({ id }: { id: string }) {
             </div>
           )}
 
-          {deal.status === "accepted" && <FulfillmentPanel deal={deal} me={me} other={other} />}
+          {deal.status === "accepted" && (
+            <>
+              <FulfillmentPanel deal={deal} me={me} other={other} />
+              {movesCash && <SettleUpBlock other={other} />}
+            </>
+          )}
+
+          {/* Disputed deals keep proof open — evidence for the moderators. */}
+          {deal.status === "disputed" && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <ProofSection deal={deal} me={me} other={other} />
+            </div>
+          )}
 
           {deal.status === "completed" && (
             <div className="space-y-3">

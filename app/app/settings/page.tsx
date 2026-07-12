@@ -6,14 +6,20 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Ban,
+  Bitcoin,
+  CircleDollarSign,
+  DollarSign,
   IdCard,
+  Landmark,
   LogOut,
   Mail,
   Plus,
   ShieldCheck,
+  Smartphone,
   SunMoon,
   Trash2,
   UserCircle,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,7 +31,7 @@ import {
   IDENTITY_PROVIDER_META,
   IDENTITY_STATUS_META,
 } from "@/components/identity-chips";
-import type { IdentityProvider } from "@/lib/types";
+import type { IdentityProvider, PaymentKind } from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +45,26 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const PROVIDER_OPTIONS: IdentityProvider[] = ["instagram", "facebook", "usau", "other"];
+
+const PAYMENT_KIND_META: Record<
+  PaymentKind,
+  { label: string; icon: React.ElementType; placeholder: string }
+> = {
+  venmo: { label: "Venmo", icon: Smartphone, placeholder: "@your-venmo" },
+  paypal: { label: "PayPal", icon: CircleDollarSign, placeholder: "you@email.com or paypal.me/you" },
+  cashapp: { label: "Cash App", icon: DollarSign, placeholder: "$yourcashtag" },
+  zelle: { label: "Zelle", icon: Landmark, placeholder: "email or phone number" },
+  crypto: { label: "Crypto", icon: Bitcoin, placeholder: "wallet address" },
+  other: { label: "Other", icon: Wallet, placeholder: "handle or address" },
+};
+
+const PAYMENT_KINDS = Object.keys(PAYMENT_KIND_META) as PaymentKind[];
+
+/** Keep long values (crypto addresses) readable: trim the middle, not the end. */
+function truncateMiddle(value: string, max = 24): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, 12)}…${value.slice(-9)}`;
+}
 
 const inputCls =
   "w-full rounded-lg bg-input border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
@@ -212,6 +238,148 @@ function IdentitiesSection() {
           className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold shadow-sm hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Plus size={14} /> Link identity
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/* ── Payment handles ───────────────────────────────────────────────────────── */
+
+function PaymentHandlesSection() {
+  const store = useStore();
+  const methods = store.myPaymentMethods();
+
+  const [kind, setKind] = useState<PaymentKind>("venmo");
+  const [value, setValue] = useState("");
+  const [label, setLabel] = useState("");
+
+  const add = () => {
+    const res = store.addPaymentMethod({
+      kind,
+      label: label.trim() || undefined,
+      value,
+    });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Saved your ${PAYMENT_KIND_META[kind].label} handle`);
+    setValue("");
+    setLabel("");
+  };
+
+  const remove = (id: string, name: string) => {
+    const res = store.removePaymentMethod(id);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Removed ${name}`);
+  };
+
+  return (
+    <section>
+      <SectionTitle icon={Wallet}>Payment handles</SectionTitle>
+      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+        Private. Never shown on your profile. Revealed only to your trade
+        partner once a deal is accepted, so you two can settle up.
+      </p>
+
+      {methods.length > 0 && (
+        <div className="flex flex-col gap-2 mb-3">
+          {methods.map((m) => {
+            const meta = PAYMENT_KIND_META[m.kind];
+            const Icon = meta.icon;
+            return (
+              <div
+                key={m.id}
+                className="flex items-center gap-3 bg-card border border-border rounded-xl p-3"
+              >
+                <div className="w-9 h-9 rounded-lg bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                  <Icon size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-sm font-semibold font-mono tracking-tight truncate"
+                    title={m.value}
+                  >
+                    {truncateMiddle(m.value)}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {meta.label}
+                    {m.label ? ` · ${m.label}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => remove(m.id, `your ${meta.label} handle`)}
+                  aria-label={`Remove ${meta.label} handle`}
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add handle */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+        className="bg-card border border-border rounded-xl p-3.5 space-y-2.5"
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {PAYMENT_KINDS.map((k) => {
+            const meta = PAYMENT_KIND_META[k];
+            const Icon = meta.icon;
+            const on = kind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setKind(k)}
+                aria-pressed={on}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  on
+                    ? "border-accent bg-accent text-accent-foreground shadow-sm"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon size={12} /> {meta.label}
+              </button>
+            );
+          })}
+        </div>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={PAYMENT_KIND_META[kind].placeholder}
+          maxLength={120}
+          className={cn(inputCls, "font-mono")}
+          aria-label="Handle or address"
+        />
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Label (optional) — e.g. BTC, personal"
+          maxLength={40}
+          className={inputCls}
+          aria-label="Label"
+        />
+        <button
+          type="submit"
+          disabled={!value.trim()}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold shadow-sm hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Plus size={14} /> Save handle
         </button>
       </form>
     </section>
@@ -395,8 +563,11 @@ function SettingsContent() {
           </section>
         </div>
 
-        {/* Linked identities */}
-        <IdentitiesSection />
+        {/* Linked identities + payment handles */}
+        <div className="flex flex-col gap-7">
+          <IdentitiesSection />
+          <PaymentHandlesSection />
+        </div>
       </div>
 
       {/* Blocked traders */}

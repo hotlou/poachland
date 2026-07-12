@@ -24,6 +24,7 @@ import type {
   ItemType,
   Level,
   ListingType,
+  PaymentKind,
   ReportTargetType,
   SaveTargetType,
   ShippingPreference,
@@ -140,10 +141,22 @@ export interface OpMap {
     patch: Partial<
       Pick<
         UserRecord,
-        "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username"
+        | "displayName"
+        | "bio"
+        | "location"
+        | "favoriteTeams"
+        | "avatar"
+        | "username"
+        | "history"
+        | "gallery"
       >
     >;
   };
+  // payment handles (private)
+  addPaymentMethod: { id: string; kind: PaymentKind; label?: string; value: string };
+  removePaymentMethod: { id: string };
+  // deal proof (shipping photos / receipts)
+  attachProof: { dealId: string; photos: string[] };
   // listings
   createListing: { id: string; input: ListingInput };
   updateListing: { id: string; patch: Partial<ListingInput> };
