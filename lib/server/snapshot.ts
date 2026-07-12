@@ -41,6 +41,7 @@ import {
   messages,
   notifications,
   offers,
+  paymentMethods,
   ratings,
   reports,
   saves,
@@ -54,6 +55,7 @@ import {
   type MessageRow,
   type NotificationRow,
   type OfferRow,
+  type PaymentMethodRow,
   type RatingRow,
   type ReportRow,
   type SaveRow,
@@ -76,6 +78,8 @@ function toUserRecord(row: UserRow): UserRecord {
     bio: row.bio,
     location: row.location,
     favoriteTeams: row.favoriteTeams,
+    history: row.history,
+    gallery: row.gallery,
     memberSince: iso(row.memberSince),
     isVerified: row.isVerified,
     badges: row.badges,
@@ -335,6 +339,7 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
   let saveRows: SaveRow[] = [];
   let reportRows: ReportRow[] = [];
   let blockRows: BlockRow[] = [];
+  let paymentRows: PaymentMethodRow[] = [];
 
   if (viewerId) {
     const viewerDeals = or(eq(deals.proposerId, viewerId), eq(deals.ownerId, viewerId));
@@ -388,6 +393,19 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
           .where(or(eq(blocks.blockerId, viewerId), eq(blocks.blockedId, viewerId)))
           .orderBy(asc(blocks.createdAt)),
       ]);
+
+    // Payment handles are PRIVATE: the viewer's own, plus those belonging to
+    // counterparties in the viewer's ACCEPTED deals (settle-up reveal).
+    const counterpartyIds = new Set<string>();
+    for (const d of dealRows) {
+      if (d.status !== "accepted") continue;
+      counterpartyIds.add(d.proposerId === viewerId ? d.ownerId : d.proposerId);
+    }
+    paymentRows = await db
+      .select()
+      .from(paymentMethods)
+      .where(inArray(paymentMethods.userId, [viewerId, ...counterpartyIds]))
+      .orderBy(asc(paymentMethods.createdAt), asc(paymentMethods.id));
   }
 
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
@@ -421,6 +439,18 @@ export async function buildSnapshot(viewerId: string | null): Promise<WorldSnaps
     blocks: blockRows.map(toBlock),
     activity: activityRows.map(toActivityEvent).reverse(), // chronological
     identities: identityRows.map(toIdentityRecord),
+    paymentMethods: paymentRows.map(toPaymentMethod),
+  };
+}
+
+function toPaymentMethod(row: PaymentMethodRow) {
+  return {
+    id: row.id,
+    userId: row.userId,
+    kind: row.kind,
+    label: row.label ?? undefined,
+    value: row.value,
+    createdAt: iso(row.createdAt),
   };
 }
 

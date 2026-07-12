@@ -38,6 +38,7 @@ import {
   messages,
   notifications,
   offers,
+  paymentMethods,
   ratings,
   reports,
   saves,
@@ -741,6 +742,32 @@ const handlers: Handlers = {
           ? patch.favoriteTeams.map(String)
           : [];
       if (patch.avatar !== undefined && patch.avatar) set.avatar = String(patch.avatar);
+      if (patch.history !== undefined) {
+        if (!Array.isArray(patch.history)) return err("Invalid history");
+        if (patch.history.length > 12) return err("History is capped at 12 entries");
+        const kinds = new Set(["team", "tournament", "league"]);
+        const cleaned = [];
+        for (const entry of patch.history) {
+          const name = String(entry?.name ?? "").trim();
+          if (!name) return err("History entries need a name");
+          if (name.length > 80) return err("History names are capped at 80 characters");
+          if (!kinds.has(String(entry?.kind))) return err("Invalid history kind");
+          cleaned.push({
+            id: isClientId(String(entry?.id)) ? String(entry.id) : uid("h"),
+            kind: entry.kind as "team" | "tournament" | "league",
+            name,
+            years: entry?.years ? String(entry.years).slice(0, 24) : undefined,
+            note: entry?.note ? String(entry.note).slice(0, 140) : undefined,
+          });
+        }
+        set.history = cleaned;
+      }
+      if (patch.gallery !== undefined) {
+        if (!Array.isArray(patch.gallery)) return err("Invalid gallery");
+        const photos = patch.gallery.slice(0, 4).map(String);
+        if (photos.some((p) => p.length > 400_000)) return err("A gallery photo is too large");
+        set.gallery = photos;
+      }
       if (Object.keys(set).length > 0) {
         await tx.update(users).set(set).where(eq(users.id, me.id));
       }
@@ -1765,6 +1792,85 @@ const handlers: Handlers = {
       .returning({ id: identities.id });
     if (deleted.length === 0) return err("Identity not found");
     return ok(null);
+  },
+
+  // ── Payment handles (private) ──────────────────────────────────────────────
+
+  async addPaymentMethod(db, user, { id, kind, label, value }) {
+    return db.transaction(async (tx) => {
+      if (!isClientId(id)) return err("Invalid id");
+      const validKinds = ["venmo", "paypal", "cashapp", "zelle", "crypto", "other"];
+      if (!validKinds.includes(kind)) return err("Invalid payment type");
+      const cleanValue = String(value ?? "").trim();
+      if (!cleanValue) return err("Enter the handle or address");
+      if (cleanValue.length > 120) return err("Handle is too long (120 characters max)");
+      const cleanLabel = label !== undefined && String(label).trim()
+        ? String(label).trim().slice(0, 40)
+        : null;
+      const mine = await tx
+        .select({ id: paymentMethods.id, kind: paymentMethods.kind, value: paymentMethods.value })
+        .from(paymentMethods)
+        .where(eq(paymentMethods.userId, user.id));
+      if (mine.length >= 6) return err("You can save up to 6 payment handles");
+      if (mine.some((m) => m.kind === kind && m.value === cleanValue))
+        return err("You already saved that handle");
+      await tx.insert(paymentMethods).values({
+        id,
+        userId: user.id,
+        kind,
+        label: cleanLabel,
+        value: cleanValue,
+        createdAt: new Date(),
+      });
+      return ok(id);
+    });
+  },
+
+  async removePaymentMethod(db, user, { id }) {
+    const deleted = await db
+      .delete(paymentMethods)
+      .where(and(eq(paymentMethods.id, id), eq(paymentMethods.userId, user.id)))
+      .returning({ id: paymentMethods.id });
+    if (deleted.length === 0) return err("Payment handle not found");
+    return ok(null);
+  },
+
+  // ── Deal proof (shipping photos / receipts) ────────────────────────────────
+
+  async attachProof(db, user, { dealId, photos }) {
+    return db.transaction(async (tx) => {
+      const deal = await getDealForUpdate(tx, dealId);
+      if (!deal) return err("Deal not found");
+      if (deal.proposerId !== user.id && deal.ownerId !== user.id) return err("Not your deal");
+      if (deal.status !== "accepted" && deal.status !== "disputed")
+        return err("Proof can be added while a deal is in progress");
+      if (!Array.isArray(photos) || photos.length === 0) return err("Add at least one photo");
+      if (photos.some((p) => String(p).length > 400_000)) return err("A photo is too large");
+      const f: FulfillmentState = { ...(deal.fulfillment[user.id] ?? {}) };
+      const existing = f.proofPhotos ?? [];
+      const merged = [...existing, ...photos.map(String)].slice(0, 4);
+      if (existing.length >= 4) return err("Proof is capped at 4 photos");
+      f.proofPhotos = merged;
+      const now = new Date();
+      const fulfillment = { ...deal.fulfillment, [user.id]: f };
+      await tx.update(deals).set({ fulfillment, updatedAt: now }).where(eq(deals.id, deal.id));
+      await appendMessage(
+        tx,
+        deal.threadId,
+        user.id,
+        "system",
+        `${user.username} added ${photos.length} proof photo${photos.length > 1 ? "s" : ""} to the deal.`,
+      );
+      await notify(
+        tx,
+        otherParty(deal, user.id),
+        "system",
+        "Proof added",
+        `${user.username} attached proof photos to your deal.`,
+        `/app/trades/${deal.id}`,
+      );
+      return ok(null);
+    });
   },
 
   // ── Admin ──────────────────────────────────────────────────────────────────

@@ -25,6 +25,8 @@ import type {
   HydratedRating,
   IdentityProvider,
   IdentityRecord,
+  PaymentKind,
+  PaymentMethod,
   ISOPost,
   ISOPostRecord,
   ISOStatus,
@@ -350,7 +352,14 @@ export class PoachStore {
     return ok(user);
   }
 
-  updateProfile(patch: Partial<Pick<UserRecord, "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username">>): Res<User> {
+  updateProfile(
+    patch: Partial<
+      Pick<
+        UserRecord,
+        "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username" | "history" | "gallery"
+      >
+    >,
+  ): Res<User> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     const user = this.rawUser(me.id)!;
@@ -369,6 +378,18 @@ export class PoachStore {
     if (patch.location !== undefined) user.location = patch.location;
     if (patch.favoriteTeams !== undefined) user.favoriteTeams = patch.favoriteTeams;
     if (patch.avatar !== undefined && patch.avatar) user.avatar = patch.avatar;
+    if (patch.history !== undefined) {
+      if (patch.history.length > 12) return err("History is capped at 12 entries");
+      if (patch.history.some((h) => !h.name.trim())) return err("History entries need a name");
+      user.history = patch.history.map((h) => ({
+        ...h,
+        id: h.id || uid("h"),
+        name: h.name.trim().slice(0, 80),
+        years: h.years?.trim() || undefined,
+        note: h.note?.trim() || undefined,
+      }));
+    }
+    if (patch.gallery !== undefined) user.gallery = patch.gallery.slice(0, 4);
     this.commit();
     return ok(user);
   }
@@ -1960,6 +1981,93 @@ export class PoachStore {
     if (list[idx].userId !== me.id)
       return err("You can only remove your own linked identities");
     list.splice(idx, 1);
+    this.commit();
+    return ok(null);
+  }
+
+  // ── Payment handles (private — revealed only inside accepted deals) ───────
+
+  myPaymentMethods(): PaymentMethod[] {
+    const me = this.currentUser();
+    if (!me) return [];
+    return this.paymentMethodsFor(me.id);
+  }
+
+  /**
+   * Payment handles present in local state for a user. For anyone other than
+   * the current user, the server only ships these when you share an ACCEPTED
+   * deal, so this is inherently deal-scoped.
+   */
+  paymentMethodsFor(userId: string): PaymentMethod[] {
+    return (this.state.paymentMethods ?? [])
+      .filter((m) => m.userId === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  addPaymentMethod(input: {
+    id?: string;
+    kind: PaymentKind;
+    label?: string;
+    value: string;
+  }): Res<PaymentMethod> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const value = input.value.trim();
+    if (!value) return err("Enter the handle or address");
+    if (value.length > 120) return err("Handle is too long (120 characters max)");
+    const mine = this.myPaymentMethods();
+    if (mine.length >= 6) return err("You can save up to 6 payment handles");
+    if (mine.some((m) => m.kind === input.kind && m.value === value))
+      return err("You already saved that handle");
+    const record: PaymentMethod = {
+      id: input.id ?? uid("pm"),
+      userId: me.id,
+      kind: input.kind,
+      label: input.label?.trim() || undefined,
+      value,
+      createdAt: this.now(),
+    };
+    if (!this.state.paymentMethods) this.state.paymentMethods = [];
+    this.state.paymentMethods.push(record);
+    this.commit();
+    return ok(record);
+  }
+
+  removePaymentMethod(id: string): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const list = this.state.paymentMethods ?? [];
+    const idx = list.findIndex((m) => m.id === id);
+    if (idx < 0) return err("Payment handle not found");
+    if (list[idx].userId !== me.id) return err("You can only remove your own handles");
+    list.splice(idx, 1);
+    this.commit();
+    return ok(null);
+  }
+
+  // ── Deal proof (shipping photos / receipts) ────────────────────────────────
+
+  attachProof(dealId: string, photos: string[]): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const deal = this.state.deals.find((d) => d.id === dealId);
+    if (!deal) return err("Deal not found");
+    if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    if (deal.status !== "accepted" && deal.status !== "disputed")
+      return err("Proof can be added while a deal is in progress");
+    if (photos.length === 0) return err("Add at least one photo");
+    const f: FulfillmentState = deal.fulfillment[me.id] ?? {};
+    const existing = f.proofPhotos ?? [];
+    if (existing.length >= 4) return err("Proof is capped at 4 photos");
+    f.proofPhotos = [...existing, ...photos].slice(0, 4);
+    deal.fulfillment[me.id] = f;
+    deal.updatedAt = this.now();
+    this.appendMessage(
+      deal.threadId,
+      me.id,
+      "system",
+      `${me.username} added ${photos.length} proof photo${photos.length > 1 ? "s" : ""} to the deal.`,
+    );
     this.commit();
     return ok(null);
   }

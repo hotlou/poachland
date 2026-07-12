@@ -33,6 +33,7 @@ import type {
   DealStatus,
   Division,
   FulfillmentState,
+  HistoryEntry,
   ISOStatus,
   ItemType,
   Level,
@@ -41,6 +42,7 @@ import type {
   MessageKind,
   NotificationType,
   OfferStatus,
+  PaymentKind,
   ReportStatus,
   ReportTargetType,
   SaveTargetType,
@@ -63,6 +65,8 @@ export const users = pgTable("users", {
   bio: text("bio").notNull().default(""),
   location: text("location").notNull().default(""),
   favoriteTeams: jsonb("favorite_teams").$type<string[]>().notNull().default([]),
+  history: jsonb("history").$type<HistoryEntry[]>().notNull().default([]),
+  gallery: jsonb("gallery").$type<string[]>().notNull().default([]),
   memberSince: timestamp("member_since", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),
@@ -419,8 +423,28 @@ export const identities = pgTable(
   ],
 );
 
+// ─── Payment handles (PRIVATE — revealed only inside accepted deals) ─────────
+
+export const paymentMethods = pgTable(
+  "payment_methods",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<PaymentKind>().notNull(),
+    label: text("label"),
+    value: text("value").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("payment_methods_user_id_idx").on(t.userId)],
+);
+
 // ─── Inferred row types ──────────────────────────────────────────────────────
 
+export type PaymentMethodRow = typeof paymentMethods.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
 export type ListingRow = typeof listings.$inferSelect;
 export type IsoPostRow = typeof isoPosts.$inferSelect;

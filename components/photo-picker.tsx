@@ -7,21 +7,9 @@ import { cn } from "@/lib/utils";
 import { STOCK_PHOTOS } from "@/lib/constants";
 import type { ItemType } from "@/lib/types";
 
-const MAX_PHOTOS = 4;
-const MAX_EDGE = 800;
+import { fileToDataUrl } from "@/lib/image";
 
-/** Downscale an uploaded image to a small JPEG data URL (localStorage-safe). */
-async function fileToDataUrl(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas unavailable");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.72);
-}
+const MAX_PHOTOS = 4;
 
 /**
  * Photo selection for create/edit listing: pick from stock item photos
