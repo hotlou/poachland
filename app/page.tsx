@@ -15,6 +15,40 @@ import { Hydrated } from "@/components/hydrated";
 import { CONDITION_COLORS, LISTING_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
+// ── Shared button styles ─────────────────────────────────────────────────────
+
+const pillPrimary =
+  "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold rounded-full hover:opacity-90 transition-opacity";
+const pillSecondary =
+  "inline-flex items-center justify-center gap-2 bg-card text-foreground border border-border font-semibold rounded-full hover:border-accent/50 hover:text-accent transition-colors";
+
+/** Top-bar nav: text link + join pill when signed out, enter pill when signed in. */
+function HeaderNav() {
+  const store = useStore();
+  const ready = useHydrated();
+  const signedIn = ready && !!store.sessionMe;
+  if (signedIn) {
+    return (
+      <Link href="/app" className={cn(pillPrimary, "text-sm px-5 py-2")}>
+        Enter Poachland
+      </Link>
+    );
+  }
+  return (
+    <div className="flex items-center gap-4">
+      <Link
+        href="/login"
+        className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Log in
+      </Link>
+      <Link href="/login" className={cn(pillPrimary, "text-sm px-5 py-2")}>
+        Join free
+      </Link>
+    </div>
+  );
+}
+
 /** Primary CTA: joins/signs in when logged out, enters the app when logged in. */
 function PrimaryCta({ className }: { className: string }) {
   const store = useStore();
@@ -22,7 +56,7 @@ function PrimaryCta({ className }: { className: string }) {
   const signedIn = ready && !!store.sessionMe;
   return (
     <Link href={signedIn ? "/app" : "/login"} className={className}>
-      {signedIn ? "Enter Poachland" : "Join / Sign in"} <ArrowRight size={18} />
+      Start poaching <ArrowRight size={18} />
     </Link>
   );
 }
@@ -33,18 +67,19 @@ function StatsStrip() {
   const store = useStore();
   const stats = store.adminStats();
   const items = [
-    { label: "Traders", value: stats.users },
-    { label: "Live listings", value: stats.activeListings },
-    { label: "Deals completed", value: stats.dealsCompleted },
+    { label: "Collectors", value: String(stats.users) },
+    { label: "Active listings", value: String(stats.activeListings) },
+    { label: "Trades completed", value: String(stats.dealsCompleted) },
+    { label: "Fees", value: "$0" },
   ];
   return (
-    <div className="grid grid-cols-3 divide-x divide-border border border-border rounded-lg bg-card overflow-hidden">
+    <div className="grid grid-cols-4 gap-2">
       {items.map(({ label, value }) => (
-        <div key={label} className="flex flex-col items-center py-4 px-2">
-          <span className="font-display font-black text-3xl text-accent leading-none">
+        <div key={label} className="flex flex-col items-center text-center">
+          <span className="font-display font-black text-3xl tracking-tight leading-none">
             {value}
           </span>
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-1.5 text-center">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-2">
             {label}
           </span>
         </div>
@@ -55,11 +90,11 @@ function StatsStrip() {
 
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-3 divide-x divide-border border border-border rounded-lg bg-card overflow-hidden">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="flex flex-col items-center py-4 px-2 gap-2">
-          <div className="h-7 w-10 rounded bg-surface-raised animate-pulse" />
-          <div className="h-2.5 w-16 rounded bg-surface-raised animate-pulse" />
+    <div className="grid grid-cols-4 gap-2">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="flex flex-col items-center gap-2.5">
+          <div className="h-7 w-10 rounded bg-secondary animate-pulse" />
+          <div className="h-2.5 w-14 rounded bg-secondary animate-pulse" />
         </div>
       ))}
     </div>
@@ -71,7 +106,7 @@ function CrateStrip() {
   const listings = store.listListings({ sort: "newest" }).slice(0, 8);
   if (listings.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-lg">
+      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
         Crate&apos;s empty. Be the first to poach it.
       </p>
     );
@@ -82,7 +117,7 @@ function CrateStrip() {
         <Link
           key={listing.id}
           href={`/app/listings/${listing.id}`}
-          className="flex-shrink-0 w-36 rounded-lg overflow-hidden border border-border bg-card card-lift"
+          className="flex-shrink-0 w-36 rounded-xl overflow-hidden border border-border bg-card card-lift"
         >
           <div className="relative aspect-square bg-surface">
             {/* plain img: listing photos may be user-uploaded data URLs */}
@@ -100,7 +135,7 @@ function CrateStrip() {
               {listing.condition}
             </span>
           </div>
-          <div className="p-2">
+          <div className="p-2.5">
             <p className="text-xs font-semibold leading-tight line-clamp-2">
               {listing.title}
             </p>
@@ -125,12 +160,12 @@ function CrateSkeleton() {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className="flex-shrink-0 w-36 rounded-lg overflow-hidden border border-border bg-card"
+          className="flex-shrink-0 w-36 rounded-xl overflow-hidden border border-border bg-card"
         >
-          <div className="aspect-square bg-surface-raised animate-pulse" />
-          <div className="p-2 space-y-1.5">
-            <div className="h-3 w-full rounded bg-surface-raised animate-pulse" />
-            <div className="h-2.5 w-2/3 rounded bg-surface-raised animate-pulse" />
+          <div className="aspect-square bg-secondary animate-pulse" />
+          <div className="p-2.5 space-y-1.5">
+            <div className="h-3 w-full rounded bg-secondary animate-pulse" />
+            <div className="h-2.5 w-2/3 rounded bg-secondary animate-pulse" />
           </div>
         </div>
       ))}
@@ -143,7 +178,7 @@ function WantedPreview() {
   const posts = store.listISOPosts({ sort: "most-saved" }).slice(0, 3);
   if (posts.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-lg">
+      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
         No hunts posted yet. Be the first to poach it.
       </p>
     );
@@ -154,7 +189,7 @@ function WantedPreview() {
         <Link
           key={post.id}
           href="/app/wanted"
-          className="bg-card border border-border rounded-lg p-3.5 flex items-start gap-3 card-lift"
+          className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 card-lift"
         >
           <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex-shrink-0">
             {/* plain img: avatars may be user-uploaded data URLs */}
@@ -187,12 +222,12 @@ function WantedSkeleton() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="bg-card border border-border rounded-lg p-3.5 flex items-start gap-3"
+          className="bg-card border border-border rounded-xl p-4 flex items-start gap-3"
         >
-          <div className="w-8 h-8 rounded-full bg-surface-raised animate-pulse flex-shrink-0" />
+          <div className="w-8 h-8 rounded-full bg-secondary animate-pulse flex-shrink-0" />
           <div className="flex-1 space-y-2 pt-0.5">
-            <div className="h-2.5 w-20 rounded bg-surface-raised animate-pulse" />
-            <div className="h-3.5 w-full rounded bg-surface-raised animate-pulse" />
+            <div className="h-2.5 w-20 rounded bg-secondary animate-pulse" />
+            <div className="h-3.5 w-full rounded bg-secondary animate-pulse" />
           </div>
         </div>
       ))}
@@ -217,72 +252,75 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-lg">
         {/* Header */}
-        <header className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <span className="font-display font-black text-2xl tracking-tight text-foreground uppercase">
+        <header className="flex items-center justify-between px-5 py-4">
+          <span className="font-display font-black text-xl tracking-tight text-accent">
             Poachland
           </span>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/app"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Browse
-            </Link>
-            <Link
-              href="/login"
-              className="text-sm font-semibold bg-accent text-accent-foreground px-4 py-2 rounded-sm transition-opacity hover:opacity-90"
-            >
-              Sign in
-            </Link>
-          </div>
+          <HeaderNav />
         </header>
 
         {/* Hero */}
-        <section className="relative px-5 pt-12 pb-10 overflow-hidden">
-          <div className="relative z-10 max-w-sm mx-auto text-center">
-            <div className="badge-stamp text-accent border-accent inline-flex mx-auto mb-5">
-              Ultimate Frisbee Only
+        <section className="px-5 pt-12 pb-10">
+          <div className="max-w-sm mx-auto text-center">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="badge-stamp text-accent border-accent">
+                Ultimate frisbee only
+              </span>
+              <span className="badge-stamp text-pop border-pop">
+                Free to list
+              </span>
             </div>
-            <h1 className="font-display font-black text-5xl uppercase leading-none tracking-tight text-balance mb-4">
-              Trade <span className="text-accent">jerseys</span>.
-              &nbsp;Collect&nbsp;
-              <span className="text-accent">discs</span>.
+            <h1 className="font-display font-black text-5xl leading-[1.05] tracking-tight mb-5">
+              Trade jerseys.
+              <br />
+              <span className="text-accent">Collect discs.</span>
+              <br />
+              Trust each other.
             </h1>
             <p className="text-muted-foreground text-base leading-relaxed mb-8 text-pretty">
-              A marketplace built by players, for players. Free to list. Free
-              to trade. Community trust built in.
+              A marketplace built by players, for players. List your gear, find
+              rare stuff, propose trades. No fees, no middleman.
             </p>
             <div className="flex flex-col gap-3">
-              <PrimaryCta className="inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:opacity-90 transition-opacity" />
+              <PrimaryCta className={cn(pillPrimary, "text-base px-8 py-3.5")} />
               <Link
-                href="/app"
-                className="inline-flex items-center justify-center gap-2 border border-border text-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:border-accent/50 hover:text-accent transition-colors"
+                href="/app/browse"
+                className={cn(pillSecondary, "text-base px-8 py-3.5")}
               >
-                Browse the goods
+                Browse the crate
               </Link>
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              No fees. No algorithms. Just players.
-            </p>
           </div>
         </section>
 
-        {/* Live stats */}
-        <section className="px-5 pb-8">
-          <Hydrated fallback={<StatsSkeleton />}>
-            <StatsStrip />
-          </Hydrated>
+        {/* Live stats under a hairline */}
+        <section className="px-5">
+          <div className="border-t border-border pt-7 pb-9">
+            <Hydrated fallback={<StatsSkeleton />}>
+              <StatsStrip />
+            </Hydrated>
+          </div>
         </section>
 
-        {/* What's live right now */}
-        <section className="px-5 py-6 border-t border-border">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-              What&apos;s in the crate right now
-            </p>
+        {/* Fresh drops — live newest listings */}
+        <section className="px-5 py-8 border-t border-border">
+          <div className="flex items-end justify-between mb-5">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
+                What&apos;s in the crate
+              </p>
+              <div className="flex items-center gap-2.5">
+                <h2 className="font-display font-bold text-2xl tracking-tight">
+                  Fresh drops
+                </h2>
+                <span className="badge-pill bg-sunny text-sunny-foreground">
+                  rare finds daily
+                </span>
+              </div>
+            </div>
             <Link
               href="/app/browse"
-              className="text-xs text-accent font-semibold flex-shrink-0"
+              className="text-sm text-accent font-semibold flex-shrink-0 pb-1"
             >
               See all
             </Link>
@@ -293,11 +331,14 @@ export default function LandingPage() {
         </section>
 
         {/* Features */}
-        <section className="px-5 py-8 border-t border-border">
-          <h2 className="font-display font-bold text-2xl uppercase tracking-tight mb-6 text-balance">
+        <section className="px-5 py-9 border-t border-border">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
+            How it works
+          </p>
+          <h2 className="font-display font-bold text-2xl tracking-tight mb-6">
             Built for the community
           </h2>
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3">
             {[
               {
                 icon: ArrowLeftRight,
@@ -330,14 +371,15 @@ export default function LandingPage() {
                 desc: "Report shady listings, dispute bad deals. Mods keep the land clean.",
               },
             ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="flex gap-4 items-start">
-                <div className="flex-shrink-0 w-10 h-10 rounded-sm bg-accent-dim flex items-center justify-center">
-                  <Icon size={20} className="text-accent" />
+              <div
+                key={title}
+                className="bg-card border border-border rounded-xl p-4 flex gap-4 items-start"
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent-dim flex items-center justify-center">
+                  <Icon size={19} className="text-accent" />
                 </div>
                 <div>
-                  <h3 className="font-sans font-semibold text-sm mb-0.5 normal-case tracking-normal">
-                    {title}
-                  </h3>
+                  <h3 className="font-semibold text-sm mb-0.5">{title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {desc}
                   </p>
@@ -348,12 +390,20 @@ export default function LandingPage() {
         </section>
 
         {/* Wanted board preview */}
-        <section className="px-5 py-8 border-t border-border">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-2xl uppercase tracking-tight">
-              The wanted board
-            </h2>
-            <Link href="/app/wanted" className="text-xs text-accent font-semibold">
+        <section className="px-5 py-9 border-t border-border">
+          <div className="flex items-end justify-between mb-5">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
+                The hunt is on
+              </p>
+              <h2 className="font-display font-bold text-2xl tracking-tight">
+                The wanted board
+              </h2>
+            </div>
+            <Link
+              href="/app/wanted"
+              className="text-sm text-accent font-semibold flex-shrink-0 pb-1"
+            >
               View all
             </Link>
           </div>
@@ -363,9 +413,9 @@ export default function LandingPage() {
         </section>
 
         {/* CTA footer */}
-        <section className="px-5 pt-8 pb-16 border-t border-border">
-          <div className="bg-card border border-border rounded-lg p-6 text-center">
-            <h2 className="font-display font-extrabold text-3xl uppercase tracking-tight mb-2 text-balance">
+        <section className="px-5 pt-9 pb-12 border-t border-border">
+          <div className="bg-card border border-border rounded-xl p-7 text-center">
+            <h2 className="font-display font-black text-3xl tracking-tight mb-2 text-balance">
               What are you hunting?
             </h2>
             <Hydrated
@@ -378,16 +428,21 @@ export default function LandingPage() {
               <TraderCountLine />
             </Hydrated>
             <div className="flex flex-col items-center gap-3">
-              <PrimaryCta className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-7 py-3 rounded-sm hover:opacity-90 transition-opacity" />
+              <PrimaryCta className={cn(pillPrimary, "text-sm px-7 py-3")} />
               <Link
                 href="/app"
                 className="text-xs text-muted-foreground hover:text-accent underline underline-offset-4 transition-colors"
               >
-                Browse the goods first
+                Browse the crate first
               </Link>
             </div>
           </div>
         </section>
+
+        {/* Footer */}
+        <footer className="px-5 pb-10 text-center text-xs text-muted-foreground">
+          Poachland — built by players, for players.
+        </footer>
       </div>
     </div>
   );

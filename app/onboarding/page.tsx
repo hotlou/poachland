@@ -43,7 +43,7 @@ function sanitizeUsername(raw: string): string {
 }
 
 const inputCls =
-  "w-full rounded-md bg-input border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
+  "w-full rounded-lg bg-input border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -145,7 +145,7 @@ export default function OnboardingPage() {
         <div className="badge-stamp text-accent border-accent mb-4">
           Account live
         </div>
-        <h1 className="font-display font-black text-4xl uppercase tracking-tight text-balance mb-3">
+        <h1 className="font-display font-black text-4xl tracking-tight text-balance mb-3">
           Welcome to the land,
           <br />
           <span className="text-accent">@{created.username}</span>
@@ -156,7 +156,7 @@ export default function OnboardingPage() {
         </p>
         <button
           onClick={() => router.push("/app")}
-          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-8 py-3.5 rounded-full hover:opacity-90 transition-opacity"
         >
           Enter Poachland <ArrowRight size={18} />
         </button>
@@ -178,7 +178,7 @@ export default function OnboardingPage() {
             <ArrowLeft size={16} /> Back
           </button>
         ) : (
-          <span className="font-display font-black text-xl tracking-tight uppercase">
+          <span className="font-display font-black text-xl tracking-tight text-accent">
             Poachland
           </span>
         )}
@@ -190,7 +190,7 @@ export default function OnboardingPage() {
               className={cn(
                 "h-1.5 rounded-full transition-all duration-300",
                 i === step ? "w-6 bg-accent" : "w-1.5",
-                i < step ? "bg-accent/50" : i > step ? "bg-secondary" : "",
+                i < step ? "bg-accent/50" : i > step ? "bg-border" : "",
               )}
             />
           ))}
@@ -204,7 +204,7 @@ export default function OnboardingPage() {
             <div className="badge-stamp text-accent border-accent self-start mb-5">
               Ultimate frisbee only
             </div>
-            <h1 className="font-display font-black text-4xl uppercase leading-none tracking-tight text-balance mb-3">
+            <h1 className="font-display font-black text-4xl leading-[1.05] tracking-tight text-balance mb-3">
               The collector&apos;s <span className="text-accent">sideline</span>
             </h1>
             <p className="text-muted-foreground text-sm leading-relaxed mb-8">
@@ -232,11 +232,11 @@ export default function OnboardingPage() {
                 },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="flex gap-4 items-start">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-sm bg-accent-dim flex items-center justify-center">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent-dim flex items-center justify-center">
                     <Icon size={20} className="text-accent" />
                   </div>
                   <div>
-                    <h3 className="font-sans font-semibold text-sm mb-0.5 normal-case tracking-normal">
+                    <h3 className="font-semibold text-sm mb-0.5">
                       {title}
                     </h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">
@@ -250,7 +250,7 @@ export default function OnboardingPage() {
             <div className="mt-auto">
               <button
                 onClick={() => setStep(1)}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
               >
                 Let&apos;s set you up <ArrowRight size={18} />
               </button>
@@ -261,7 +261,7 @@ export default function OnboardingPage() {
         {/* Step 2 — Identity */}
         {step === 1 && (
           <div className="flex-1 flex flex-col">
-            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+            <h1 className="font-display font-black text-3xl tracking-tight mb-1">
               Claim your handle
             </h1>
             <p className="text-sm text-muted-foreground mb-8">
@@ -273,7 +273,7 @@ export default function OnboardingPage() {
                 <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                   Email
                 </span>
-                <div className="flex items-center gap-2 rounded-md bg-surface border border-border px-3.5 py-2.5 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 rounded-lg bg-surface border border-border px-3.5 py-2.5 text-sm text-muted-foreground">
                   <Mail size={14} className="flex-shrink-0" />
                   <span className="truncate">{sessionMe?.email}</span>
                   <span className="ml-auto badge-stamp text-accent border-accent flex-shrink-0">
@@ -311,7 +311,7 @@ export default function OnboardingPage() {
                 <div className="min-h-5 mt-1.5">
                   <Hydrated>
                     {usernameError ? (
-                      <p className="text-xs text-red-400">{usernameError}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">{usernameError}</p>
                     ) : username.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
                         Lowercase letters, numbers, dots, dashes, underscores.
@@ -321,7 +321,7 @@ export default function OnboardingPage() {
                         Keep going — at least 3 characters.
                       </p>
                     ) : usernameTaken ? (
-                      <p className="text-xs text-red-400">
+                      <p className="text-xs text-red-600 dark:text-red-400">
                         @{username} is taken. Try another.
                       </p>
                     ) : (
@@ -381,7 +381,7 @@ export default function OnboardingPage() {
               <button
                 onClick={() => setStep(2)}
                 disabled={!identityValid}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Continue <ArrowRight size={18} />
               </button>
@@ -392,7 +392,7 @@ export default function OnboardingPage() {
         {/* Step 3 — Flavor */}
         {step === 2 && (
           <div className="flex-1 flex flex-col">
-            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+            <h1 className="font-display font-black text-3xl tracking-tight mb-1">
               Rep your colors
             </h1>
             <p className="text-sm text-muted-foreground mb-8">
@@ -415,9 +415,9 @@ export default function OnboardingPage() {
                         onClick={() => toggleTeam(team)}
                         aria-pressed={selected}
                         className={cn(
-                          "px-3 py-1.5 rounded-sm border text-xs font-semibold transition-colors inline-flex items-center gap-1.5",
+                          "px-3.5 py-1.5 rounded-full border text-xs font-semibold transition-colors inline-flex items-center gap-1.5",
                           selected
-                            ? "border-accent bg-accent-dim text-accent"
+                            ? "border-accent bg-accent text-accent-foreground"
                             : "border-border bg-card text-muted-foreground hover:border-accent/40 hover:text-foreground",
                         )}
                       >
@@ -446,7 +446,7 @@ export default function OnboardingPage() {
                     onClick={addCustomTeam}
                     disabled={!customTeam.trim()}
                     aria-label="Add team"
-                    className="flex-shrink-0 w-10 rounded-md border border-border bg-card text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors flex items-center justify-center disabled:opacity-40"
+                    className="flex-shrink-0 w-10 rounded-lg border border-border bg-card text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors flex items-center justify-center disabled:opacity-40"
                   >
                     <Plus size={16} />
                   </button>
@@ -517,7 +517,7 @@ export default function OnboardingPage() {
             <div className="mt-auto pt-8">
               <button
                 onClick={() => setStep(3)}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
               >
                 Continue <ArrowRight size={18} />
               </button>
@@ -528,7 +528,7 @@ export default function OnboardingPage() {
         {/* Step 4 — Review & create */}
         {step === 3 && (
           <div className="flex-1 flex flex-col">
-            <h1 className="font-display font-black text-3xl uppercase tracking-tight mb-1">
+            <h1 className="font-display font-black text-3xl tracking-tight mb-1">
               Look right?
             </h1>
             <p className="text-sm text-muted-foreground mb-8">
@@ -536,7 +536,7 @@ export default function OnboardingPage() {
               in settings.
             </p>
 
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="bg-card border border-border rounded-xl p-5">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-accent flex-shrink-0">
                   <img
@@ -546,7 +546,7 @@ export default function OnboardingPage() {
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="font-display font-bold text-lg uppercase tracking-tight leading-tight truncate">
+                  <p className="font-display font-bold text-lg tracking-tight leading-tight truncate">
                     {displayName.trim() || "Unnamed trader"}
                   </p>
                   <p className="text-sm text-accent truncate">@{username}</p>
@@ -581,7 +581,7 @@ export default function OnboardingPage() {
             <div className="mt-auto pt-8">
               <button
                 onClick={handleCreate}
-                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
+                className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-base px-6 py-3.5 rounded-full hover:opacity-90 transition-opacity"
               >
                 Finish setup <Check size={18} strokeWidth={3} />
               </button>
