@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
+  ExternalLink,
   Flag,
   Gavel,
+  IdCard,
   LayoutGrid,
   Package,
   ShieldAlert,
@@ -16,12 +19,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/lib/store-context";
-import { Hydrated } from "@/components/hydrated";
+import { dispatchOp, fetchAdminData } from "@/app/actions/engine";
+import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
+import { useHydrated, useStore } from "@/lib/store-context";
+import type { RemotePoachStore } from "@/lib/remote-store";
 import { DealStatusBadge } from "@/components/deal-status-badge";
+import { IDENTITY_PROVIDER_META, IDENTITY_STATUS_META } from "@/components/identity-chips";
 import { formatMonthYear, timeAgo } from "@/lib/format";
 import { LISTING_STATUS_LABELS } from "@/lib/constants";
-import type { Deal, Listing, Report } from "@/lib/types";
+import type { DealRecord, IdentityRecord, Listing, Report } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +50,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/**
+ * Run an admin op against the server, then refresh both the admin view and
+ * the shared world snapshot. Returns true on success.
+ */
+async function runAdminOp<K extends OpName>(
+  store: RemotePoachStore,
+  reload: () => Promise<void>,
+  op: K,
+  payload: OpMap[K],
+): Promise<boolean> {
+  try {
+    const result = await dispatchOp(op, payload);
+    if (!result.ok) {
+      toast.error(result.error);
+      if (result.snapshot) store.applySnapshot(result.snapshot);
+      return false;
+    }
+    store.applySnapshot(result.snapshot);
+    await reload();
+    return true;
+  } catch (error) {
+    console.error(`[admin] ${op} failed`, error);
+    toast.error("Couldn't reach the server. Try again.");
+    return false;
+  }
+}
+
+type AdminUser = AdminData["users"][number];
 
 /* ── Small shared pieces ─────────────────────────────────────────────────── */
 
@@ -85,29 +120,37 @@ const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string
 
 /* ── 1. Stats grid ───────────────────────────────────────────────────────── */
 
-function StatsSection() {
-  const store = useStore();
-  const s = store.adminStats();
+function StatsSection({ stats }: { stats: AdminData["stats"] }) {
   const tiles: { label: string; value: number; tone?: "warn" | "alert" }[] = [
-    { label: "Members", value: s.users },
-    { label: "Verified", value: s.verifiedUsers },
-    { label: "Active listings", value: s.activeListings },
-    { label: "ISO posts", value: s.isoPosts },
-    { label: "Ratings", value: s.ratings },
-    { label: "Deals open", value: s.dealsOpen },
-    { label: "Deals agreed", value: s.dealsAccepted },
-    { label: "Completed", value: s.dealsCompleted },
-    { label: "Disputed", value: s.dealsDisputed, tone: s.dealsDisputed > 0 ? "alert" : undefined },
+    { label: "Members", value: stats.users },
+    { label: "Verified", value: stats.verifiedUsers },
+    { label: "Active listings", value: stats.activeListings },
+    { label: "ISO posts", value: stats.isoPosts },
+    { label: "Ratings", value: stats.ratings },
+    { label: "Deals open", value: stats.dealsOpen },
+    { label: "Deals agreed", value: stats.dealsAccepted },
+    { label: "Completed", value: stats.dealsCompleted },
+    {
+      label: "Disputed",
+      value: stats.dealsDisputed,
+      tone: stats.dealsDisputed > 0 ? "alert" : undefined,
+    },
     {
       label: "Pending reports",
-      value: s.pendingReports,
-      tone: s.pendingReports > 0 ? "warn" : undefined,
+      value: stats.pendingReports,
+      tone: stats.pendingReports > 0 ? "warn" : undefined,
     },
+    {
+      label: "Identity queue",
+      value: stats.pendingIdentities,
+      tone: stats.pendingIdentities > 0 ? "warn" : undefined,
+    },
+    { label: "Messages", value: stats.messages },
   ];
   return (
     <section>
       <SectionHeading icon={LayoutGrid} title="The State of the Land" />
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {tiles.map((t) => (
           <div
             key={t.label}
@@ -139,7 +182,175 @@ function StatsSection() {
   );
 }
 
-/* ── 2. Reports queue ────────────────────────────────────────────────────── */
+/* ── 2. Identity review queue ────────────────────────────────────────────── */
+
+function IdentityQueueSection({
+  queue,
+  findUser,
+  onReview,
+}: {
+  queue: IdentityRecord[];
+  findUser: (id: string) => AdminUser | undefined;
+  onReview: (
+    identity: IdentityRecord,
+    status: "verified" | "rejected",
+    note?: string,
+  ) => Promise<boolean>;
+}) {
+  const [reviewing, setReviewing] = useState<{
+    identity: IdentityRecord;
+    status: "verified" | "rejected";
+  } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const open = (identity: IdentityRecord, status: "verified" | "rejected") => {
+    setNote("");
+    setReviewing({ identity, status });
+  };
+
+  const confirm = async () => {
+    if (!reviewing || busy) return;
+    setBusy(true);
+    const ok = await onReview(reviewing.identity, reviewing.status, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        reviewing.status === "verified" ? "Identity verified" : "Identity rejected",
+      );
+      setReviewing(null);
+    }
+  };
+
+  return (
+    <section>
+      <SectionHeading icon={IdCard} title="Identity Review Queue" count={queue.length} />
+      {queue.length === 0 ? (
+        <EmptyRow>No identities waiting on review.</EmptyRow>
+      ) : (
+        <div className="space-y-2">
+          {queue.map((identity) => {
+            const meta = IDENTITY_PROVIDER_META[identity.provider];
+            const status = IDENTITY_STATUS_META[identity.status];
+            const Icon = meta.icon;
+            const user = findUser(identity.userId);
+            return (
+              <div
+                key={identity.id}
+                className="bg-card border border-border rounded-lg p-3.5 space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-md bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        @{identity.handle}
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          · {meta.label}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user ? (
+                          <Link
+                            href={`/app/u/${user.username}`}
+                            className="hover:text-accent transition-colors"
+                          >
+                            {user.username}
+                          </Link>
+                        ) : (
+                          "unknown user"
+                        )}{" "}
+                        · submitted {timeAgo(identity.submittedAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={cn("badge-stamp shrink-0", status.cls)}>{status.label}</span>
+                </div>
+                {identity.url && (
+                  <a
+                    href={identity.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                  >
+                    <ExternalLink size={11} /> {identity.url}
+                  </a>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    onClick={() => open(identity, "verified")}
+                  >
+                    Verify
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-400 border-red-400/40 hover:text-red-400"
+                    onClick={() => open(identity, "rejected")}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          {reviewing && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                  {reviewing.status === "verified" ? "Verify identity" : "Reject identity"}
+                </DialogTitle>
+                <DialogDescription>
+                  {reviewing.status === "verified"
+                    ? `Marks @${reviewing.identity.handle} as a verified ${IDENTITY_PROVIDER_META[reviewing.identity.provider].label} identity. It shows with a check on the trader's profile.`
+                    : `Rejects @${reviewing.identity.handle}. The trader sees the rejection on their settings page.`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-1">
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional reviewer note — goes on the record."
+                  rows={3}
+                  className="bg-surface resize-none"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setReviewing(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant={reviewing.status === "rejected" ? "destructive" : "default"}
+                  className={
+                    reviewing.status === "rejected"
+                      ? undefined
+                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                  }
+                  disabled={busy}
+                  onClick={() => void confirm()}
+                >
+                  {busy ? "Working…" : reviewing.status === "verified" ? "Verify" : "Reject"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+/* ── 3. Reports queue ────────────────────────────────────────────────────── */
 
 type ResolveAction = "remove-listing" | "warn-user" | "dismiss";
 
@@ -166,7 +377,15 @@ const RESOLVE_COPY: Record<
   },
 };
 
-function ReportTarget({ report }: { report: Report }) {
+function ReportTarget({
+  report,
+  findUser,
+  findDisputedDeal,
+}: {
+  report: Report;
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
+}) {
   const store = useStore();
   if (report.targetType === "listing") {
     const listing = store.getListing(report.targetId);
@@ -194,7 +413,7 @@ function ReportTarget({ report }: { report: Report }) {
     );
   }
   if (report.targetType === "user") {
-    const user = store.getUser(report.targetId);
+    const user = findUser(report.targetId);
     if (!user) return <p className="text-xs text-muted-foreground">User no longer exists.</p>;
     return (
       <Link href={`/app/u/${user.username}`} className="flex items-center gap-2.5 group min-w-0">
@@ -214,21 +433,26 @@ function ReportTarget({ report }: { report: Report }) {
       </Link>
     );
   }
-  const deal = store.getDeal(report.targetId);
-  if (!deal) return <p className="text-xs text-muted-foreground">Deal no longer exists.</p>;
+  // Deal report: admin snapshots only include the admin's own deals, so fall
+  // back to the disputed-deals feed for a record.
+  const deal = findDisputedDeal(report.targetId) ?? store.getDeal(report.targetId);
+  if (!deal) return <p className="text-xs text-muted-foreground">Deal not in view.</p>;
+  const listing = store.getListing(deal.listingId);
+  const proposer = findUser(deal.proposerId);
+  const owner = findUser(deal.ownerId);
   return (
     <Link href={`/app/trades/${deal.id}`} className="flex items-center gap-2.5 group min-w-0">
       <img
-        src={deal.listing.photos[0] || "/placeholder.jpg"}
+        src={listing?.photos[0] || "/placeholder.jpg"}
         alt=""
         className="w-10 h-10 rounded object-cover border border-border shrink-0"
       />
       <div className="min-w-0">
         <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
-          {deal.listing.title}
+          {listing?.title ?? "A deal"}
         </p>
         <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
-          Deal · {deal.proposer.username} ⇄ {deal.owner.username}
+          Deal · {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
         </p>
       </div>
     </Link>
@@ -237,18 +461,21 @@ function ReportTarget({ report }: { report: Report }) {
 
 function ReportRow({
   report,
+  findUser,
+  findDisputedDeal,
   onAction,
 }: {
   report: Report;
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
   onAction?: (report: Report, action: ResolveAction) => void;
 }) {
-  const store = useStore();
-  const reporter = store.getUser(report.reporterId);
+  const reporter = findUser(report.reporterId);
   const stamp = REPORT_STATUS_STAMP[report.status];
   return (
     <div className="bg-card border border-border rounded-lg p-3.5 space-y-2.5">
       <div className="flex items-start justify-between gap-3">
-        <ReportTarget report={report} />
+        <ReportTarget report={report} findUser={findUser} findDisputedDeal={findDisputedDeal} />
         <span className={cn("badge-stamp shrink-0", stamp.cls)}>{stamp.label}</span>
       </div>
       <div className="text-sm">
@@ -312,40 +539,46 @@ function ReportRow({
   );
 }
 
-function ReportsSection() {
-  const store = useStore();
+function ReportsSection({
+  reports,
+  findUser,
+  findDisputedDeal,
+  onResolve,
+}: {
+  reports: Report[];
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
+  onResolve: (report: Report, action: ResolveAction, note?: string) => Promise<boolean>;
+}) {
   const [resolving, setResolving] = useState<{ report: Report; action: ResolveAction } | null>(
     null,
   );
   const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const pending = store.listReports("pending");
-  const handled = store.listReports().filter((r) => r.status !== "pending");
+  const pending = reports.filter((r) => r.status === "pending");
+  const handled = reports.filter((r) => r.status !== "pending");
 
   const openAction = (report: Report, action: ResolveAction) => {
     setNote("");
     setResolving({ report, action });
   };
 
-  const confirm = () => {
-    if (!resolving) return;
-    const res = store.resolveReport(
-      resolving.report.id,
-      resolving.action,
-      note.trim() || undefined,
-    );
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+  const confirm = async () => {
+    if (!resolving || busy) return;
+    setBusy(true);
+    const ok = await onResolve(resolving.report, resolving.action, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        resolving.action === "remove-listing"
+          ? "Listing removed and seller notified"
+          : resolving.action === "warn-user"
+            ? "Warning sent"
+            : "Report dismissed",
+      );
+      setResolving(null);
     }
-    toast.success(
-      resolving.action === "remove-listing"
-        ? "Listing removed and seller notified"
-        : resolving.action === "warn-user"
-          ? "Warning sent"
-          : "Report dismissed",
-    );
-    setResolving(null);
   };
 
   const copy = resolving ? RESOLVE_COPY[resolving.action] : null;
@@ -366,14 +599,29 @@ function ReportsSection() {
           {pending.length === 0 ? (
             <EmptyRow>Queue&apos;s clear. The community polices itself. Mostly.</EmptyRow>
           ) : (
-            pending.map((r) => <ReportRow key={r.id} report={r} onAction={openAction} />)
+            pending.map((r) => (
+              <ReportRow
+                key={r.id}
+                report={r}
+                findUser={findUser}
+                findDisputedDeal={findDisputedDeal}
+                onAction={openAction}
+              />
+            ))
           )}
         </TabsContent>
         <TabsContent value="handled" className="space-y-2">
           {handled.length === 0 ? (
             <EmptyRow>Nothing handled yet. Get to work, mod.</EmptyRow>
           ) : (
-            handled.map((r) => <ReportRow key={r.id} report={r} />)
+            handled.map((r) => (
+              <ReportRow
+                key={r.id}
+                report={r}
+                findUser={findUser}
+                findDisputedDeal={findDisputedDeal}
+              />
+            ))
           )}
         </TabsContent>
       </Tabs>
@@ -408,9 +656,10 @@ function ReportsSection() {
                       ? undefined
                       : "bg-accent text-accent-foreground hover:bg-accent/90"
                   }
-                  onClick={confirm}
+                  disabled={busy}
+                  onClick={() => void confirm()}
                 >
-                  {copy.cta}
+                  {busy ? "Working…" : copy.cta}
                 </Button>
               </DialogFooter>
             </>
@@ -421,35 +670,47 @@ function ReportsSection() {
   );
 }
 
-/* ── 3. Disputed deals ───────────────────────────────────────────────────── */
+/* ── 4. Disputed deals ───────────────────────────────────────────────────── */
 
-function DisputesSection() {
+function DisputesSection({
+  disputes,
+  findUser,
+  onResolve,
+}: {
+  disputes: DealRecord[];
+  findUser: (id: string) => AdminUser | undefined;
+  onResolve: (
+    deal: DealRecord,
+    outcome: "cancelled" | "completed",
+    note?: string,
+  ) => Promise<boolean>;
+}) {
   const store = useStore();
-  const disputes = store.disputedDeals();
   const [resolving, setResolving] = useState<{
-    deal: Deal;
+    deal: DealRecord;
     outcome: "cancelled" | "completed";
   } | null>(null);
   const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const openResolve = (deal: Deal, outcome: "cancelled" | "completed") => {
+  const openResolve = (deal: DealRecord, outcome: "cancelled" | "completed") => {
     setNote("");
     setResolving({ deal, outcome });
   };
 
-  const confirm = () => {
-    if (!resolving) return;
-    const res = store.resolveDispute(resolving.deal.id, resolving.outcome, note.trim() || undefined);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+  const confirm = async () => {
+    if (!resolving || busy) return;
+    setBusy(true);
+    const ok = await onResolve(resolving.deal, resolving.outcome, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        resolving.outcome === "cancelled"
+          ? "Deal cancelled — items released back to the market"
+          : "Deal force-completed",
+      );
+      setResolving(null);
     }
-    toast.success(
-      resolving.outcome === "cancelled"
-        ? "Deal cancelled — items released back to the market"
-        : "Deal force-completed",
-    );
-    setResolving(null);
   };
 
   return (
@@ -459,54 +720,59 @@ function DisputesSection() {
         <EmptyRow>No open disputes. Peace in the land.</EmptyRow>
       ) : (
         <div className="space-y-2">
-          {disputes.map((deal) => (
-            <div key={deal.id} className="bg-card border border-red-400/40 rounded-lg p-3.5 space-y-2.5">
-              <div className="flex items-start justify-between gap-3">
-                <Link
-                  href={`/app/trades/${deal.id}`}
-                  className="flex items-center gap-2.5 group min-w-0"
-                >
-                  <img
-                    src={deal.listing.photos[0] || "/placeholder.jpg"}
-                    alt=""
-                    className="w-10 h-10 rounded object-cover border border-border shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
-                      {deal.listing.title}
-                    </p>
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
-                      {deal.proposer.username} ⇄ {deal.owner.username}
-                    </p>
+          {disputes.map((deal) => {
+            const listing = store.getListing(deal.listingId);
+            const proposer = findUser(deal.proposerId);
+            const owner = findUser(deal.ownerId);
+            return (
+              <div
+                key={deal.id}
+                className="bg-card border border-red-400/40 rounded-lg p-3.5 space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={listing?.photos[0] || "/placeholder.jpg"}
+                      alt=""
+                      className="w-10 h-10 rounded object-cover border border-border shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {listing?.title ?? "A deal"}
+                      </p>
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+                        {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
+                      </p>
+                    </div>
                   </div>
-                </Link>
-                <DealStatusBadge status={deal.status} className="shrink-0" />
+                  <DealStatusBadge status={deal.status} className="shrink-0" />
+                </div>
+                {deal.disputeReason && (
+                  <p className="text-sm text-muted-foreground leading-snug">
+                    <span className="font-bold text-red-400">Dispute:</span> {deal.disputeReason}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => openResolve(deal, "cancelled")}
+                  >
+                    Cancel deal
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-accent border-accent/40 hover:text-accent"
+                    onClick={() => openResolve(deal, "completed")}
+                  >
+                    Force complete
+                  </Button>
+                </div>
               </div>
-              {deal.disputeReason && (
-                <p className="text-sm text-muted-foreground leading-snug">
-                  <span className="font-bold text-red-400">Dispute:</span> {deal.disputeReason}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
-              <div className="flex gap-2 pt-1">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => openResolve(deal, "cancelled")}
-                >
-                  Cancel deal
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-accent border-accent/40 hover:text-accent"
-                  onClick={() => openResolve(deal, "completed")}
-                >
-                  Force complete
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -544,9 +810,14 @@ function DisputesSection() {
                       ? undefined
                       : "bg-accent text-accent-foreground hover:bg-accent/90"
                   }
-                  onClick={confirm}
+                  disabled={busy}
+                  onClick={() => void confirm()}
                 >
-                  {resolving.outcome === "cancelled" ? "Cancel the deal" : "Complete the deal"}
+                  {busy
+                    ? "Working…"
+                    : resolving.outcome === "cancelled"
+                      ? "Cancel the deal"
+                      : "Complete the deal"}
                 </Button>
               </DialogFooter>
             </>
@@ -557,19 +828,24 @@ function DisputesSection() {
   );
 }
 
-/* ── 4. Users ────────────────────────────────────────────────────────────── */
+/* ── 5. Users ────────────────────────────────────────────────────────────── */
 
-function UsersSection() {
-  const store = useStore();
-  const users = store.listUsers();
-
-  const toggleVerified = (userId: string, username: string, verified: boolean) => {
-    const res = store.setUserVerified(userId, verified);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+function UsersSection({
+  users,
+  onSetVerified,
+}: {
+  users: AdminUser[];
+  onSetVerified: (userId: string, verified: boolean) => Promise<boolean>;
+}) {
+  const toggleVerified = async (user: AdminUser, verified: boolean) => {
+    const ok = await onSetVerified(user.id, verified);
+    if (ok) {
+      toast.success(
+        verified
+          ? `${user.username} is now verified`
+          : `Verification pulled from ${user.username}`,
+      );
     }
-    toast.success(verified ? `${username} is now verified` : `Verification pulled from ${username}`);
   };
 
   return (
@@ -597,6 +873,7 @@ function UsersSection() {
                   <BadgeCheck size={14} className="text-accent shrink-0" strokeWidth={2.5} />
                 )}
               </p>
+              <p className="text-xs text-muted-foreground truncate">{u.email}</p>
               <p className="text-xs text-muted-foreground truncate">
                 <Star size={10} className="inline fill-yellow-400 text-yellow-400 -mt-0.5" />{" "}
                 {u.trustScore.toFixed(1)} · {u.tradesCompleted} trades · since{" "}
@@ -609,7 +886,7 @@ function UsersSection() {
               </span>
               <Switch
                 checked={u.isVerified}
-                onCheckedChange={(v) => toggleVerified(u.id, u.username, v)}
+                onCheckedChange={(v) => void toggleVerified(u, v)}
                 className="data-[state=checked]:bg-accent"
                 aria-label={`Verify ${u.username}`}
               />
@@ -621,9 +898,15 @@ function UsersSection() {
   );
 }
 
-/* ── 5. Listings ─────────────────────────────────────────────────────────── */
+/* ── 6. Listings ─────────────────────────────────────────────────────────── */
 
-function ListingsSection() {
+function ListingsSection({
+  onSetFeatured,
+  onRemove,
+}: {
+  onSetFeatured: (id: string, featured: boolean) => Promise<boolean>;
+  onRemove: (id: string, reason?: string) => Promise<boolean>;
+}) {
   const store = useStore();
   const listings = store
     .listListings({
@@ -635,28 +918,24 @@ function ListingsSection() {
     .slice(0, 10);
   const [removeTarget, setRemoveTarget] = useState<Listing | null>(null);
   const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const toggleFeatured = (listing: Listing, featured: boolean) => {
-    const res = store.setListingFeatured(listing.id, featured);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+  const toggleFeatured = async (listing: Listing, featured: boolean) => {
+    const ok = await onSetFeatured(listing.id, featured);
+    if (ok) {
+      toast.success(featured ? `"${listing.title}" is now featured` : "Pulled from featured");
     }
-    toast.success(featured ? `"${listing.title}" is now featured` : "Pulled from featured");
   };
 
-  const confirmRemove = () => {
-    if (!removeTarget) return;
-    const res = store.removeListing(removeTarget.id, {
-      byAdmin: true,
-      reason: reason.trim() || undefined,
-    });
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+  const confirmRemove = async () => {
+    if (!removeTarget || busy) return;
+    setBusy(true);
+    const ok = await onRemove(removeTarget.id, reason.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success("Listing removed and seller notified");
+      setRemoveTarget(null);
     }
-    toast.success("Listing removed and seller notified");
-    setRemoveTarget(null);
   };
 
   return (
@@ -689,7 +968,10 @@ function ListingsSection() {
                   )}
                 </p>
               </div>
-              <label className="flex items-center gap-1.5 shrink-0 cursor-pointer" title="Featured on the front page">
+              <label
+                className="flex items-center gap-1.5 shrink-0 cursor-pointer"
+                title="Featured on the front page"
+              >
                 <Star
                   size={13}
                   className={cn(
@@ -698,7 +980,7 @@ function ListingsSection() {
                 />
                 <Switch
                   checked={!!l.isFeatured}
-                  onCheckedChange={(v) => toggleFeatured(l, v)}
+                  onCheckedChange={(v) => void toggleFeatured(l, v)}
                   className="data-[state=checked]:bg-accent"
                   aria-label={`Feature ${l.title}`}
                 />
@@ -742,9 +1024,13 @@ function ListingsSection() {
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={confirmRemove}
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault(); // keep the dialog open until the server answers
+                void confirmRemove();
+              }}
             >
-              Remove listing
+              {busy ? "Removing…" : "Remove listing"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -758,8 +1044,8 @@ function ListingsSection() {
 function AdminSkeleton() {
   return (
     <div className="space-y-10 animate-pulse">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {Array.from({ length: 10 }).map((_, i) => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="h-16 bg-card border border-border rounded-lg" />
         ))}
       </div>
@@ -777,6 +1063,45 @@ function AdminSkeleton() {
 /* ── Page ────────────────────────────────────────────────────────────────── */
 
 export default function AdminPage() {
+  const store = useStore();
+  const router = useRouter();
+  const ready = useHydrated();
+  const isAdmin = !!store.sessionMe?.isAdmin;
+  const denied = ready && !isAdmin;
+
+  const [data, setData] = useState<AdminData | null>(null);
+
+  useEffect(() => {
+    if (denied) router.replace("/app");
+  }, [denied, router]);
+
+  const reload = useCallback(async () => {
+    const res = await fetchAdminData();
+    if ("error" in res) {
+      toast.error(res.error);
+      return;
+    }
+    setData(res);
+  }, []);
+
+  useEffect(() => {
+    if (ready && isAdmin) void reload();
+  }, [ready, isAdmin, reload]);
+
+  const findUser = useCallback(
+    (id: string) => data?.users.find((u) => u.id === id),
+    [data],
+  );
+  const findDisputedDeal = useCallback(
+    (id: string) => data?.disputedDeals.find((d) => d.id === id),
+    [data],
+  );
+
+  const run = useCallback(
+    <K extends OpName>(op: K, payload: OpMap[K]) => runAdminOp(store, reload, op, payload),
+    [store, reload],
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-sm border-b border-border">
@@ -796,22 +1121,51 @@ export default function AdminPage() {
             </h1>
           </div>
           <span className="badge-stamp text-accent border-accent hidden sm:inline-flex shrink-0">
-            Demo mode
+            Moderators only
           </span>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 pb-16 space-y-10">
-        <p className="text-xs text-muted-foreground -mt-2">
-          Demo mode: every visitor is a moderator. With great power, et cetera.
-        </p>
-        <Hydrated fallback={<AdminSkeleton />}>
-          <StatsSection />
-          <ReportsSection />
-          <DisputesSection />
-          <UsersSection />
-          <ListingsSection />
-        </Hydrated>
+        {!ready || denied || !data ? (
+          <AdminSkeleton />
+        ) : (
+          <>
+            <StatsSection stats={data.stats} />
+            <IdentityQueueSection
+              queue={data.identityQueue}
+              findUser={findUser}
+              onReview={(identity, status, note) =>
+                run("adminReviewIdentity", { identityId: identity.id, status, note })
+              }
+            />
+            <ReportsSection
+              reports={data.reports}
+              findUser={findUser}
+              findDisputedDeal={findDisputedDeal}
+              onResolve={(report, action, note) =>
+                run("adminResolveReport", { reportId: report.id, action, note })
+              }
+            />
+            <DisputesSection
+              disputes={data.disputedDeals}
+              findUser={findUser}
+              onResolve={(deal, outcome, note) =>
+                run("adminResolveDispute", { dealId: deal.id, outcome, note })
+              }
+            />
+            <UsersSection
+              users={data.users}
+              onSetVerified={(userId, verified) =>
+                run("adminSetUserVerified", { userId, verified })
+              }
+            />
+            <ListingsSection
+              onSetFeatured={(id, featured) => run("adminSetListingFeatured", { id, featured })}
+              onRemove={(id, reason) => run("adminRemoveListing", { id, reason })}
+            />
+          </>
+        )}
       </main>
     </div>
   );

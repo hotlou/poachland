@@ -1,20 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Mail,
   MapPin,
   Plus,
   Repeat2,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { useStore } from "@/lib/store-context";
+import { useHydrated, useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { STOCK_AVATARS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -48,9 +48,20 @@ const inputCls =
 export default function OnboardingPage() {
   const router = useRouter();
   const store = useStore();
+  const ready = useHydrated();
+  const sessionMe = store.sessionMe;
 
   const [step, setStep] = useState(0);
   const [created, setCreated] = useState<User | null>(null);
+
+  // Session gates: onboarding needs a signed-in user; already-onboarded users
+  // (unless they just finished here) go straight to the app.
+  const needsLogin = ready && !sessionMe;
+  const alreadyOnboarded = ready && !!sessionMe && !sessionMe.needsOnboarding && !created;
+  useEffect(() => {
+    if (needsLogin) router.replace("/login");
+    else if (alreadyOnboarded) router.replace("/app");
+  }, [needsLogin, alreadyOnboarded, router]);
 
   // Step 2 — identity
   const [username, setUsername] = useState("");
@@ -64,8 +75,10 @@ export default function OnboardingPage() {
   const [avatar, setAvatar] = useState<string>(STOCK_AVATARS[0]);
   const [bio, setBio] = useState("");
 
-  const usernameTaken =
-    username.length >= 3 && store.getUserByUsername(username) !== null;
+  // Local availability hint from the snapshot's public users (the server does
+  // the authoritative check on dispatch and its rejection surfaces via toast).
+  const existing = username.length >= 3 ? store.getUserByUsername(username) : null;
+  const usernameTaken = !!existing && existing.id !== sessionMe?.id;
   const identityValid =
     username.length >= 3 && !usernameTaken && displayName.trim().length > 0;
 
@@ -88,7 +101,7 @@ export default function OnboardingPage() {
   };
 
   const handleCreate = () => {
-    const res = store.createAccount({
+    const res = store.completeOnboarding({
       username,
       displayName,
       location: location.trim(),
@@ -109,6 +122,18 @@ export default function OnboardingPage() {
     setCreated(res.value);
     toast.success(`Welcome to the land, @${res.value.username}`);
   };
+
+  if (!ready || needsLogin || alreadyOnboarded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div
+          className="w-8 h-8 rounded-full border-2 border-border border-t-accent animate-spin"
+          role="status"
+          aria-label="Loading"
+        />
+      </div>
+    );
+  }
 
   // ── Success state ───────────────────────────────────────────────────────────
   if (created) {
@@ -227,14 +252,8 @@ export default function OnboardingPage() {
                 onClick={() => setStep(1)}
                 className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
               >
-                Get started <ArrowRight size={18} />
+                Let&apos;s set you up <ArrowRight size={18} />
               </button>
-              <Link
-                href="/app"
-                className="block text-center mt-4 text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
-              >
-                Skip — browse as demo trader
-              </Link>
             </div>
           </div>
         )}
@@ -250,6 +269,19 @@ export default function OnboardingPage() {
             </p>
 
             <div className="flex flex-col gap-5">
+              <div>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Email
+                </span>
+                <div className="flex items-center gap-2 rounded-md bg-surface border border-border px-3.5 py-2.5 text-sm text-muted-foreground">
+                  <Mail size={14} className="flex-shrink-0" />
+                  <span className="truncate">{sessionMe?.email}</span>
+                  <span className="ml-auto badge-stamp text-accent border-accent flex-shrink-0">
+                    Signed in
+                  </span>
+                </div>
+              </div>
+
               <div>
                 <label
                   htmlFor="ob-username"
@@ -551,7 +583,7 @@ export default function OnboardingPage() {
                 onClick={handleCreate}
                 className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-6 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
               >
-                Create my account <Check size={18} strokeWidth={3} />
+                Finish setup <Check size={18} strokeWidth={3} />
               </button>
               <p className="text-center text-xs text-muted-foreground mt-4">
                 Free forever. No fees, no card, no catch.

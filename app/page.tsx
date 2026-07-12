@@ -10,10 +10,22 @@ import {
   Radar,
   ShieldCheck,
 } from "lucide-react";
-import { useStore } from "@/lib/store-context";
+import { useHydrated, useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { CONDITION_COLORS, LISTING_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+
+/** Primary CTA: joins/signs in when logged out, enters the app when logged in. */
+function PrimaryCta({ className }: { className: string }) {
+  const store = useStore();
+  const ready = useHydrated();
+  const signedIn = ready && !!store.sessionMe;
+  return (
+    <Link href={signedIn ? "/app" : "/login"} className={className}>
+      {signedIn ? "Enter Poachland" : "Join / Sign in"} <ArrowRight size={18} />
+    </Link>
+  );
+}
 
 // ── Live sections (rendered only after hydration) ────────────────────────────
 
@@ -217,10 +229,10 @@ export default function LandingPage() {
               Browse
             </Link>
             <Link
-              href="/onboarding"
+              href="/login"
               className="text-sm font-semibold bg-accent text-accent-foreground px-4 py-2 rounded-sm transition-opacity hover:opacity-90"
             >
-              Join
+              Sign in
             </Link>
           </div>
         </header>
@@ -241,12 +253,7 @@ export default function LandingPage() {
               to trade. Community trust built in.
             </p>
             <div className="flex flex-col gap-3">
-              <Link
-                href="/onboarding"
-                className="inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:opacity-90 transition-opacity"
-              >
-                Join Poachland <ArrowRight size={18} />
-              </Link>
+              <PrimaryCta className="inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:opacity-90 transition-opacity" />
               <Link
                 href="/app"
                 className="inline-flex items-center justify-center gap-2 border border-border text-foreground font-display font-bold uppercase tracking-wide text-base px-8 py-3.5 rounded-sm hover:border-accent/50 hover:text-accent transition-colors"
@@ -371,12 +378,7 @@ export default function LandingPage() {
               <TraderCountLine />
             </Hydrated>
             <div className="flex flex-col items-center gap-3">
-              <Link
-                href="/onboarding"
-                className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-7 py-3 rounded-sm hover:opacity-90 transition-opacity"
-              >
-                Join Poachland <ArrowRight size={16} />
-              </Link>
+              <PrimaryCta className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-7 py-3 rounded-sm hover:opacity-90 transition-opacity" />
               <Link
                 href="/app"
                 className="text-xs text-muted-foreground hover:text-accent underline underline-offset-4 transition-colors"

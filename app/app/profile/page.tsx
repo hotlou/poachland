@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
+import { IdentityChips } from "@/components/identity-chips";
 import { ListingCard } from "@/components/listing-card";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { formatDate, formatMonthYear, timeAgo } from "@/lib/format";
@@ -332,6 +333,9 @@ function ProfileContent() {
             See all ratings <ArrowRight size={12} />
           </Link>
         </div>
+
+        {/* Linked identities */}
+        <IdentityChips userId={me.id} ownProfile />
 
         {/* Stats row */}
         <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-surface border border-border rounded-lg">

@@ -23,6 +23,8 @@ import type {
   DealStatus,
   FulfillmentState,
   HydratedRating,
+  IdentityProvider,
+  IdentityRecord,
   ISOPost,
   ISOPostRecord,
   ISOStatus,
@@ -58,12 +60,61 @@ const ok = <T,>(value: T): Res<T> => ({ ok: true, value });
 const err = <T = null,>(error: string): Res<T> => ({ ok: false, error });
 
 let uidCounter = 0;
-function uid(prefix: string): string {
+/**
+ * Client-generated entity id. Output always matches the server contract's
+ * CLIENT_ID_PATTERN (`^[a-z]+_[a-z0-9]{5,32}$`): base-36 timestamp (~8 chars)
+ * + counter + 5 random chars, all lowercase alphanumeric.
+ */
+export function uid(prefix: string): string {
   uidCounter += 1;
   return `${prefix}_${Date.now().toString(36)}${uidCounter.toString(36)}${Math.random()
     .toString(36)
     .slice(2, 7)}`;
 }
+
+/** A fully empty world — what a remote-backed store starts from pre-snapshot. */
+export function emptyDBState(): DBState {
+  return {
+    v: 1,
+    currentUserId: null,
+    users: [],
+    listings: [],
+    isoPosts: [],
+    deals: [],
+    threads: [],
+    messages: [],
+    ratings: [],
+    notifications: [],
+    saves: [],
+    reports: [],
+    blocks: [],
+    activity: [],
+    identities: [],
+  };
+}
+
+/**
+ * Placeholder identity returned by `requireUser()` before a session exists.
+ * Zeroed out so pre-auth renders never flash another user's data.
+ */
+const GHOST_USER: User = {
+  id: "__anon__",
+  username: "you",
+  displayName: "Guest",
+  avatar: "/placeholder-user.jpg",
+  bio: "",
+  location: "",
+  favoriteTeams: [],
+  memberSince: "1970-01-01T00:00:00.000Z",
+  isVerified: false,
+  badges: [],
+  baselineTrades: 0,
+  baselineRatingCount: 0,
+  baselineRatingSum: 0,
+  trustScore: 0,
+  ratingsCount: 0,
+  tradesCompleted: 0,
+};
 
 export interface CreateListingInput {
   type: Listing["type"];
@@ -126,16 +177,16 @@ export interface RatingInput {
 }
 
 export class PoachStore {
-  private state: DBState;
+  protected state: DBState;
   private listeners = new Set<() => void>();
-  private viewedThisSession = new Set<string>();
+  protected viewedThisSession = new Set<string>();
   private persistable: boolean;
   version = 1;
   persistError = false;
 
-  constructor(persistable: boolean) {
+  constructor(persistable: boolean, initialState?: DBState) {
     this.persistable = persistable;
-    this.state = this.load();
+    this.state = initialState ?? this.load();
     this.sweepExpirations();
   }
 
@@ -168,7 +219,7 @@ export class PoachStore {
     }
   }
 
-  private commit() {
+  protected commit() {
     this.persist();
     this.version += 1;
     for (const l of this.listeners) l();
@@ -208,10 +259,12 @@ export class PoachStore {
     return this.state.currentUserId ? this.getUser(this.state.currentUserId) : null;
   }
 
-  /** The signed-in user, or the demo default. Pages under /app assume a session. */
+  /**
+   * The signed-in user, or a harmless ghost placeholder when signed out —
+   * never another user's record, so pre-auth renders can't impersonate.
+   */
   requireUser(): User {
-    const u = this.currentUser() ?? this.state.users[0];
-    return u;
+    return this.currentUser() ?? GHOST_USER;
   }
 
   signInAs(userId: string): Res {
@@ -262,6 +315,37 @@ export class PoachStore {
       "Post your first listing or ISO to start building your trade rep.",
       "/app/create",
     );
+    this.commit();
+    return ok(user);
+  }
+
+  /**
+   * Finish account setup for the CURRENT (session) user — patches the existing
+   * record rather than creating one. `createAccount` remains for the legacy
+   * local-demo path.
+   */
+  completeOnboarding(input: {
+    username: string;
+    displayName: string;
+    location: string;
+    bio?: string;
+    favoriteTeams?: string[];
+    avatar?: string;
+  }): Res<User> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const user = this.rawUser(me.id)!;
+    const username = input.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+    if (username.length < 3) return err("Username must be at least 3 characters");
+    if (this.state.users.some((u) => u.username === username && u.id !== user.id))
+      return err("That username is taken");
+    if (!input.displayName.trim()) return err("Display name is required");
+    user.username = username;
+    user.displayName = input.displayName.trim();
+    user.location = input.location.trim();
+    user.bio = input.bio?.trim() ?? "";
+    user.favoriteTeams = input.favoriteTeams ?? [];
+    if (input.avatar) user.avatar = input.avatar;
     this.commit();
     return ok(user);
   }
@@ -489,7 +573,7 @@ export class PoachStore {
     return this.listListings({ sort: "most-saved" }).filter((l) => l.isFeatured);
   }
 
-  createListing(input: CreateListingInput): Res<Listing> {
+  createListing(input: CreateListingInput & { id?: string }): Res<Listing> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     if (!input.title.trim()) return err("Title is required");
@@ -498,7 +582,7 @@ export class PoachStore {
     if (input.listingType === "sell" && !input.askingPrice)
       return err("Set an asking price for a sale listing");
     const record: ListingRecord = {
-      id: uid("l"),
+      id: input.id ?? uid("l"),
       sellerId: me.id,
       type: input.type,
       title: input.title.trim(),
@@ -643,13 +727,13 @@ export class PoachStore {
       .map((p) => this.hydrateISO(p));
   }
 
-  createISOPost(input: CreateISOInput): Res<ISOPost> {
+  createISOPost(input: CreateISOInput & { id?: string }): Res<ISOPost> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     if (input.description.trim().length < 10)
       return err("Describe what you're hunting (at least 10 characters)");
     const record: ISOPostRecord = {
-      id: uid("iso"),
+      id: input.id ?? uid("iso"),
       userId: me.id,
       itemType: input.itemType,
       description: input.description.trim(),
@@ -907,6 +991,7 @@ export class PoachStore {
     kind: DealRecord["kind"],
     listingId: string,
     terms: OfferTermsInput,
+    ids: { dealId?: string; threadId?: string } = {},
   ): Res<Deal> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
@@ -928,7 +1013,7 @@ export class PoachStore {
     const now = this.now();
     const offer = this.makeOffer(me.id, terms);
     const thread: ThreadRecord = {
-      id: uid("t"),
+      id: ids.threadId ?? uid("t"),
       participantIds: [me.id, listing.sellerId],
       listingId,
       createdAt: now,
@@ -936,7 +1021,7 @@ export class PoachStore {
       lastRead: { [me.id]: now },
     };
     const deal: DealRecord = {
-      id: uid("d"),
+      id: ids.dealId ?? uid("d"),
       kind,
       listingId,
       proposerId: me.id,
@@ -975,40 +1060,68 @@ export class PoachStore {
     offeredListingIds: string[];
     cashAdded?: number;
     note?: string;
+    dealId?: string;
+    threadId?: string;
   }): Res<Deal> {
     if (input.offeredListingIds.length === 0)
       return err("Pick at least one of your items to offer");
-    return this.openDeal("trade", input.listingId, {
-      proposerListingIds: input.offeredListingIds,
-      ownerListingIds: [input.listingId],
-      cashFromProposer: input.cashAdded ?? 0,
-      cashFromOwner: 0,
-      note: input.note ?? "",
-    });
+    return this.openDeal(
+      "trade",
+      input.listingId,
+      {
+        proposerListingIds: input.offeredListingIds,
+        ownerListingIds: [input.listingId],
+        cashFromProposer: input.cashAdded ?? 0,
+        cashFromOwner: 0,
+        note: input.note ?? "",
+      },
+      { dealId: input.dealId, threadId: input.threadId },
+    );
   }
 
-  makeBuyOffer(input: { listingId: string; amount: number; note?: string }): Res<Deal> {
+  makeBuyOffer(input: {
+    listingId: string;
+    amount: number;
+    note?: string;
+    dealId?: string;
+    threadId?: string;
+  }): Res<Deal> {
     if (!input.amount || input.amount <= 0) return err("Enter an offer amount");
-    return this.openDeal("buy", input.listingId, {
-      proposerListingIds: [],
-      ownerListingIds: [input.listingId],
-      cashFromProposer: input.amount,
-      cashFromOwner: 0,
-      note: input.note ?? "",
-    });
+    return this.openDeal(
+      "buy",
+      input.listingId,
+      {
+        proposerListingIds: [],
+        ownerListingIds: [input.listingId],
+        cashFromProposer: input.amount,
+        cashFromOwner: 0,
+        note: input.note ?? "",
+      },
+      { dealId: input.dealId, threadId: input.threadId },
+    );
   }
 
-  claimListing(input: { listingId: string; note?: string }): Res<Deal> {
+  claimListing(input: {
+    listingId: string;
+    note?: string;
+    dealId?: string;
+    threadId?: string;
+  }): Res<Deal> {
     const listing = this.rawListing(input.listingId);
     if (listing && listing.listingType !== "free")
       return err("Only free listings can be claimed");
-    return this.openDeal("claim", input.listingId, {
-      proposerListingIds: [],
-      ownerListingIds: [input.listingId],
-      cashFromProposer: 0,
-      cashFromOwner: 0,
-      note: input.note ?? "",
-    });
+    return this.openDeal(
+      "claim",
+      input.listingId,
+      {
+        proposerListingIds: [],
+        ownerListingIds: [input.listingId],
+        cashFromProposer: 0,
+        cashFromOwner: 0,
+        note: input.note ?? "",
+      },
+      { dealId: input.dealId, threadId: input.threadId },
+    );
   }
 
   counterOffer(dealId: string, terms: OfferTermsInput): Res<Deal> {
@@ -1527,9 +1640,10 @@ export class PoachStore {
     kind: MessageKind,
     content: string,
     offerId?: string,
+    id?: string,
   ): MessageRecord {
     const msg: MessageRecord = {
-      id: uid("m"),
+      id: id ?? uid("m"),
       threadId,
       senderId,
       kind,
@@ -1546,7 +1660,11 @@ export class PoachStore {
     return msg;
   }
 
-  getOrCreateThread(otherUserId: string, context: { listingId?: string; isoPostId?: string } = {}): Res<Thread> {
+  getOrCreateThread(
+    otherUserId: string,
+    context: { listingId?: string; isoPostId?: string } = {},
+    threadId?: string,
+  ): Res<Thread> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     if (otherUserId === me.id) return err("That's you");
@@ -1563,7 +1681,7 @@ export class PoachStore {
     if (!thread) {
       const now = this.now();
       thread = {
-        id: uid("t"),
+        id: threadId ?? uid("t"),
         participantIds: [me.id, otherUserId],
         listingId: context.listingId,
         isoPostId: context.isoPostId,
@@ -1577,7 +1695,7 @@ export class PoachStore {
     return ok(this.hydrateThread(thread, me.id));
   }
 
-  sendMessage(threadId: string, content: string): Res<Message> {
+  sendMessage(threadId: string, content: string, id?: string): Res<Message> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     const thread = this.state.threads.find((t) => t.id === threadId);
@@ -1586,7 +1704,7 @@ export class PoachStore {
     if (!trimmed) return err("Message is empty");
     const other = thread.participantIds.find((p) => p !== me.id)!;
     if (this.isBlockedPair(me.id, other)) return err("You can't message this user");
-    const msg = this.appendMessage(threadId, me.id, "text", trimmed.slice(0, 2000));
+    const msg = this.appendMessage(threadId, me.id, "text", trimmed.slice(0, 2000), undefined, id);
     // Collapse per-thread message notifications so they don't stack up.
     this.state.notifications = this.state.notifications.filter(
       (n) => !(n.userId === other && n.type === "new_message" && n.linkTo === `/app/inbox/${threadId}` && !n.read),
@@ -1789,6 +1907,61 @@ export class PoachStore {
       .filter((b) => b.blockerId === me.id)
       .map((b) => this.getUser(b.blockedId))
       .filter((u): u is User => !!u);
+  }
+
+  // ── Linked identities (reputation scaffolding) ─────────────────────────────
+
+  listIdentities(userId: string): IdentityRecord[] {
+    return (this.state.identities ?? [])
+      .filter((i) => i.userId === userId)
+      .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  }
+
+  linkIdentity(input: {
+    id?: string;
+    provider: IdentityProvider;
+    handle: string;
+    url?: string;
+  }): Res<IdentityRecord> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const handle = input.handle.trim();
+    if (!handle) return err("Enter a handle");
+    if (handle.length > 80) return err("Handle is too long (80 characters max)");
+    const mine = this.listIdentities(me.id);
+    if (mine.length >= 5) return err("You can link up to 5 identities");
+    if (
+      mine.some(
+        (i) => i.provider === input.provider && i.handle.toLowerCase() === handle.toLowerCase(),
+      )
+    )
+      return err("You already linked that handle");
+    const record: IdentityRecord = {
+      id: input.id ?? uid("idn"),
+      userId: me.id,
+      provider: input.provider,
+      handle,
+      url: input.url?.trim() || undefined,
+      status: "unverified", // verification is a server-side review
+      submittedAt: this.now(),
+    };
+    if (!this.state.identities) this.state.identities = [];
+    this.state.identities.push(record);
+    this.commit();
+    return ok(record);
+  }
+
+  removeIdentity(id: string): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const list = this.state.identities ?? [];
+    const idx = list.findIndex((i) => i.id === id);
+    if (idx < 0) return err("Identity not found");
+    if (list[idx].userId !== me.id)
+      return err("You can only remove your own linked identities");
+    list.splice(idx, 1);
+    this.commit();
+    return ok(null);
   }
 
   // ── Admin ──────────────────────────────────────────────────────────────────
