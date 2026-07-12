@@ -6,31 +6,47 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
+  Ban,
+  Clock,
   ExternalLink,
+  EyeOff,
   Flag,
   Gavel,
   IdCard,
   LayoutGrid,
+  MoreHorizontal,
   Package,
+  RotateCcw,
   ShieldAlert,
   Star,
   Trash2,
+  UserCog,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { dispatchOp, fetchAdminData } from "@/app/actions/engine";
+import { useAsUser } from "@/app/actions/auth";
 import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
 import { useHydrated, useStore } from "@/lib/store-context";
 import type { RemotePoachStore } from "@/lib/remote-store";
 import { DealStatusBadge } from "@/components/deal-status-badge";
 import { IDENTITY_PROVIDER_META, IDENTITY_STATUS_META } from "@/components/identity-chips";
-import { formatMonthYear, timeAgo } from "@/lib/format";
+import { formatDate, formatMonthYear, timeAgo } from "@/lib/format";
 import { LISTING_STATUS_LABELS } from "@/lib/constants";
-import type { DealRecord, IdentityRecord, Listing, Report } from "@/lib/types";
+import type { DealRecord, IdentityRecord, Listing, Report, UserStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -138,6 +154,22 @@ const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string
     cls: "text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400",
   },
   dismissed: { label: "Dismissed", cls: "text-muted-foreground border-border" },
+};
+
+/** Moderation status → quiet chip. `active` shows nothing (kept off the roster). */
+const USER_STATUS_CHIP: Record<Exclude<UserStatus, "active">, { label: string; cls: string }> = {
+  shadowbanned: {
+    label: "Shadowbanned",
+    cls: "text-purple-700 border-purple-700/50 dark:text-purple-400 dark:border-purple-400/50",
+  },
+  suspended: {
+    label: "Suspended",
+    cls: "text-amber-700 border-amber-700/50 dark:text-yellow-400 dark:border-yellow-400/50",
+  },
+  banned: {
+    label: "Banned",
+    cls: "text-red-700 border-red-700/50 dark:text-red-400 dark:border-red-400/50",
+  },
 };
 
 /* ── 1. Stats grid ───────────────────────────────────────────────────────── */
