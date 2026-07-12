@@ -8,6 +8,13 @@
       "when": 1783873698689,
       "tag": "0000_stiff_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783874976063,
+      "tag": "0001_chief_frog_thor",
+      "breakpoints": true
     }
   ]
 }

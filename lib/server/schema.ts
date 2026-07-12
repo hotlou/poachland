@@ -332,6 +332,19 @@ export const blocks = pgTable(
   (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })],
 );
 
+/** Server-side view dedupe: one row per (listing, viewer); views bump only on insert. */
+export const listingViews = pgTable(
+  "listing_views",
+  {
+    listingId: text("listing_id").notNull(),
+    viewerId: text("viewer_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.listingId, t.viewerId] })],
+);
+
 export const activity = pgTable("activity", {
   id: text("id").primaryKey(),
   type: text("type").$type<ActivityType>().notNull(),
@@ -417,6 +430,7 @@ export type SaveRow = typeof saves.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
 export type BlockRow = typeof blocks.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
+export type ListingViewRow = typeof listingViews.$inferSelect;
 export type LoginTokenRow = typeof loginTokens.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type IdentityRow = typeof identities.$inferSelect;
