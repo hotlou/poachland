@@ -10,7 +10,6 @@ import { Hydrated } from "@/components/hydrated";
 import { useStore } from "@/lib/store-context";
 import type { ListingFilter } from "@/lib/engine";
 import type { Condition, ItemType, ListingType } from "@/lib/types";
-import { LISTING_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const CONDITIONS: Condition[] = ["Mint", "Near Mint", "Good", "Fair", "Worn"];
@@ -21,18 +20,18 @@ const ITEM_TYPE_CHIPS: { value: "all" | ItemType; label: string }[] = [
   { value: "disc", label: "Discs" },
 ];
 const LISTING_TYPE_CHIPS: { value: "all" | ListingType; label: string }[] = [
-  { value: "all", label: "Any Deal" },
-  { value: "trade", label: LISTING_TYPE_LABELS.trade },
-  { value: "sell", label: LISTING_TYPE_LABELS.sell },
-  { value: "free", label: LISTING_TYPE_LABELS.free },
-  { value: "trade+cash", label: "Trade+$" },
+  { value: "all", label: "Any deal" },
+  { value: "trade", label: "Trade" },
+  { value: "sell", label: "For sale" },
+  { value: "free", label: "Free" },
+  { value: "trade+cash", label: "Trade + cash" },
 ];
 const SORT_OPTIONS: { value: NonNullable<ListingFilter["sort"]>; label: string }[] = [
   { value: "newest", label: "Newest" },
-  { value: "most-saved", label: "Most Saved" },
-  { value: "most-viewed", label: "Most Viewed" },
-  { value: "price-low", label: "Price: Low to High" },
-  { value: "price-high", label: "Price: High to Low" },
+  { value: "most-saved", label: "Most saved" },
+  { value: "most-viewed", label: "Most viewed" },
+  { value: "price-low", label: "Price: low to high" },
+  { value: "price-high", label: "Price: high to low" },
 ];
 
 function Chip({
@@ -49,9 +48,9 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
+        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
         active
-          ? "bg-accent text-accent-foreground border-accent"
+          ? "bg-accent text-accent-foreground border-accent shadow-sm"
           : "bg-card text-muted-foreground border-border hover:text-foreground",
       )}
     >
@@ -70,7 +69,7 @@ function ResultsSkeleton() {
   return (
     <div>
       <div className="h-3 w-24 bg-surface rounded-sm mb-4 animate-pulse" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="aspect-[4/3] bg-surface animate-pulse" />
@@ -164,7 +163,7 @@ function BrowseContent() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3">
         <h1 className="font-display font-bold text-xl tracking-tight mb-3">
           Browse
         </h1>
@@ -205,13 +204,13 @@ function BrowseContent() {
         </div>
 
         {/* Quick chips: item type then deal type */}
-        <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide">
+        <div className="flex flex-wrap items-center gap-2 mt-3">
           {ITEM_TYPE_CHIPS.map((c) => (
             <Chip key={c.value} active={itemType === c.value} onClick={() => setItemType(c.value)}>
               {c.label}
             </Chip>
           ))}
-          <span className="flex-shrink-0 w-px bg-border self-stretch" aria-hidden />
+          <span className="w-px h-5 bg-border" aria-hidden />
           {LISTING_TYPE_CHIPS.map((c) => (
             <Chip
               key={c.value}
@@ -226,9 +225,9 @@ function BrowseContent() {
 
       {/* Collapsible filter panel */}
       {showFilters && (
-        <div className="bg-surface border-b border-border px-4 py-4 space-y-4">
+        <div className="bg-surface border-b border-border px-4 md:px-6 py-4 space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-4">
           {/* Condition multi-select */}
-          <div>
+          <div className="md:col-span-2">
             <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
               Condition
             </p>
@@ -329,7 +328,7 @@ function BrowseContent() {
             <button
               type="button"
               onClick={clearPanelFilters}
-              className="text-xs text-destructive font-semibold"
+              className="md:col-span-2 text-left text-xs text-destructive font-semibold"
             >
               Reset filters
             </button>
@@ -338,7 +337,7 @@ function BrowseContent() {
       )}
 
       {/* Results */}
-      <div className="px-4 py-4">
+      <div className="px-4 md:px-6 py-4">
         <Hydrated fallback={<ResultsSkeleton />}>
           {/* Traders matching the query */}
           {traders.length > 0 && (
@@ -346,7 +345,7 @@ function BrowseContent() {
               <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
                 Traders
               </p>
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 pb-1">
                 {traders.map((u) => (
                   <Link
                     key={u.id}
@@ -394,7 +393,7 @@ function BrowseContent() {
                   <button
                     type="button"
                     onClick={clearEverything}
-                    className="bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
+                    className="bg-accent text-accent-foreground px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm"
                   >
                     Clear search & filters
                   </button>
@@ -405,7 +404,7 @@ function BrowseContent() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {results.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}

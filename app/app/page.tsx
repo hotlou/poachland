@@ -101,7 +101,7 @@ function YourMoveStrip() {
 
   return (
     <section className="mt-4">
-      <div className="px-4 flex items-center gap-1.5 mb-2">
+      <div className="px-4 md:px-6 flex items-center gap-1.5 mb-2">
         <Zap size={15} className="text-accent" />
         <h2 className="font-display font-bold text-base tracking-tight">
           Your move
@@ -110,7 +110,7 @@ function YourMoveStrip() {
           {cards.length}
         </span>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 px-4 snap-x">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-4 snap-x md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:px-6 md:pb-0">
         {cards.map(({ key, kind, deal }) => {
           const other = deal.proposerId === me.id ? deal.owner : deal.proposer;
           const body =
@@ -126,7 +126,7 @@ function YourMoveStrip() {
               key={key}
               href={`/app/trades/${deal.id}`}
               className={cn(
-                "snap-start flex-shrink-0 w-64 rounded-xl bg-card p-3 card-lift border border-border border-l-4",
+                "snap-start flex-shrink-0 w-64 md:w-auto rounded-xl bg-card p-3 card-lift border border-border border-l-4",
                 kind === "respond" && "border-l-accent",
                 kind === "track" && "border-l-accent/40",
                 kind === "rate" && "border-l-amber-600 dark:border-l-yellow-400",
@@ -178,7 +178,7 @@ function HotRightNow() {
   if (featured.length === 0) return null;
   return (
     <section className="mt-6">
-      <div className="px-4 flex items-center justify-between mb-3">
+      <div className="px-4 md:px-6 flex items-center justify-between mb-3">
         <h2 className="font-display font-bold text-lg tracking-tight flex items-center gap-1.5">
           <Flame size={16} className="text-accent" /> Hot right now
         </h2>
@@ -189,12 +189,12 @@ function HotRightNow() {
           See all <ChevronRight size={12} />
         </Link>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 px-4 snap-x">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-4 md:px-6 snap-x">
         {featured.map((listing) => (
           <ListingCard
             key={listing.id}
             listing={listing}
-            className="snap-start flex-shrink-0 w-60"
+            className="snap-start flex-shrink-0 w-60 md:w-72"
           />
         ))}
       </div>
@@ -208,7 +208,7 @@ function FreshDrops() {
   const store = useStore();
   const latest = store.listListings({ sort: "newest" }).slice(0, 8);
   return (
-    <section className="px-4 mt-6">
+    <section className="px-4 md:px-6 mt-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-display font-bold text-lg tracking-tight">
           Fresh drops
@@ -227,13 +227,13 @@ function FreshDrops() {
           </p>
           <Link
             href="/app/create"
-            className="inline-block mt-3 px-5 py-2 rounded-full bg-accent text-accent-foreground text-xs font-bold"
+            className="inline-block mt-3 px-5 py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold shadow-sm"
           >
             List something
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
           {latest.map((listing) => (
             <ListingCard key={listing.id} listing={listing} />
           ))}
@@ -249,7 +249,7 @@ function ActivityTimeline() {
   const store = useStore();
   const events = store.listActivity(8);
   return (
-    <section className="px-4 mt-6">
+    <section className="px-4 md:px-6 mt-6">
       <div className="flex items-center gap-1.5 mb-3">
         <TrendingUp size={16} className="text-accent" />
         <h2 className="font-display font-bold text-lg tracking-tight">
@@ -306,7 +306,7 @@ function WantedPreview() {
   const store = useStore();
   const posts = store.listISOPosts({ sort: "newest" }).slice(0, 3);
   return (
-    <section className="px-4 mt-6">
+    <section className="px-4 md:px-6 mt-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-display font-bold text-lg tracking-tight flex items-center gap-1.5">
           <Pin size={15} className="text-accent" /> Wanted board
@@ -392,7 +392,7 @@ function TraderSpotlight() {
     .sort((a, b) => b.trustScore - a.trustScore || b.tradesCompleted - a.tradesCompleted)[0];
   if (!spotlight) return null;
   return (
-    <section className="px-4 mt-6 mb-6">
+    <section className="px-4 md:px-6 mt-6 mb-6">
       <Link
         href={`/app/u/${spotlight.username}`}
         className="block bg-card border border-border rounded-xl p-4 card-lift"
@@ -448,15 +448,15 @@ function TraderSpotlight() {
 function HomeSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="flex gap-3 overflow-hidden px-4 mt-6">
+      <div className="flex gap-3 overflow-hidden px-4 md:px-6 mt-6">
         {[0, 1].map((i) => (
-          <div key={i} className="flex-shrink-0 w-60 space-y-2">
+          <div key={i} className="flex-shrink-0 w-60 md:w-72 space-y-2">
             <div className="aspect-[4/3] bg-surface rounded-xl" />
             <div className="h-3 bg-surface rounded w-3/4" />
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-3 px-4 mt-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 px-4 md:px-6 mt-6">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="space-y-2">
             <div className="aspect-[4/3] bg-surface rounded-xl" />
@@ -464,7 +464,7 @@ function HomeSkeleton() {
           </div>
         ))}
       </div>
-      <div className="px-4 mt-6 space-y-3">
+      <div className="px-4 md:px-6 mt-6 space-y-3">
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-10 bg-surface rounded" />
         ))}
@@ -479,7 +479,7 @@ export default function HomeFeedPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
+      <header className="md:hidden sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
         <Link
           href="/app"
           className="font-display font-black text-xl uppercase tracking-tight text-accent flex items-center gap-1.5"
