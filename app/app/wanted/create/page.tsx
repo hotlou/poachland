@@ -70,13 +70,13 @@ export default function CreateISOPage() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="font-display font-bold text-lg uppercase tracking-tight">
-          Post Wanted / ISO
+        <h1 className="font-display font-bold text-lg tracking-tight">
+          Post wanted / ISO
         </h1>
       </header>
 
       <div className="px-4 py-6">
-        <h2 className="font-display font-bold text-2xl uppercase tracking-tight mb-1">
+        <h2 className="font-display font-bold text-2xl tracking-tight mb-1">
           What are you hunting?
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
@@ -100,10 +100,10 @@ export default function CreateISOPage() {
                     if (t === "disc") setSize("");
                   }}
                   className={cn(
-                    "flex-1 py-3 rounded-sm font-display font-bold uppercase tracking-wide text-sm border transition-colors",
+                    "flex-1 py-3 rounded-full font-display font-bold capitalize text-sm border transition-colors",
                     itemType === t
                       ? "bg-accent text-accent-foreground border-accent"
-                      : "bg-surface text-muted-foreground border-border hover:text-foreground",
+                      : "bg-card text-muted-foreground border-border hover:text-foreground",
                   )}
                 >
                   {t}
@@ -136,7 +136,7 @@ export default function CreateISOPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Be specific — team, year, condition, what you'd offer in return."
               rows={4}
-              className="w-full bg-surface border border-border rounded-sm px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+              className="w-full bg-card border border-border rounded-xl px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
           </div>
 
@@ -154,7 +154,7 @@ export default function CreateISOPage() {
               value={team}
               onChange={(e) => setTeam(e.target.value)}
               placeholder="e.g. Brute Squad, WFDF Worlds"
-              className="w-full bg-surface border border-border rounded-sm px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
+              className="w-full bg-card border border-border rounded-xl px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
             />
             <p className="text-[11px] text-muted-foreground mt-1.5">
               Naming a team sharpens the match alerts.
@@ -174,10 +174,10 @@ export default function CreateISOPage() {
                     type="button"
                     onClick={() => setSize(s === size ? "" : s)}
                     className={cn(
-                      "flex-1 py-2 rounded-sm text-xs font-semibold border transition-colors",
+                      "flex-1 py-2 rounded-full text-xs font-semibold border transition-colors",
                       size === s
                         ? "bg-accent text-accent-foreground border-accent"
-                        : "text-muted-foreground border-border hover:text-foreground",
+                        : "bg-card text-muted-foreground border-border hover:text-foreground",
                     )}
                   >
                     {s}
@@ -195,7 +195,7 @@ export default function CreateISOPage() {
             >
               Max price willing to pay (optional)
             </label>
-            <div className="flex items-center gap-2 bg-surface border border-border rounded-sm px-3 py-3 focus-within:border-accent transition-colors">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-3 focus-within:border-accent transition-colors">
               <span className="text-muted-foreground">$</span>
               <input
                 id="iso-max-price"
@@ -214,7 +214,7 @@ export default function CreateISOPage() {
           type="button"
           onClick={submit}
           disabled={!descValid || submitting}
-          className="w-full mt-8 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-4 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          className="w-full mt-8 bg-accent text-accent-foreground font-display font-bold py-4 rounded-full disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
         >
           {submitting ? "Pinning…" : "Pin It to the Board"}
         </button>
