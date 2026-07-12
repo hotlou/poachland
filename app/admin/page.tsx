@@ -1,137 +1,1172 @@
-'use client';
+"use client";
 
-import { BarChart3, Users, Package, AlertCircle, TrendingUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  ExternalLink,
+  Flag,
+  Gavel,
+  IdCard,
+  LayoutGrid,
+  Package,
+  ShieldAlert,
+  Star,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { dispatchOp, fetchAdminData } from "@/app/actions/engine";
+import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
+import { useHydrated, useStore } from "@/lib/store-context";
+import type { RemotePoachStore } from "@/lib/remote-store";
+import { DealStatusBadge } from "@/components/deal-status-badge";
+import { IDENTITY_PROVIDER_META, IDENTITY_STATUS_META } from "@/components/identity-chips";
+import { formatMonthYear, timeAgo } from "@/lib/format";
+import { LISTING_STATUS_LABELS } from "@/lib/constants";
+import type { DealRecord, IdentityRecord, Listing, Report } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-export default function AdminDashboard() {
-  const stats = [
-    { label: 'Total Users', value: '2,847', trend: '+12%', icon: Users },
-    { label: 'Active Listings', value: '1,204', trend: '+5%', icon: Package },
-    { label: 'Completed Trades', value: '4,892', trend: '+28%', icon: TrendingUp },
-    { label: 'Flagged Items', value: '23', trend: '-8%', icon: AlertCircle },
+/**
+ * Run an admin op against the server, then refresh both the admin view and
+ * the shared world snapshot. Returns true on success.
+ */
+async function runAdminOp<K extends OpName>(
+  store: RemotePoachStore,
+  reload: () => Promise<void>,
+  op: K,
+  payload: OpMap[K],
+): Promise<boolean> {
+  try {
+    const result = await dispatchOp(op, payload);
+    if (!result.ok) {
+      toast.error(result.error);
+      if (result.snapshot) store.applySnapshot(result.snapshot);
+      return false;
+    }
+    store.applySnapshot(result.snapshot);
+    await reload();
+    return true;
+  } catch (error) {
+    console.error(`[admin] ${op} failed`, error);
+    toast.error("Couldn't reach the server. Try again.");
+    return false;
+  }
+}
+
+type AdminUser = AdminData["users"][number];
+
+/* ── Small shared pieces ─────────────────────────────────────────────────── */
+
+function SectionHeading({
+  icon: Icon,
+  title,
+  count,
+}: {
+  icon: React.ElementType;
+  title: string;
+  count?: number;
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon size={16} className="text-accent" strokeWidth={2.5} />
+      <h2 className="font-display font-bold uppercase tracking-wider text-base text-foreground">
+        {title}
+      </h2>
+      {count !== undefined && count > 0 && (
+        <span className="badge-stamp text-accent border-accent">{count}</span>
+      )}
+    </div>
+  );
+}
+
+function EmptyRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-card border border-border rounded-lg px-4 py-8 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string }> = {
+  pending: { label: "Pending", cls: "text-yellow-400 border-yellow-400" },
+  resolved: { label: "Resolved", cls: "text-emerald-400 border-emerald-400" },
+  dismissed: { label: "Dismissed", cls: "text-muted-foreground border-border" },
+};
+
+/* ── 1. Stats grid ───────────────────────────────────────────────────────── */
+
+function StatsSection({ stats }: { stats: AdminData["stats"] }) {
+  const tiles: { label: string; value: number; tone?: "warn" | "alert" }[] = [
+    { label: "Members", value: stats.users },
+    { label: "Verified", value: stats.verifiedUsers },
+    { label: "Active listings", value: stats.activeListings },
+    { label: "ISO posts", value: stats.isoPosts },
+    { label: "Ratings", value: stats.ratings },
+    { label: "Deals open", value: stats.dealsOpen },
+    { label: "Deals agreed", value: stats.dealsAccepted },
+    { label: "Completed", value: stats.dealsCompleted },
+    {
+      label: "Disputed",
+      value: stats.dealsDisputed,
+      tone: stats.dealsDisputed > 0 ? "alert" : undefined,
+    },
+    {
+      label: "Pending reports",
+      value: stats.pendingReports,
+      tone: stats.pendingReports > 0 ? "warn" : undefined,
+    },
+    {
+      label: "Identity queue",
+      value: stats.pendingIdentities,
+      tone: stats.pendingIdentities > 0 ? "warn" : undefined,
+    },
+    { label: "Messages", value: stats.messages },
   ];
+  return (
+    <section>
+      <SectionHeading icon={LayoutGrid} title="The State of the Land" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {tiles.map((t) => (
+          <div
+            key={t.label}
+            className={cn(
+              "bg-card border border-border rounded-lg p-3",
+              t.tone === "alert" && "border-red-400/50",
+              t.tone === "warn" && "border-yellow-400/50",
+            )}
+          >
+            <p
+              className={cn(
+                "font-display font-bold text-2xl leading-none",
+                t.tone === "alert"
+                  ? "text-red-400"
+                  : t.tone === "warn"
+                    ? "text-yellow-400"
+                    : "text-foreground",
+              )}
+            >
+              {t.value}
+            </p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1.5 font-medium">
+              {t.label}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-  const recentActivity = [
-    { user: 'alex_collector', action: 'Listed rare 2019 Nationals jersey', time: '5 min ago' },
-    { user: 'jordan_trades', action: 'Completed trade with validator', time: '12 min ago' },
-    { user: 'disc_hunter', action: 'Posted ISO request for Glow Buzzz', time: '28 min ago' },
-    { user: 'jersey_king', action: 'Account flagged for review', time: '1 hour ago' },
-  ];
+/* ── 2. Identity review queue ────────────────────────────────────────────── */
 
-  const flaggedListings = [
-    { id: '1', title: 'Rare 1999 Nationals Jersey', seller: 'unknown_trader', reason: 'Unverified seller' },
-    { id: '2', title: 'Holographic Disc Set', seller: 'sketchy_dealer', reason: 'Suspicious pricing' },
-    { id: '3', title: 'Championship Medal', seller: 'collector_99', reason: 'Counterfeit report' },
-  ];
+function IdentityQueueSection({
+  queue,
+  findUser,
+  onReview,
+}: {
+  queue: IdentityRecord[];
+  findUser: (id: string) => AdminUser | undefined;
+  onReview: (
+    identity: IdentityRecord,
+    status: "verified" | "rejected",
+    note?: string,
+  ) => Promise<boolean>;
+}) {
+  const [reviewing, setReviewing] = useState<{
+    identity: IdentityRecord;
+    status: "verified" | "rejected";
+  } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const open = (identity: IdentityRecord, status: "verified" | "rejected") => {
+    setNote("");
+    setReviewing({ identity, status });
+  };
+
+  const confirm = async () => {
+    if (!reviewing || busy) return;
+    setBusy(true);
+    const ok = await onReview(reviewing.identity, reviewing.status, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        reviewing.status === "verified" ? "Identity verified" : "Identity rejected",
+      );
+      setReviewing(null);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <BarChart3 className="w-8 h-8 text-accent" />
-            <h1 className="text-4xl font-bold text-foreground">Admin Dashboard</h1>
-          </div>
-          <p className="text-secondary-foreground">Monitor marketplace activity and manage content</p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, i) => {
-            const Icon = stat.icon;
-            const isPositive = stat.trend.startsWith('+');
+    <section>
+      <SectionHeading icon={IdCard} title="Identity Review Queue" count={queue.length} />
+      {queue.length === 0 ? (
+        <EmptyRow>No identities waiting on review.</EmptyRow>
+      ) : (
+        <div className="space-y-2">
+          {queue.map((identity) => {
+            const meta = IDENTITY_PROVIDER_META[identity.provider];
+            const status = IDENTITY_STATUS_META[identity.status];
+            const Icon = meta.icon;
+            const user = findUser(identity.userId);
             return (
-              <div key={i} className="bg-secondary border border-border rounded-lg p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <Icon className="w-6 h-6 text-accent" />
-                  <span className={`text-xs font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                    {stat.trend}
-                  </span>
+              <div
+                key={identity.id}
+                className="bg-card border border-border rounded-lg p-3.5 space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-md bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        @{identity.handle}
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          · {meta.label}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user ? (
+                          <Link
+                            href={`/app/u/${user.username}`}
+                            className="hover:text-accent transition-colors"
+                          >
+                            {user.username}
+                          </Link>
+                        ) : (
+                          "unknown user"
+                        )}{" "}
+                        · submitted {timeAgo(identity.submittedAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={cn("badge-stamp shrink-0", status.cls)}>{status.label}</span>
                 </div>
-                <p className="text-secondary-foreground text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                {identity.url && (
+                  <a
+                    href={identity.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                  >
+                    <ExternalLink size={11} /> {identity.url}
+                  </a>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    onClick={() => open(identity, "verified")}
+                  >
+                    Verify
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-red-400 border-red-400/40 hover:text-red-400"
+                    onClick={() => open(identity, "rejected")}
+                  >
+                    Reject
+                  </Button>
+                </div>
               </div>
             );
           })}
         </div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Activity */}
-          <div className="lg:col-span-2 bg-secondary border border-border rounded-lg p-6">
-            <h2 className="text-xl font-bold text-foreground mb-4">Recent Activity</h2>
-            <div className="space-y-4">
-              {recentActivity.map((item, i) => (
-                <div key={i} className="flex items-start gap-3 pb-4 border-b border-border last:border-b-0">
-                  <div className="w-2 h-2 rounded-full bg-accent mt-2 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{item.user}</p>
-                    <p className="text-sm text-secondary-foreground">{item.action}</p>
-                    <p className="text-xs text-secondary mt-1">{item.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          {reviewing && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                  {reviewing.status === "verified" ? "Verify identity" : "Reject identity"}
+                </DialogTitle>
+                <DialogDescription>
+                  {reviewing.status === "verified"
+                    ? `Marks @${reviewing.identity.handle} as a verified ${IDENTITY_PROVIDER_META[reviewing.identity.provider].label} identity. It shows with a check on the trader's profile.`
+                    : `Rejects @${reviewing.identity.handle}. The trader sees the rejection on their settings page.`}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-1">
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional reviewer note — goes on the record."
+                  rows={3}
+                  className="bg-surface resize-none"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setReviewing(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant={reviewing.status === "rejected" ? "destructive" : "default"}
+                  className={
+                    reviewing.status === "rejected"
+                      ? undefined
+                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                  }
+                  disabled={busy}
+                  onClick={() => void confirm()}
+                >
+                  {busy ? "Working…" : reviewing.status === "verified" ? "Verify" : "Reject"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
 
-          {/* Quick Actions */}
-          <div className="bg-secondary border border-border rounded-lg p-6">
-            <h2 className="text-xl font-bold text-foreground mb-4">Quick Actions</h2>
-            <div className="space-y-3">
-              <Button className="w-full bg-accent text-background hover:bg-accent/90">
-                Review Flagged Items
-              </Button>
-              <Button variant="outline" className="w-full">
-                View User Reports
-              </Button>
-              <Button variant="outline" className="w-full">
-                Send Announcement
-              </Button>
-              <Button variant="outline" className="w-full">
-                Manage Moderators
-              </Button>
-            </div>
-          </div>
+/* ── 3. Reports queue ────────────────────────────────────────────────────── */
+
+type ResolveAction = "remove-listing" | "warn-user" | "dismiss";
+
+const RESOLVE_COPY: Record<
+  ResolveAction,
+  { title: string; description: string; cta: string; destructive?: boolean }
+> = {
+  "remove-listing": {
+    title: "Remove listing",
+    description:
+      "The listing comes down, open negotiations on it close, and the seller is notified.",
+    cta: "Remove it",
+    destructive: true,
+  },
+  "warn-user": {
+    title: "Warn user",
+    description: "Sends a community-guidelines warning to the user behind this report.",
+    cta: "Send warning",
+  },
+  dismiss: {
+    title: "Dismiss report",
+    description: "No action taken. The report is filed away as handled.",
+    cta: "Dismiss",
+  },
+};
+
+function ReportTarget({
+  report,
+  findUser,
+  findDisputedDeal,
+}: {
+  report: Report;
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
+}) {
+  const store = useStore();
+  if (report.targetType === "listing") {
+    const listing = store.getListing(report.targetId);
+    if (!listing)
+      return <p className="text-xs text-muted-foreground">Listing no longer exists.</p>;
+    return (
+      <Link
+        href={`/app/listings/${listing.id}`}
+        className="flex items-center gap-2.5 group min-w-0"
+      >
+        <img
+          src={listing.photos[0] || "/placeholder.jpg"}
+          alt=""
+          className="w-10 h-10 rounded object-cover border border-border shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
+            {listing.title}
+          </p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Listing · {LISTING_STATUS_LABELS[listing.status]} · {listing.seller.username}
+          </p>
         </div>
-
-        {/* Flagged Listings */}
-        <div className="mt-8 bg-secondary border border-border rounded-lg p-6">
-          <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            Flagged for Review
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left p-3 text-sm font-semibold text-secondary-foreground">Item</th>
-                  <th className="text-left p-3 text-sm font-semibold text-secondary-foreground">Seller</th>
-                  <th className="text-left p-3 text-sm font-semibold text-secondary-foreground">Reason</th>
-                  <th className="text-left p-3 text-sm font-semibold text-secondary-foreground">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flaggedListings.map(listing => (
-                  <tr key={listing.id} className="border-b border-border hover:bg-background/50 transition-colors">
-                    <td className="p-3 text-foreground">{listing.title}</td>
-                    <td className="p-3 text-secondary-foreground">{listing.seller}</td>
-                    <td className="p-3">
-                      <span className="bg-red-500/20 text-red-500 text-xs font-bold px-2 py-1 rounded">
-                        {listing.reason}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <button className="text-accent hover:text-accent/80 font-semibold text-sm">
-                        Review
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      </Link>
+    );
+  }
+  if (report.targetType === "user") {
+    const user = findUser(report.targetId);
+    if (!user) return <p className="text-xs text-muted-foreground">User no longer exists.</p>;
+    return (
+      <Link href={`/app/u/${user.username}`} className="flex items-center gap-2.5 group min-w-0">
+        <img
+          src={user.avatar}
+          alt=""
+          className="w-10 h-10 rounded-full object-cover border border-border shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
+            {user.username}
+          </p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            User · {user.displayName}
+          </p>
         </div>
+      </Link>
+    );
+  }
+  // Deal report: admin snapshots only include the admin's own deals, so fall
+  // back to the disputed-deals feed for a record.
+  const deal = findDisputedDeal(report.targetId) ?? store.getDeal(report.targetId);
+  if (!deal) return <p className="text-xs text-muted-foreground">Deal not in view.</p>;
+  const listing = store.getListing(deal.listingId);
+  const proposer = findUser(deal.proposerId);
+  const owner = findUser(deal.ownerId);
+  return (
+    <Link href={`/app/trades/${deal.id}`} className="flex items-center gap-2.5 group min-w-0">
+      <img
+        src={listing?.photos[0] || "/placeholder.jpg"}
+        alt=""
+        className="w-10 h-10 rounded object-cover border border-border shrink-0"
+      />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
+          {listing?.title ?? "A deal"}
+        </p>
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+          Deal · {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
+        </p>
       </div>
+    </Link>
+  );
+}
+
+function ReportRow({
+  report,
+  findUser,
+  findDisputedDeal,
+  onAction,
+}: {
+  report: Report;
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
+  onAction?: (report: Report, action: ResolveAction) => void;
+}) {
+  const reporter = findUser(report.reporterId);
+  const stamp = REPORT_STATUS_STAMP[report.status];
+  return (
+    <div className="bg-card border border-border rounded-lg p-3.5 space-y-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <ReportTarget report={report} findUser={findUser} findDisputedDeal={findDisputedDeal} />
+        <span className={cn("badge-stamp shrink-0", stamp.cls)}>{stamp.label}</span>
+      </div>
+      <div className="text-sm">
+        <p className="font-bold text-foreground">{report.reason}</p>
+        {report.details && (
+          <p className="text-muted-foreground mt-0.5 leading-snug">{report.details}</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-1.5">
+          Reported by{" "}
+          {reporter ? (
+            <Link
+              href={`/app/u/${reporter.username}`}
+              className="text-foreground hover:text-accent transition-colors font-medium"
+            >
+              {reporter.username}
+            </Link>
+          ) : (
+            "an ex-member"
+          )}{" "}
+          · {timeAgo(report.createdAt)}
+        </p>
+      </div>
+      {report.status === "pending" && onAction && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {report.targetType === "listing" && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => onAction(report, "remove-listing")}
+            >
+              Remove listing
+            </Button>
+          )}
+          {report.targetType !== "deal" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-yellow-400 border-yellow-400/40 hover:text-yellow-400"
+              onClick={() => onAction(report, "warn-user")}
+            >
+              Warn user
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => onAction(report, "dismiss")}>
+            Dismiss
+          </Button>
+          {report.targetType === "deal" && (
+            <span className="text-[11px] text-muted-foreground self-center">
+              Settle the deal itself under Disputed Deals below.
+            </span>
+          )}
+        </div>
+      )}
+      {report.status !== "pending" && (
+        <p className="text-xs text-muted-foreground border-t border-border pt-2">
+          Resolution: <span className="text-foreground">{report.resolution ?? "—"}</span>
+          {report.resolvedAt ? ` · ${timeAgo(report.resolvedAt)}` : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ReportsSection({
+  reports,
+  findUser,
+  findDisputedDeal,
+  onResolve,
+}: {
+  reports: Report[];
+  findUser: (id: string) => AdminUser | undefined;
+  findDisputedDeal: (id: string) => DealRecord | undefined;
+  onResolve: (report: Report, action: ResolveAction, note?: string) => Promise<boolean>;
+}) {
+  const [resolving, setResolving] = useState<{ report: Report; action: ResolveAction } | null>(
+    null,
+  );
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const pending = reports.filter((r) => r.status === "pending");
+  const handled = reports.filter((r) => r.status !== "pending");
+
+  const openAction = (report: Report, action: ResolveAction) => {
+    setNote("");
+    setResolving({ report, action });
+  };
+
+  const confirm = async () => {
+    if (!resolving || busy) return;
+    setBusy(true);
+    const ok = await onResolve(resolving.report, resolving.action, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        resolving.action === "remove-listing"
+          ? "Listing removed and seller notified"
+          : resolving.action === "warn-user"
+            ? "Warning sent"
+            : "Report dismissed",
+      );
+      setResolving(null);
+    }
+  };
+
+  const copy = resolving ? RESOLVE_COPY[resolving.action] : null;
+
+  return (
+    <section>
+      <SectionHeading icon={Flag} title="Reports Queue" count={pending.length} />
+      <Tabs defaultValue="pending">
+        <TabsList className="mb-2">
+          <TabsTrigger value="pending">
+            Pending{pending.length > 0 ? ` (${pending.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="handled">
+            Handled{handled.length > 0 ? ` (${handled.length})` : ""}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="pending" className="space-y-2">
+          {pending.length === 0 ? (
+            <EmptyRow>Queue&apos;s clear. The community polices itself. Mostly.</EmptyRow>
+          ) : (
+            pending.map((r) => (
+              <ReportRow
+                key={r.id}
+                report={r}
+                findUser={findUser}
+                findDisputedDeal={findDisputedDeal}
+                onAction={openAction}
+              />
+            ))
+          )}
+        </TabsContent>
+        <TabsContent value="handled" className="space-y-2">
+          {handled.length === 0 ? (
+            <EmptyRow>Nothing handled yet. Get to work, mod.</EmptyRow>
+          ) : (
+            handled.map((r) => (
+              <ReportRow
+                key={r.id}
+                report={r}
+                findUser={findUser}
+                findDisputedDeal={findDisputedDeal}
+              />
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!resolving} onOpenChange={(open) => !open && setResolving(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          {resolving && copy && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                  {copy.title}
+                </DialogTitle>
+                <DialogDescription>{copy.description}</DialogDescription>
+              </DialogHeader>
+              <div className="py-1">
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional note — goes in the record (and to the user, if they're being warned or removed)."
+                  rows={3}
+                  className="bg-surface resize-none"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setResolving(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant={copy.destructive ? "destructive" : "default"}
+                  className={
+                    copy.destructive
+                      ? undefined
+                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                  }
+                  disabled={busy}
+                  onClick={() => void confirm()}
+                >
+                  {busy ? "Working…" : copy.cta}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+/* ── 4. Disputed deals ───────────────────────────────────────────────────── */
+
+function DisputesSection({
+  disputes,
+  findUser,
+  onResolve,
+}: {
+  disputes: DealRecord[];
+  findUser: (id: string) => AdminUser | undefined;
+  onResolve: (
+    deal: DealRecord,
+    outcome: "cancelled" | "completed",
+    note?: string,
+  ) => Promise<boolean>;
+}) {
+  const store = useStore();
+  const [resolving, setResolving] = useState<{
+    deal: DealRecord;
+    outcome: "cancelled" | "completed";
+  } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const openResolve = (deal: DealRecord, outcome: "cancelled" | "completed") => {
+    setNote("");
+    setResolving({ deal, outcome });
+  };
+
+  const confirm = async () => {
+    if (!resolving || busy) return;
+    setBusy(true);
+    const ok = await onResolve(resolving.deal, resolving.outcome, note.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        resolving.outcome === "cancelled"
+          ? "Deal cancelled — items released back to the market"
+          : "Deal force-completed",
+      );
+      setResolving(null);
+    }
+  };
+
+  return (
+    <section>
+      <SectionHeading icon={Gavel} title="Disputed Deals" count={disputes.length} />
+      {disputes.length === 0 ? (
+        <EmptyRow>No open disputes. Peace in the land.</EmptyRow>
+      ) : (
+        <div className="space-y-2">
+          {disputes.map((deal) => {
+            const listing = store.getListing(deal.listingId);
+            const proposer = findUser(deal.proposerId);
+            const owner = findUser(deal.ownerId);
+            return (
+              <div
+                key={deal.id}
+                className="bg-card border border-red-400/40 rounded-lg p-3.5 space-y-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={listing?.photos[0] || "/placeholder.jpg"}
+                      alt=""
+                      className="w-10 h-10 rounded object-cover border border-border shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {listing?.title ?? "A deal"}
+                      </p>
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+                        {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
+                      </p>
+                    </div>
+                  </div>
+                  <DealStatusBadge status={deal.status} className="shrink-0" />
+                </div>
+                {deal.disputeReason && (
+                  <p className="text-sm text-muted-foreground leading-snug">
+                    <span className="font-bold text-red-400">Dispute:</span> {deal.disputeReason}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => openResolve(deal, "cancelled")}
+                  >
+                    Cancel deal
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-accent border-accent/40 hover:text-accent"
+                    onClick={() => openResolve(deal, "completed")}
+                  >
+                    Force complete
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={!!resolving} onOpenChange={(open) => !open && setResolving(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          {resolving && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                  {resolving.outcome === "cancelled" ? "Cancel this deal?" : "Force complete?"}
+                </DialogTitle>
+                <DialogDescription>
+                  {resolving.outcome === "cancelled"
+                    ? "The deal is voided and every locked item goes back on the market. Both parties are notified."
+                    : "The deal is marked done for both sides — items change hands on the record and trade counts tick up."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-1">
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional note for both parties."
+                  rows={3}
+                  className="bg-surface resize-none"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setResolving(null)}>
+                  Back
+                </Button>
+                <Button
+                  variant={resolving.outcome === "cancelled" ? "destructive" : "default"}
+                  className={
+                    resolving.outcome === "cancelled"
+                      ? undefined
+                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                  }
+                  disabled={busy}
+                  onClick={() => void confirm()}
+                >
+                  {busy
+                    ? "Working…"
+                    : resolving.outcome === "cancelled"
+                      ? "Cancel the deal"
+                      : "Complete the deal"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+/* ── 5. Users ────────────────────────────────────────────────────────────── */
+
+function UsersSection({
+  users,
+  onSetVerified,
+}: {
+  users: AdminUser[];
+  onSetVerified: (userId: string, verified: boolean) => Promise<boolean>;
+}) {
+  const toggleVerified = async (user: AdminUser, verified: boolean) => {
+    const ok = await onSetVerified(user.id, verified);
+    if (ok) {
+      toast.success(
+        verified
+          ? `${user.username} is now verified`
+          : `Verification pulled from ${user.username}`,
+      );
+    }
+  };
+
+  return (
+    <section>
+      <SectionHeading icon={Users} title="Members" />
+      <div className="bg-card border border-border rounded-lg divide-y divide-border">
+        {users.map((u) => (
+          <div key={u.id} className="flex items-center gap-3 px-3.5 py-3">
+            <Link href={`/app/u/${u.username}`} className="shrink-0">
+              <img
+                src={u.avatar}
+                alt={u.displayName}
+                className="w-9 h-9 rounded-full object-cover border border-border"
+              />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1 min-w-0">
+                <Link
+                  href={`/app/u/${u.username}`}
+                  className="truncate hover:text-accent transition-colors"
+                >
+                  {u.username}
+                </Link>
+                {u.isVerified && (
+                  <BadgeCheck size={14} className="text-accent shrink-0" strokeWidth={2.5} />
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                <Star size={10} className="inline fill-yellow-400 text-yellow-400 -mt-0.5" />{" "}
+                {u.trustScore.toFixed(1)} · {u.tradesCompleted} trades · since{" "}
+                {formatMonthYear(u.memberSince)}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 shrink-0 cursor-pointer">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium hidden sm:inline">
+                Verified
+              </span>
+              <Switch
+                checked={u.isVerified}
+                onCheckedChange={(v) => void toggleVerified(u, v)}
+                className="data-[state=checked]:bg-accent"
+                aria-label={`Verify ${u.username}`}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ── 6. Listings ─────────────────────────────────────────────────────────── */
+
+function ListingsSection({
+  onSetFeatured,
+  onRemove,
+}: {
+  onSetFeatured: (id: string, featured: boolean) => Promise<boolean>;
+  onRemove: (id: string, reason?: string) => Promise<boolean>;
+}) {
+  const store = useStore();
+  const listings = store
+    .listListings({
+      statuses: ["active", "pending"],
+      sort: "newest",
+      includeOwn: true,
+      includeBlocked: true,
+    })
+    .slice(0, 10);
+  const [removeTarget, setRemoveTarget] = useState<Listing | null>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const toggleFeatured = async (listing: Listing, featured: boolean) => {
+    const ok = await onSetFeatured(listing.id, featured);
+    if (ok) {
+      toast.success(featured ? `"${listing.title}" is now featured` : "Pulled from featured");
+    }
+  };
+
+  const confirmRemove = async () => {
+    if (!removeTarget || busy) return;
+    setBusy(true);
+    const ok = await onRemove(removeTarget.id, reason.trim() || undefined);
+    setBusy(false);
+    if (ok) {
+      toast.success("Listing removed and seller notified");
+      setRemoveTarget(null);
+    }
+  };
+
+  return (
+    <section>
+      <SectionHeading icon={Package} title="Recent Listings" />
+      {listings.length === 0 ? (
+        <EmptyRow>No live listings. A quiet marketplace is a suspicious marketplace.</EmptyRow>
+      ) : (
+        <div className="bg-card border border-border rounded-lg divide-y divide-border">
+          {listings.map((l) => (
+            <div key={l.id} className="flex items-center gap-3 px-3.5 py-3">
+              <Link href={`/app/listings/${l.id}`} className="shrink-0">
+                <img
+                  src={l.photos[0] || "/placeholder.jpg"}
+                  alt=""
+                  className="w-10 h-10 rounded object-cover border border-border"
+                />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <Link
+                  href={`/app/listings/${l.id}`}
+                  className="text-sm font-semibold text-foreground truncate block hover:text-accent transition-colors"
+                >
+                  {l.title}
+                </Link>
+                <p className="text-xs text-muted-foreground truncate">
+                  {l.seller.username} · {timeAgo(l.createdAt)}
+                  {l.status === "pending" && (
+                    <span className="text-yellow-400"> · deal pending</span>
+                  )}
+                </p>
+              </div>
+              <label
+                className="flex items-center gap-1.5 shrink-0 cursor-pointer"
+                title="Featured on the front page"
+              >
+                <Star
+                  size={13}
+                  className={cn(
+                    l.isFeatured ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
+                  )}
+                />
+                <Switch
+                  checked={!!l.isFeatured}
+                  onCheckedChange={(v) => void toggleFeatured(l, v)}
+                  className="data-[state=checked]:bg-accent"
+                  aria-label={`Feature ${l.title}`}
+                />
+              </label>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground hover:text-red-400"
+                aria-label={`Remove ${l.title}`}
+                onClick={() => {
+                  setReason("");
+                  setRemoveTarget(l);
+                }}
+              >
+                <Trash2 size={15} />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <AlertDialogContent className="max-w-sm bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display font-bold uppercase tracking-wide">
+              Remove &quot;{removeTarget?.title}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              It disappears from the marketplace, open negotiations on it close, and the seller
+              gets notified with your reason.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (optional) — the seller sees this."
+            rows={3}
+            className="bg-surface resize-none"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault(); // keep the dialog open until the server answers
+                void confirmRemove();
+              }}
+            >
+              {busy ? "Removing…" : "Remove listing"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
+}
+
+/* ── Skeleton fallback ───────────────────────────────────────────────────── */
+
+function AdminSkeleton() {
+  return (
+    <div className="space-y-10 animate-pulse">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="h-16 bg-card border border-border rounded-lg" />
+        ))}
+      </div>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <div className="h-5 w-40 bg-card rounded" />
+          <div className="h-24 bg-card border border-border rounded-lg" />
+          <div className="h-24 bg-card border border-border rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────────────── */
+
+export default function AdminPage() {
+  const store = useStore();
+  const router = useRouter();
+  const ready = useHydrated();
+  const isAdmin = !!store.sessionMe?.isAdmin;
+  const denied = ready && !isAdmin;
+
+  const [data, setData] = useState<AdminData | null>(null);
+
+  useEffect(() => {
+    if (denied) router.replace("/app");
+  }, [denied, router]);
+
+  const reload = useCallback(async () => {
+    const res = await fetchAdminData();
+    if ("error" in res) {
+      toast.error(res.error);
+      return;
+    }
+    setData(res);
+  }, []);
+
+  useEffect(() => {
+    if (ready && isAdmin) void reload();
+  }, [ready, isAdmin, reload]);
+
+  const findUser = useCallback(
+    (id: string) => data?.users.find((u) => u.id === id),
+    [data],
+  );
+  const findDisputedDeal = useCallback(
+    (id: string) => data?.disputedDeals.find((d) => d.id === id),
+    [data],
+  );
+
+  const run = useCallback(
+    <K extends OpName>(op: K, payload: OpMap[K]) => runAdminOp(store, reload, op, payload),
+    [store, reload],
+  );
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-sm border-b border-border">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/app"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <ArrowLeft size={16} />
+              Back to app
+            </Link>
+            <span className="text-border">/</span>
+            <h1 className="font-display font-bold uppercase tracking-wider text-lg text-foreground flex items-center gap-1.5 truncate">
+              <ShieldAlert size={18} className="text-accent shrink-0" />
+              Mod Desk
+            </h1>
+          </div>
+          <span className="badge-stamp text-accent border-accent hidden sm:inline-flex shrink-0">
+            Moderators only
+          </span>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-6 pb-16 space-y-10">
+        {!ready || denied || !data ? (
+          <AdminSkeleton />
+        ) : (
+          <>
+            <StatsSection stats={data.stats} />
+            <IdentityQueueSection
+              queue={data.identityQueue}
+              findUser={findUser}
+              onReview={(identity, status, note) =>
+                run("adminReviewIdentity", { identityId: identity.id, status, note })
+              }
+            />
+            <ReportsSection
+              reports={data.reports}
+              findUser={findUser}
+              findDisputedDeal={findDisputedDeal}
+              onResolve={(report, action, note) =>
+                run("adminResolveReport", { reportId: report.id, action, note })
+              }
+            />
+            <DisputesSection
+              disputes={data.disputedDeals}
+              findUser={findUser}
+              onResolve={(deal, outcome, note) =>
+                run("adminResolveDispute", { dealId: deal.id, outcome, note })
+              }
+            />
+            <UsersSection
+              users={data.users}
+              onSetVerified={(userId, verified) =>
+                run("adminSetUserVerified", { userId, verified })
+              }
+            />
+            <ListingsSection
+              onSetFeatured={(id, featured) => run("adminSetListingFeatured", { id, featured })}
+              onRemove={(id, reason) => run("adminRemoveListing", { id, reason })}
+            />
+          </>
+        )}
+      </main>
     </div>
   );
 }

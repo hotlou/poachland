@@ -4,23 +4,42 @@ The ultimate frisbee collector marketplace. Trade jerseys. Collect discs. Built 
 
 ## What this is
 
-A mobile-first web app where ultimate frisbee players list, discover, and complete trades or sales of jerseys and discs. All listings are free. No fees. Community trust built in.
+A mobile-first web app where ultimate frisbee players list, discover, and complete trades, sales, and giveaways of jerseys and discs. All listings are free. No fees. Community trust built in — and now fully functional: every flow below works end-to-end against a real domain engine.
 
-**Live demo routes:**
+## Features
+
+- **Listings** — post items to trade, sell, trade+cash, or give away free; edit, remove, photos (stock or uploads), tags, condition, shipping preference.
+- **Claims** — free items get claim requests with a pitch note; the owner picks who gets it.
+- **Negotiation** — real multi-round deals: propose (multiple items + cash), counter-offer from either side, accept, decline with a reason, withdraw. Offers expire after 7 days.
+- **Deal lifecycle** — accepted deals lock the items (competing deals auto-close), both parties mark shipped (with tracking) and confirm completion. Either side can cancel or open a dispute for moderators.
+- **Trust & reputation** — ratings unlock only after both parties complete a deal: communication / shipping speed / item accuracy + "would trade again". Trust scores are computed from ratings; badges (First Trade, Trusted Trader, Veteran, Quick Shipper, Collector, Community Giver) are earned automatically.
+- **Wanted board (ISO)** — post what you're hunting; new listings auto-match against active ISO posts and notify the hunter; "I have this" starts a conversation.
+- **Messaging** — per-listing and per-deal threads, offer cards inline, unread counts, system messages for every deal event.
+- **Notifications** — every marketplace event lands in the feed with a deep link.
+- **Saves** — watchlist for listings and ISO posts.
+- **Moderation** — report listings/users/deals, block traders (mutually hides content and prevents deals), admin dashboard with a report queue, dispute resolution, verification, and featuring.
+- **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres.
+- **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
+
+**Routes:**
 - `/` — Landing page
-- `/onboarding` — 4-step onboarding flow
-- `/app` — Home feed (authenticated shell)
-- `/app/browse` — Browse + search with filters
-- `/app/listings/[id]` — Listing detail with photo gallery
-- `/app/create` — Create listing flow
-- `/app/profile` — User profile / collector showcase
-- `/app/wanted` — Wanted board (ISO posts)
-- `/app/wanted/create` — Create ISO post
-- `/app/trades/new` — Trade proposal flow
-- `/app/inbox` — Message inbox
-- `/app/notifications` — Notification feed
-- `/app/ratings` — Ratings & reputation page
-- `/admin` — Admin/moderation dashboard scaffold
+- `/onboarding` — account creation flow
+- `/app` — Home feed (your-move strip, hot items, fresh drops, activity, spotlight)
+- `/app/browse` — search + filters + sort
+- `/app/listings/[id]` — listing detail (state-aware CTAs: propose / buy / offer / claim / message)
+- `/app/listings/[id]/edit` — edit listing
+- `/app/create` — create listing
+- `/app/wanted`, `/app/wanted/create` — wanted board (ISO)
+- `/app/trades` — deals dashboard
+- `/app/trades/new` — trade proposal flow
+- `/app/trades/[id]` — deal room (negotiation timeline, counter composer, fulfillment, ratings)
+- `/app/inbox`, `/app/inbox/[id]` — messages
+- `/app/notifications` — notification feed
+- `/app/ratings` — reputation dashboard
+- `/app/profile`, `/app/profile/edit`, `/app/u/[username]` — profiles
+- `/app/saved` — saved items
+- `/app/settings` — account, linked identities, blocked traders
+- `/admin` — moderation dashboard
 
 ## Tech stack
 
@@ -28,233 +47,79 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **UI:** React 19, TypeScript, Tailwind CSS v4, shadcn/ui
 - **Fonts:** Barlow Condensed (display), Inter (body) via `next/font/google`
 - **Icons:** lucide-react
-- **State:** Client-side React hooks (no backend yet)
-- **Deployment:** Vercel-ready
+- **Data:** Postgres (Neon in production, embedded PGlite for local dev) via Drizzle ORM
+- **Auth:** custom magic-link flow (Resend for email delivery) + optional passwords (scrypt), Postgres-backed sessions
+- **State:** server-authoritative world snapshots with an optimistic client store
+- **Deployment:** Vercel
 
-## Design system
+## Architecture
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--background` | `oklch(0.09 0 0)` | Near-black base |
-| `--surface` | `oklch(0.13 0 0)` | Card/elevated surfaces |
-| `--accent` | `oklch(0.82 0.23 142)` | Electric grass green — CTAs, badges, active states |
-| `--accent-foreground` | `oklch(0.09 0 0)` | Text on accent backgrounds |
-| Display font | Barlow Condensed 600–900 | Headings, badges, navigation |
-| Body font | Inter | Body text, descriptions, inputs |
-
-**Visual language:** Dark base, high-contrast cards, stamp/sticker badges, grain texture overlay, card-lift hover animations, photo-forward listing cards.
-
-## Project structure
+Server-authoritative, optimistic client:
 
 ```
-app/
-  layout.tsx              # Root layout (fonts, metadata, analytics)
-  globals.css             # Design tokens, base styles, badge/card utilities
-  page.tsx                # Landing page
-  onboarding/page.tsx     # 4-step onboarding
-  admin/page.tsx          # Admin dashboard scaffold
-  app/
-    layout.tsx            # Authenticated shell (bottom nav, max-width)
-    page.tsx              # Home feed
-    browse/page.tsx       # Browse + search + filters
-    listings/[id]/page.tsx # Listing detail
-    create/page.tsx       # Create listing
-    profile/page.tsx      # Current user profile
-    wanted/page.tsx       # Wanted board
-    wanted/create/page.tsx # Create ISO post
-    trades/new/page.tsx   # Trade proposal flow
-    inbox/page.tsx        # Messages
-    notifications/page.tsx # Notifications
-    ratings/page.tsx      # Ratings & reputation
-
-components/
-  bottom-nav.tsx          # Mobile bottom navigation
-  listing-card.tsx        # Reusable listing card
-  trust-badge.tsx         # TrustBadge + TrustScore components
-  photo-gallery.tsx       # Swipeable photo gallery for listing detail
-  ui/                     # shadcn/ui primitives
-
 lib/
-  seed-data.ts            # Demo data with full type definitions
-  utils.ts                # cn() utility
+  types.ts           # Domain model (shared client/server)
+  shared/ops.ts      # THE CONTRACT: every mutation op + WorldSnapshot shape
+  engine.ts          # PoachStore — the rules engine the client runs optimistically
+  remote-store.ts    # RemotePoachStore: applies mutations locally for instant UI,
+                     # dispatches to the server, reconciles with its snapshot
+  store-context.tsx  # React binding: useStore(), useHydrated(); refetch on focus/45s
+  server/
+    schema.ts        # Drizzle Postgres schema (all tables + auth + identities)
+    db.ts            # Neon (pg Pool) in prod; embedded PGlite locally, auto-migrated
+    auth.ts          # magic links (Resend), sessions, ADMIN_EMAILS promotion
+    engine.ts        # executeOp(): every rule re-enforced in SQL transactions
+    snapshot.ts      # buildSnapshot(): the viewer's world, privacy-scoped
+
+app/actions/         # the only client→server doorway (dispatchOp / fetchBootstrap)
+drizzle/             # committed SQL migrations (pnpm db:generate / db:migrate)
 ```
 
-## Database schema (next phase)
+Every mutation runs twice: once in the browser for instant feedback, then on the server inside a transaction with row locks — the server's snapshot is authoritative and reconciles the client on every response, tab focus, and a 45s poll. Deal/listing ids are client-generated (validated server-side) so optimistic navigation never breaks.
 
-When connecting to a real database (Supabase, PlanetScale, Neon, etc.), here are the tables needed:
+### Deal state machine
 
-### `users`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| username | varchar(30) | unique, lowercase |
-| display_name | varchar(100) | |
-| email | varchar(255) | unique |
-| avatar_url | text | |
-| bio | text | max 500 chars |
-| location | varchar(100) | |
-| favorite_teams | text[] | array of team names |
-| trust_score | decimal(2,1) | computed from ratings, 0.0-5.0 |
-| trades_completed | int | computed |
-| is_verified | boolean | default false |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+```
+open ──accept──▶ accepted ──both confirm──▶ completed ──▶ ratings unlock
+ │ │ │                │ │
+ │ │ └─ counter (new offer version, roles swap)   │ └─ cancel ──▶ cancelled
+ │ └─── decline ▶ declined                        └─── dispute ▶ disputed ▶ (admin: cancel/complete)
+ └───── withdraw ▶ withdrawn        unanswered 7 days ▶ expired
+```
 
-### `badges`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| user_id | uuid | FK -> users |
-| type | enum | founding, trusted, veteran, collector, quick-shipper |
-| label | varchar(50) | display label |
-| awarded_at | timestamptz | |
+Accepting locks every listing in the offer (status `pending`) and auto-declines competing deals that involve those items. Completion flips listings to `traded`/`sold`/`claimed`, increments trade counts, recomputes trust, and awards badges.
 
-### `listings`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| seller_id | uuid | FK -> users |
-| item_type | enum | jersey, disc |
-| title | varchar(200) | |
-| team | varchar(100) | |
-| year | varchar(4) | nullable |
-| division | enum | open, women, mixed, masters (nullable) |
-| level | enum | club, college, pro, national, tournament |
-| size | varchar(5) | nullable (jerseys only) |
-| condition | enum | Mint, Near Mint, Good, Fair, Worn |
-| listing_type | enum | trade, sell, trade+cash, free |
-| asking_price | decimal(8,2) | nullable |
-| trade_for | text | nullable |
-| description | text | |
-| shipping_preference | enum | seller-pays, buyer-pays, local-only |
-| tags | text[] | |
-| is_rare | boolean | default false |
-| is_featured | boolean | default false |
-| status | enum | active, sold, traded, removed |
-| views_count | int | default 0 |
-| saves_count | int | default 0 |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
-
-### `listing_photos`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| listing_id | uuid | FK -> listings |
-| url | text | |
-| sort_order | int | 0-indexed position |
-
-### `iso_posts`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| user_id | uuid | FK -> users |
-| item_type | enum | jersey, disc |
-| description | text | |
-| team | varchar(100) | nullable |
-| size | varchar(5) | nullable |
-| max_price | decimal(8,2) | nullable |
-| saves_count | int | default 0 |
-| status | enum | active, found, closed |
-| created_at | timestamptz | |
-
-### `trade_proposals`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| from_user_id | uuid | FK -> users |
-| to_user_id | uuid | FK -> users |
-| offered_listing_id | uuid | FK -> listings |
-| wanted_listing_id | uuid | FK -> listings |
-| cash_added | decimal(8,2) | nullable |
-| note | text | |
-| status | enum | pending, accepted, rejected, countered, completed, expired, disputed |
-| shipped_at | timestamptz | nullable |
-| tracking_number | varchar(100) | nullable |
-| received_at | timestamptz | nullable |
-| completed_at | timestamptz | nullable |
-| expires_at | timestamptz | 7 days from creation |
-| created_at | timestamptz | |
-
-### `ratings`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| trade_id | uuid | FK -> trade_proposals |
-| from_user_id | uuid | FK -> users |
-| to_user_id | uuid | FK -> users |
-| communication | int | 1-5 |
-| shipping_speed | int | 1-5 |
-| item_accuracy | int | 1-5 |
-| would_trade_again | boolean | |
-| comment | text | nullable |
-| created_at | timestamptz | |
-
-**Constraint:** Ratings unlock only after both parties mark the deal complete.
-
-### `messages`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| thread_id | uuid | FK -> trade_proposals or separate threads table |
-| sender_id | uuid | FK -> users |
-| content | text | |
-| read_at | timestamptz | nullable |
-| created_at | timestamptz | |
-
-### `notifications`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| user_id | uuid | FK -> users |
-| type | enum | trade_proposal, offer_accepted, offer_rejected, iso_match, new_message, deal_complete, new_rating |
-| title | varchar(200) | |
-| body | text | |
-| link_to | varchar(255) | nullable |
-| read | boolean | default false |
-| created_at | timestamptz | |
-
-### `saves`
-| Column | Type | Notes |
-|--------|------|-------|
-| user_id | uuid | composite PK |
-| target_type | enum | listing, iso_post |
-| target_id | uuid | composite PK |
-| created_at | timestamptz | |
-
-### `reports`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| reporter_id | uuid | FK -> users |
-| target_type | enum | listing, user, trade |
-| target_id | uuid | |
-| reason | text | |
-| status | enum | pending, reviewed, resolved, dismissed |
-| created_at | timestamptz | |
-
-### `blocks`
-| Column | Type | Notes |
-|--------|------|-------|
-| blocker_id | uuid | composite PK |
-| blocked_id | uuid | composite PK |
-| created_at | timestamptz | |
-
-## Deployment to Vercel
+## Run it
 
 ```bash
 pnpm install
-pnpm dev        # localhost:3000
+pnpm dev        # localhost:3000 — no env vars needed locally:
+                # uses embedded PGlite (./.pglite) and logs magic links
+                # to the console / shows a DEV link on /login
 pnpm build      # production build
-npx vercel      # deploy via CLI, or connect repo in Vercel dashboard
 ```
 
-No env vars needed for the demo. In production, add:
-- `DATABASE_URL` — Postgres connection string
-- `NEXTAUTH_SECRET` — Auth session secret
-- `NEXTAUTH_URL` — Canonical app URL
-- `CLOUDINARY_URL` or `UPLOADTHING_SECRET` — Image storage
-- `RESEND_API_KEY` — Transactional email
+### Deploy (Vercel + Neon + Resend)
+
+Environment variables (Vercel → Settings → Environment Variables):
+
+| Var | Value |
+|-----|-------|
+| `DATABASE_URL` | Neon **pooled** connection string |
+| `RESEND_API_KEY` | Resend API key (verify a sending domain!) |
+| `EMAIL_FROM` | e.g. `Poachland <login@yourdomain.com>` |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `ADMIN_EMAILS` | comma-separated moderator emails |
+
+Then run migrations once against the database:
+
+```bash
+DATABASE_URL="postgresql://…-pooler…/neondb?sslmode=require" pnpm db:migrate
+```
+
+Production starts with a clean marketplace (no fake users — that's the point).
+`SEED_DEMO=yes node scripts/db-seed-demo.mjs` can populate a staging DB with
+the demo world; it refuses to run on a non-empty database.
 
 ## Product principles
 
