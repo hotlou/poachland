@@ -78,7 +78,7 @@ function EditGate({ id }: { id: string }) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center px-8 text-center">
         <SearchX size={40} className="text-muted-foreground mb-4" strokeWidth={1.5} />
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight mb-1">
+        <h1 className="font-display font-bold text-xl tracking-tight mb-1">
           Listing not found
         </h1>
         <p className="text-sm text-muted-foreground mb-6">
@@ -86,7 +86,7 @@ function EditGate({ id }: { id: string }) {
         </p>
         <Link
           href="/app/browse"
-          className="px-4 py-2.5 rounded-sm bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm"
+          className="px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm"
         >
           Browse the rack
         </Link>
@@ -192,15 +192,15 @@ function EditForm({ listing }: { listing: Listing }) {
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg uppercase tracking-tight">
-            Edit Listing
+          <h1 className="font-display font-bold text-lg tracking-tight">
+            Edit listing
           </h1>
           <p className="text-xs text-muted-foreground truncate">{listing.title}</p>
         </div>
       </header>
 
       {!isActive && (
-        <div className="mx-4 mt-4 p-3 rounded-lg border border-yellow-400/40 bg-yellow-400/10 text-sm text-yellow-400">
+        <div className="mx-4 mt-4 p-3 rounded-xl border border-amber-600/40 bg-amber-500/10 text-sm text-amber-700 dark:border-yellow-400/40 dark:bg-yellow-400/10 dark:text-yellow-400">
           Only active listings can be edited — this one is{" "}
           {listing.status === "pending" ? "locked in a deal" : listing.status}.
         </div>
@@ -324,10 +324,10 @@ function EditForm({ listing }: { listing: Listing }) {
                 type="button"
                 onClick={() => setListingType(value)}
                 className={cn(
-                  "flex items-center gap-3 p-3.5 rounded-sm border text-left transition-colors",
+                  "flex items-center gap-3 p-3.5 rounded-xl border text-left transition-colors",
                   listingType === value
                     ? "border-accent bg-accent-dim"
-                    : "border-border bg-surface",
+                    : "border-border bg-card",
                 )}
               >
                 <span
@@ -351,7 +351,7 @@ function EditForm({ listing }: { listing: Listing }) {
             <FieldLabel>
               {listingType === "trade+cash" ? "Cash value (optional)" : "Asking price"}
             </FieldLabel>
-            <div className="flex items-center gap-2 bg-surface border border-border rounded-sm px-3 py-3 focus-within:border-accent transition-colors">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors">
               <span className="text-muted-foreground">$</span>
               <input
                 type="number"
@@ -401,10 +401,10 @@ function EditForm({ listing }: { listing: Listing }) {
                 type="button"
                 onClick={() => setShippingPreference(value)}
                 className={cn(
-                  "flex items-center gap-3 p-3 rounded-sm border text-left text-sm transition-colors",
+                  "flex items-center gap-3 p-3 rounded-xl border text-left text-sm transition-colors",
                   shippingPreference === value
                     ? "border-accent bg-accent-dim text-foreground"
-                    : "border-border bg-surface text-muted-foreground",
+                    : "border-border bg-card text-muted-foreground",
                 )}
               >
                 <span
@@ -435,7 +435,7 @@ function EditForm({ listing }: { listing: Listing }) {
         </section>
 
         {/* Rare */}
-        <section className="flex items-center justify-between p-3.5 rounded-sm border border-border bg-surface">
+        <section className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card">
           <div>
             <p className="text-sm font-semibold">Rare item</p>
             <p className="text-xs text-muted-foreground">
@@ -451,7 +451,7 @@ function EditForm({ listing }: { listing: Listing }) {
             type="button"
             onClick={save}
             disabled={saving}
-            className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-4 rounded-sm disabled:opacity-50"
+            className="w-full bg-accent text-accent-foreground font-semibold py-4 rounded-full disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save changes"}
           </button>
@@ -468,7 +468,7 @@ function EditForm({ listing }: { listing: Listing }) {
 }
 
 const inputClass =
-  "w-full bg-surface border border-border rounded-sm px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
+  "w-full bg-card border border-border rounded-lg px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -494,10 +494,10 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors inline-flex items-center",
+        "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors inline-flex items-center",
         selected
           ? "bg-accent text-accent-foreground border-accent"
-          : "text-muted-foreground border-border hover:border-muted-foreground",
+          : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
         className,
       )}
     >

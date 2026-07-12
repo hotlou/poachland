@@ -4,21 +4,19 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, ExternalLink, KeyRound, Mail, MailCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { logInWithPassword, sendMagicLink } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 
 const RESEND_COOLDOWN_S = 30;
 
 const inputCls =
-  "w-full rounded-md bg-input border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
+  "w-full rounded-lg bg-input border border-border px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
 
 function LoginCard() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const urlError = searchParams.get("error");
 
-  const [mode, setMode] = useState<"magic" | "password">("magic");
+  const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -85,7 +83,7 @@ function LoginCard() {
       <header className="px-5 py-4">
         <Link
           href="/"
-          className="font-display font-black text-xl tracking-tight uppercase"
+          className="font-display font-black text-xl tracking-tight text-accent"
         >
           Poachland
         </Link>
@@ -93,17 +91,22 @@ function LoginCard() {
 
       <main className="flex-1 flex items-center justify-center px-5 pb-16">
         <div className="w-full max-w-sm">
-          <div className="bg-card border border-border rounded-lg p-6">
-            <div className="badge-stamp text-accent border-accent inline-flex mb-5">
-              Ultimate Frisbee Only
+          <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-5">
+              <span className="badge-stamp text-accent border-accent">
+                Ultimate frisbee only
+              </span>
+              <span className="badge-stamp text-pop border-pop">
+                Free to list
+              </span>
             </div>
-            <h1 className="font-display font-black text-3xl uppercase leading-none tracking-tight mb-2">
-              Sign in <span className="text-accent">/</span> join
+            <h1 className="font-display font-black text-3xl tracking-tight mb-2">
+              Sign in or join
             </h1>
 
             {sent ? (
               <>
-                <div className="flex items-start gap-3 mt-5 bg-accent/10 border border-accent/40 rounded-md px-3.5 py-3">
+                <div className="flex items-start gap-3 mt-5 bg-accent/10 border border-accent/40 rounded-lg px-3.5 py-3">
                   <MailCheck size={18} className="text-accent flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-semibold">Check your email</p>
@@ -118,7 +121,7 @@ function LoginCard() {
                 {devLink && (
                   <a
                     href={devLink}
-                    className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-md border border-dashed border-accent/60 text-accent text-sm font-semibold hover:bg-accent/10 transition-colors"
+                    className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-full border border-dashed border-accent/60 text-accent text-sm font-semibold hover:bg-accent/10 transition-colors"
                   >
                     <ExternalLink size={14} /> DEV: open magic link
                   </a>
@@ -129,7 +132,7 @@ function LoginCard() {
                   onClick={submit}
                   disabled={cooldown > 0 || submitting}
                   className={cn(
-                    "mt-4 w-full py-2.5 rounded-md border border-border text-sm font-semibold transition-colors",
+                    "mt-4 w-full py-2.5 rounded-full border border-border bg-card text-sm font-semibold transition-colors",
                     cooldown > 0 || submitting
                       ? "text-muted-foreground cursor-not-allowed"
                       : "text-foreground hover:border-accent hover:text-accent",
@@ -152,40 +155,15 @@ function LoginCard() {
               </>
             ) : (
               <>
-                <div className="flex gap-1 mt-1 mb-4 bg-surface border border-border rounded-md p-1">
-                  {(
-                    [
-                      { key: "magic", label: "Magic link", icon: Mail },
-                      { key: "password", label: "Password", icon: KeyRound },
-                    ] as const
-                  ).map(({ key, label, icon: Icon }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        setMode(key);
-                        setError(null);
-                      }}
-                      className={cn(
-                        "flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded text-xs font-semibold transition-colors",
-                        mode === key
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <Icon size={13} /> {label}
-                    </button>
-                  ))}
-                </div>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                  {mode === "magic"
-                    ? "We email you a sign-in link — no password needed. New accounts start here."
-                    : "Sign in with the password you set in Settings. Forgot it? A magic link always works."}
+                  Type your email — we&apos;ll send you a one-tap sign-in link.
+                  New here? Same door: your account is created the first time
+                  you sign in.
                 </p>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    void (mode === "magic" ? submit() : submitPassword());
+                    void (usePassword ? submitPassword() : submit());
                   }}
                   className="flex flex-col gap-3"
                 >
@@ -209,7 +187,7 @@ function LoginCard() {
                       aria-label="Email address"
                     />
                   </div>
-                  {mode === "password" && (
+                  {usePassword && (
                     <div className="relative">
                       <KeyRound
                         size={15}
@@ -230,30 +208,44 @@ function LoginCard() {
                       />
                     </div>
                   )}
-                  {error && <p className="text-xs text-red-400">{error}</p>}
+                  {error && (
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      {error}
+                    </p>
+                  )}
                   <button
                     type="submit"
-                    disabled={!email.trim() || (mode === "password" && !password) || submitting}
-                    className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled={
+                      !email.trim() || (usePassword && !password) || submitting
+                    }
+                    className="w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {submitting
-                      ? mode === "magic"
-                        ? "Sending…"
-                        : "Signing in…"
-                      : mode === "magic"
-                        ? "Email me a link"
-                        : "Sign in"}
+                      ? usePassword
+                        ? "Signing in…"
+                        : "Sending…"
+                      : usePassword
+                        ? "Sign in"
+                        : "Email me a link"}
                     {!submitting && <ArrowRight size={16} />}
                   </button>
                 </form>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUsePassword((v) => !v);
+                    setError(null);
+                  }}
+                  className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+                >
+                  {usePassword
+                    ? "Use a magic link instead"
+                    : "Have a password? Sign in with it instead"}
+                </button>
               </>
             )}
           </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-5 leading-relaxed">
-            New here? Same link — your account is created the first time you
-            sign in.
-          </p>
         </div>
       </main>
     </div>

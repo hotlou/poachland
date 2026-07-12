@@ -4,19 +4,85 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Poachland — always dark */
+  /* Poachland — warm swap-meet light theme (default) */
+  color-scheme: light;
+
+  --background: oklch(0.973 0.008 92);        /* warm cream */
+  --surface: oklch(0.948 0.01 90);            /* deeper cream */
+  --surface-raised: oklch(1 0 0);
+  --foreground: oklch(0.22 0.012 80);         /* warm near-black */
+  --muted-foreground: oklch(0.47 0.015 80);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.012 80);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.012 80);
+
+  /* Deep grass green — CTAs, links, active states */
+  --accent: oklch(0.46 0.115 148);
+  --accent-foreground: oklch(0.99 0 0);
+  --accent-dim: oklch(0.46 0.115 148 / 0.1);
+
+  --primary: oklch(0.46 0.115 148);
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.93 0.012 90);
+  --secondary-foreground: oklch(0.22 0.012 80);
+
+  --muted: oklch(0.93 0.012 90);
+
+  /* Friendly pops (badges, highlights) */
+  --pop: oklch(0.62 0.17 40);                 /* burnt orange */
+  --pop-foreground: oklch(0.99 0 0);
+  --sunny: oklch(0.88 0.12 95);               /* "rare find" yellow pill */
+  --sunny-foreground: oklch(0.35 0.06 80);
+
+  --destructive: oklch(0.55 0.2 27);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.9 0.012 88);
+  --input: oklch(1 0 0);
+  --ring: oklch(0.46 0.115 148 / 0.4);
+
+  --radius: 0.75rem;
+
+  /* Trust colors */
+  --trust-gold: oklch(0.72 0.15 80);
+  --trust-silver: oklch(0.6 0 0);
+
+  /* Condition colors */
+  --condition-mint: oklch(0.5 0.14 152);
+  --condition-nm: oklch(0.5 0.1 220);
+  --condition-good: oklch(0.55 0.13 85);
+  --condition-fair: oklch(0.58 0.15 55);
+  --condition-worn: oklch(0.52 0.16 27);
+
+  --sidebar: oklch(0.96 0.01 90);
+  --sidebar-foreground: oklch(0.22 0.012 80);
+  --sidebar-primary: oklch(0.46 0.115 148);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.012 90);
+  --sidebar-accent-foreground: oklch(0.22 0.012 80);
+  --sidebar-border: oklch(0.9 0.012 88);
+  --sidebar-ring: oklch(0.46 0.115 148 / 0.4);
+}
+
+.dark {
+  /* Night market — the collector's dark mode */
+  color-scheme: dark;
+
   --background: oklch(0.09 0 0);
   --surface: oklch(0.13 0 0);
   --surface-raised: oklch(0.16 0 0);
   --foreground: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.55 0 0);
+  --muted-foreground: oklch(0.6 0 0);
 
   --card: oklch(0.13 0 0);
   --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.13 0 0);
   --popover-foreground: oklch(0.96 0 0);
 
-  /* Electric grass green accent */
+  /* Electric grass green */
   --accent: oklch(0.82 0.23 142);
   --accent-foreground: oklch(0.09 0 0);
   --accent-dim: oklch(0.82 0.23 142 / 0.15);
@@ -29,6 +95,11 @@
 
   --muted: oklch(0.18 0 0);
 
+  --pop: oklch(0.7 0.17 45);
+  --pop-foreground: oklch(0.12 0 0);
+  --sunny: oklch(0.4 0.08 95);
+  --sunny-foreground: oklch(0.9 0.1 95);
+
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.96 0 0);
 
@@ -36,13 +107,9 @@
   --input: oklch(0.18 0 0);
   --ring: oklch(0.82 0.23 142 / 0.4);
 
-  --radius: 0.5rem;
-
-  /* Trust colors */
   --trust-gold: oklch(0.82 0.18 85);
   --trust-silver: oklch(0.65 0 0);
 
-  /* Condition colors */
   --condition-mint: oklch(0.75 0.2 142);
   --condition-nm: oklch(0.7 0.15 195);
   --condition-good: oklch(0.75 0.18 85);
@@ -60,8 +127,8 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-barlow);
+  --font-sans: var(--font-geist);
+  --font-display: var(--font-geist);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -79,6 +146,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-dim: var(--accent-dim);
+  --color-pop: var(--pop);
+  --color-pop-foreground: var(--pop-foreground);
+  --color-sunny: var(--sunny);
+  --color-sunny-foreground: var(--sunny-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -86,10 +157,10 @@
   --color-ring: var(--ring);
   --color-trust-gold: var(--trust-gold);
   --color-trust-silver: var(--trust-silver);
-  --radius-sm: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
   --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -104,33 +175,42 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html {
-    color-scheme: dark;
-  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    /* Subtle grain texture overlay */
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    /* Whisper of paper grain — flea-market texture */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E");
   }
   h1, h2, h3 {
     font-family: var(--font-display), var(--font-sans);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 }
 
-/* Stamp / badge aesthetic */
+/* Stamp badge — bordered, slightly rotated feel, like a hand-stamped tag */
 .badge-stamp {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   font-family: var(--font-display), var(--font-sans);
   font-weight: 700;
   font-size: 0.65rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  border-width: 2px;
+  border-width: 1.5px;
   border-style: solid;
-  padding: 1px 7px;
-  border-radius: 2px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Soft filled pill — the "rare find" / "$0 fees" look */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 9999px;
 }
 
 /* Card hover lift */
@@ -139,10 +219,14 @@
 }
 .card-lift:hover {
   transform: translateY(-2px);
+  box-shadow: 0 8px 28px oklch(0.3 0.02 80 / 0.14);
+}
+.dark .card-lift:hover {
   box-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.3 0 0); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: oklch(0.75 0.01 88); border-radius: 4px; }
+.dark ::-webkit-scrollbar-thumb { background: oklch(0.3 0 0); }

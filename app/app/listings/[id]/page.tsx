@@ -149,7 +149,7 @@ function ListingDetail({ id }: { id: string }) {
 
       <div className="px-4 pt-4">
         {isRemoved && (
-          <div className="mb-4 p-3 rounded-lg border border-red-400/40 bg-red-400/10 text-sm text-red-400">
+          <div className="mb-4 p-3 rounded-xl border border-red-600/40 bg-red-600/10 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-400">
             You removed this listing. Only you can see it now.
           </div>
         )}
@@ -170,9 +170,9 @@ function ListingDetail({ id }: { id: string }) {
               className={cn(
                 "badge-stamp",
                 listing.status === "pending"
-                  ? "text-yellow-400 border-yellow-400"
+                  ? "text-amber-700 border-amber-600 dark:text-yellow-400 dark:border-yellow-400"
                   : listing.status === "removed"
-                    ? "text-red-400 border-red-400"
+                    ? "text-red-700 border-red-600 dark:text-red-400 dark:border-red-400"
                     : "text-foreground border-foreground",
               )}
             >
@@ -188,14 +188,14 @@ function ListingDetail({ id }: { id: string }) {
         </p>
 
         {/* Title */}
-        <h1 className="font-display font-bold text-2xl uppercase tracking-tight leading-tight text-balance mb-3">
+        <h1 className="font-display font-bold text-2xl tracking-tight leading-tight text-balance mb-3">
           {listing.title}
         </h1>
 
         {/* Price / trade line */}
         <div className="mb-4">
           {listing.listingType === "free" ? (
-            <p className="font-display font-bold text-2xl text-pink-400 uppercase">
+            <p className="font-display font-bold text-2xl text-pop">
               Free to a good home
             </p>
           ) : listing.askingPrice ? (
@@ -208,12 +208,12 @@ function ListingDetail({ id }: { id: string }) {
               )}
             </div>
           ) : (
-            <p className="font-display font-bold text-xl text-accent uppercase">
+            <p className="font-display font-bold text-xl text-accent">
               Open to trades
             </p>
           )}
           {listing.tradeFor && (
-            <div className="mt-3 p-3 bg-accent-dim border border-accent/30 rounded-lg">
+            <div className="mt-3 p-3 bg-accent-dim border border-accent/30 rounded-xl">
               <p className="text-[10px] font-display font-bold uppercase tracking-widest text-accent mb-0.5">
                 Hunting for
               </p>
@@ -253,7 +253,7 @@ function ListingDetail({ id }: { id: string }) {
               <Link
                 key={tag}
                 href={`/app/browse?q=${encodeURIComponent(tag)}`}
-                className="text-xs text-muted-foreground bg-surface px-2 py-0.5 rounded-sm border border-border hover:border-accent hover:text-accent transition-colors"
+                className="text-xs text-muted-foreground bg-card px-2.5 py-0.5 rounded-full border border-border hover:border-accent hover:text-accent transition-colors"
               >
                 #{tag}
               </Link>
@@ -274,7 +274,7 @@ function ListingDetail({ id }: { id: string }) {
         )}
 
         {/* Shipping */}
-        <div className="mb-5 flex items-center gap-3 p-3 bg-surface rounded-lg border border-border">
+        <div className="mb-5 flex items-center gap-3 p-3 bg-card rounded-xl border border-border">
           {listing.shippingPreference === "local-only" ? (
             <MapPin size={16} className="text-muted-foreground flex-shrink-0" />
           ) : (
@@ -303,7 +303,7 @@ function ListingDetail({ id }: { id: string }) {
           </h3>
           <Link
             href={`/app/u/${seller.username}`}
-            className="flex items-start gap-3 p-3 bg-card rounded-lg border border-border card-lift"
+            className="flex items-start gap-3 p-3 bg-card rounded-xl border border-border card-lift"
           >
             <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-border flex-shrink-0">
               {/* plain img: avatars may be data URLs */}
@@ -387,7 +387,7 @@ function NotFoundState() {
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center px-8 text-center">
       <SearchX size={40} className="text-muted-foreground mb-4" strokeWidth={1.5} />
-      <h1 className="font-display font-bold text-xl uppercase tracking-tight mb-1">
+      <h1 className="font-display font-bold text-xl tracking-tight mb-1">
         Listing not found
       </h1>
       <p className="text-sm text-muted-foreground mb-6">
@@ -397,13 +397,13 @@ function NotFoundState() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="px-4 py-2.5 rounded-sm border border-border text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          className="px-5 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
         >
           Go back
         </button>
         <Link
           href="/app/browse"
-          className="px-4 py-2.5 rounded-sm bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm"
+          className="px-5 py-2.5 rounded-full bg-accent text-accent-foreground font-semibold text-sm"
         >
           Browse the rack
         </Link>
@@ -459,7 +459,7 @@ function ReportButton({ listingId }: { listingId: string }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-display font-bold uppercase tracking-tight">
+            <DialogTitle className="font-display font-bold tracking-tight">
               Report listing
             </DialogTitle>
             <DialogDescription>
@@ -473,7 +473,7 @@ function ReportButton({ listingId }: { listingId: string }) {
                 type="button"
                 onClick={() => setReason(r)}
                 className={cn(
-                  "flex items-center gap-3 p-2.5 rounded-sm border text-left text-sm transition-colors",
+                  "flex items-center gap-3 p-2.5 rounded-lg border text-left text-sm transition-colors",
                   reason === r
                     ? "border-accent bg-accent-dim text-foreground"
                     : "border-border bg-surface text-muted-foreground",
@@ -494,13 +494,13 @@ function ReportButton({ listingId }: { listingId: string }) {
             onChange={(e) => setDetails(e.target.value)}
             placeholder="Anything else the mods should know? (optional)"
             rows={3}
-            className="w-full bg-surface border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
           />
           <button
             type="button"
             disabled={!reason}
             onClick={submit}
-            className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm disabled:opacity-40"
+            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full disabled:opacity-40"
           >
             File report
           </button>
@@ -552,7 +552,7 @@ function CtaBar({ listing, isOwner }: { listing: Listing; isOwner: boolean }) {
           ) : activeDeal ? (
             <Link
               href={`/app/trades/${activeDeal.id}`}
-              className="flex items-center justify-between gap-2 bg-accent-dim border border-accent/40 rounded-sm px-4 py-3.5"
+              className="flex items-center justify-between gap-2 bg-accent-dim border border-accent/40 rounded-xl px-4 py-3.5"
             >
               <span className="text-sm font-semibold text-accent">
                 You have an active deal on this
@@ -602,7 +602,7 @@ function OwnerActions({ listing }: { listing: Listing }) {
             }
           }}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm",
+            "flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full",
             !isActive && "opacity-40",
           )}
         >
@@ -612,14 +612,14 @@ function OwnerActions({ listing }: { listing: Listing }) {
           <AlertDialogTrigger asChild>
             <button
               type="button"
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-sm border border-red-400/50 text-red-400 font-display font-bold uppercase tracking-wide text-sm hover:bg-red-400/10 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-full border border-red-600/50 bg-card text-red-700 font-semibold text-sm hover:bg-red-600/10 transition-colors dark:border-red-400/50 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-400/10"
             >
               <Trash2 size={14} /> Remove
             </button>
           </AlertDialogTrigger>
           <AlertDialogContent className="max-w-sm bg-card border-border">
             <AlertDialogHeader>
-              <AlertDialogTitle className="font-display font-bold uppercase tracking-tight">
+              <AlertDialogTitle className="font-display font-bold tracking-tight">
                 Pull this listing?
               </AlertDialogTitle>
               <AlertDialogDescription>
@@ -666,7 +666,7 @@ function BuyerActions({ listing }: { listing: Listing }) {
       {canTrade && (
         <Link
           href={`/app/trades/new?listing=${listing.id}`}
-          className="flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm py-3.5 rounded-sm"
+          className="flex-1 flex items-center justify-center gap-2 bg-accent text-accent-foreground font-semibold text-sm py-3.5 rounded-full"
         >
           <Repeat2 size={16} /> Propose Trade
         </Link>
@@ -684,7 +684,7 @@ function BuyerActions({ listing }: { listing: Listing }) {
 function GoneBar({ listing }: { listing: Listing }) {
   return (
     <div className="flex gap-2 items-center">
-      <div className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-sm border border-border bg-surface text-muted-foreground font-display font-bold uppercase tracking-wide text-sm cursor-not-allowed select-none">
+      <div className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full border border-border bg-card text-muted-foreground font-semibold text-sm cursor-not-allowed select-none">
         {listing.status === "pending"
           ? "Locked in a deal"
           : "This one's been poached."}
@@ -715,7 +715,7 @@ function MessageButton({
         }
         router.push(`/app/inbox/${res.value.id}`);
       }}
-      className="px-3.5 flex items-center justify-center rounded-sm border border-border bg-surface text-muted-foreground hover:text-accent hover:border-accent transition-colors"
+      className="px-3.5 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-accent hover:border-accent transition-colors"
     >
       <MessageSquare size={18} />
     </button>
@@ -733,10 +733,10 @@ function BuyNowButton({ listing, primary }: { listing: Listing; primary: boolean
         <button
           type="button"
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 font-display font-bold uppercase tracking-wide text-sm py-3.5 rounded-sm transition-colors",
+            "flex-1 flex items-center justify-center gap-2 font-semibold text-sm py-3.5 rounded-full transition-colors",
             primary
               ? "bg-accent text-accent-foreground"
-              : "border border-accent text-accent hover:bg-accent-dim",
+              : "border border-accent bg-card text-accent hover:bg-accent-dim dark:bg-transparent",
           )}
         >
           <DollarSign size={16} /> Buy for {money(price)}
@@ -744,7 +744,7 @@ function BuyNowButton({ listing, primary }: { listing: Listing; primary: boolean
       </AlertDialogTrigger>
       <AlertDialogContent className="max-w-sm bg-card border-border">
         <AlertDialogHeader>
-          <AlertDialogTitle className="font-display font-bold uppercase tracking-tight">
+          <AlertDialogTitle className="font-display font-bold tracking-tight">
             Buy at asking price?
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -810,14 +810,14 @@ function MakeOfferButton({ listing }: { listing: Listing }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-1 flex items-center justify-center gap-2 border border-border bg-surface text-foreground font-display font-bold uppercase tracking-wide text-sm py-3.5 rounded-sm hover:border-accent hover:text-accent transition-colors"
+        className="flex-1 flex items-center justify-center gap-2 border border-border bg-card text-foreground font-semibold text-sm py-3.5 rounded-full hover:border-accent hover:text-accent transition-colors"
       >
         Make Offer
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-display font-bold uppercase tracking-tight">
+            <DialogTitle className="font-display font-bold tracking-tight">
               Name your price
             </DialogTitle>
             <DialogDescription>
@@ -830,7 +830,7 @@ function MakeOfferButton({ listing }: { listing: Listing }) {
             <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">
               Your offer
             </label>
-            <div className="flex items-center gap-2 bg-surface border border-border rounded-sm px-3 py-3 focus-within:border-accent transition-colors">
+            <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors">
               <span className="text-muted-foreground">$</span>
               <input
                 type="number"
@@ -852,13 +852,13 @@ function MakeOfferButton({ listing }: { listing: Listing }) {
               onChange={(e) => setNote(e.target.value)}
               placeholder="Make your case, or just say hi."
               rows={3}
-              className="w-full bg-surface border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
           </div>
           <button
             type="button"
             onClick={submit}
-            className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm"
+            className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full"
           >
             Send offer
           </button>
@@ -893,14 +893,14 @@ function ClaimButton({ listing }: { listing: Listing }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex-1 flex items-center justify-center gap-2 bg-pink-500 text-white font-display font-bold uppercase tracking-wide text-sm py-3.5 rounded-sm"
+        className="flex-1 flex items-center justify-center gap-2 bg-pop text-pop-foreground font-semibold text-sm py-3.5 rounded-full"
       >
         <Gift size={16} /> Claim It
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-display font-bold uppercase tracking-tight">
+            <DialogTitle className="font-display font-bold tracking-tight">
               Claim &ldquo;{listing.title}&rdquo;
             </DialogTitle>
             <DialogDescription>
@@ -913,12 +913,12 @@ function ClaimButton({ listing }: { listing: Listing }) {
             placeholder="Why should it go to you?"
             rows={4}
             autoFocus
-            className="w-full bg-surface border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
           />
           <button
             type="button"
             onClick={submit}
-            className="w-full bg-pink-500 text-white font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm"
+            className="w-full bg-pop text-pop-foreground font-semibold text-sm py-3 rounded-full"
           >
             Send claim
           </button>

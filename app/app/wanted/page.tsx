@@ -42,8 +42,8 @@ export default function WantedBoardPage() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 pt-3 pb-3">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
-            <h1 className="font-display font-bold text-xl uppercase tracking-tight">
-              Wanted Board
+            <h1 className="font-display font-bold text-xl tracking-tight">
+              Wanted board
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               The hunt list. Pin what you&apos;re chasing.
@@ -51,7 +51,7 @@ export default function WantedBoardPage() {
           </div>
           <Link
             href="/app/wanted/create"
-            className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide shrink-0"
+            className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3.5 py-2 rounded-full text-xs font-display font-bold shrink-0"
           >
             <Plus size={14} /> Post ISO
           </Link>
@@ -70,10 +70,10 @@ export default function WantedBoardPage() {
                 type="button"
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors",
                   filter === key
                     ? "bg-accent text-accent-foreground border-accent"
-                    : "text-muted-foreground border-border hover:text-foreground",
+                    : "bg-card text-muted-foreground border-border hover:text-foreground",
                 )}
               >
                 {Icon && <Icon size={12} />}
@@ -81,7 +81,7 @@ export default function WantedBoardPage() {
               </button>
             ))}
           </div>
-          <div className="flex rounded-sm border border-border overflow-hidden">
+          <div className="flex rounded-full bg-card border border-border overflow-hidden">
             {(
               [
                 { key: "newest", label: "Newest" },
@@ -93,7 +93,7 @@ export default function WantedBoardPage() {
                 type="button"
                 onClick={() => setSort(key)}
                 className={cn(
-                  "px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors",
+                  "px-3 py-1.5 text-[11px] font-semibold transition-colors",
                   sort === key
                     ? "bg-surface text-accent"
                     : "text-muted-foreground hover:text-foreground",
@@ -133,7 +133,7 @@ function BoardSkeleton() {
         <div
           key={i}
           className={cn(
-            "bg-[#1a1a18] border border-border rounded-sm h-36 animate-pulse",
+            "bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm h-36 animate-pulse",
             ROTATIONS[i % ROTATIONS.length],
           )}
         />
@@ -205,7 +205,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
     return (
       <div className="text-center py-20 px-6">
         <PackageOpen size={32} className="mx-auto text-muted-foreground mb-3" />
-        <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+        <p className="font-display font-bold text-xl text-muted-foreground mb-1">
           Nothing here yet.
         </p>
         <p className="text-sm text-muted-foreground mb-5">
@@ -213,7 +213,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
         </p>
         <Link
           href="/app/wanted/create"
-          className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+          className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-full text-xs font-display font-bold"
         >
           <Plus size={14} /> Post an ISO
         </Link>
@@ -229,12 +229,12 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
           <div
             key={post.id}
             className={cn(
-              "relative bg-[#1a1a18] border border-border rounded-sm p-4 shadow-md",
+              "relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4 shadow-md shadow-amber-950/10 dark:shadow-black/40",
               ROTATIONS[i % ROTATIONS.length],
             )}
           >
             {/* Pin dot */}
-            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-accent ring-2 ring-background shadow-[0_2px_6px_rgba(0,0,0,0.6)]" />
+            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-pop ring-2 ring-background shadow-[0_2px_6px_rgba(0,0,0,0.25)] dark:shadow-[0_2px_6px_rgba(0,0,0,0.6)]" />
 
             {/* Poster row */}
             <div className="flex items-center gap-2.5 pt-1 mb-2.5">
@@ -258,8 +258,8 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                 className={cn(
                   "badge-stamp",
                   post.itemType === "jersey"
-                    ? "text-sky-400 border-sky-400"
-                    : "text-purple-400 border-purple-400",
+                    ? "text-sky-700 border-sky-700 dark:text-sky-400 dark:border-sky-400"
+                    : "text-purple-700 border-purple-700 dark:text-purple-400 dark:border-purple-400",
                 )}
               >
                 {post.itemType === "jersey" ? "Jersey" : "Disc"}
@@ -288,7 +288,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                   </span>
                 )}
                 {post.maxPrice !== undefined && (
-                  <span className="badge-stamp text-accent border-accent">
+                  <span className="badge-pill bg-sunny text-sunny-foreground">
                     Budget: {money(post.maxPrice)}
                   </span>
                 )}
@@ -296,7 +296,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/70">
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-amber-200/60 dark:border-border/70">
               <SaveButton
                 targetType="iso"
                 targetId={post.id}
@@ -309,14 +309,14 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                   <button
                     type="button"
                     onClick={() => updateStatus(post, "found")}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-sm border border-accent text-accent text-[11px] font-display font-bold uppercase tracking-wide hover:bg-accent/10 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-accent text-accent text-[11px] font-display font-bold hover:bg-accent/10 transition-colors"
                   >
                     <Check size={12} strokeWidth={2.5} /> Mark found
                   </button>
                   <button
                     type="button"
                     onClick={() => updateStatus(post, "closed")}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-sm border border-border text-muted-foreground text-[11px] font-display font-bold uppercase tracking-wide hover:text-foreground transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-muted-foreground text-[11px] font-display font-bold hover:text-foreground transition-colors"
                   >
                     <X size={12} strokeWidth={2.5} /> Close
                   </button>
@@ -325,7 +325,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                 <button
                   type="button"
                   onClick={() => openResponder(post)}
-                  className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3 py-1.5 rounded-sm text-[11px] font-display font-bold uppercase tracking-wide"
+                  className="flex items-center gap-1.5 bg-accent text-accent-foreground px-3.5 py-1.5 rounded-full text-[11px] font-display font-bold"
                 >
                   <PackageCheck size={13} /> I have this
                 </button>
@@ -344,7 +344,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
       >
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-display font-bold uppercase tracking-tight text-left">
+            <DialogTitle className="font-display font-bold tracking-tight text-left">
               You&apos;ve got the goods?
             </DialogTitle>
             <DialogDescription className="text-left">
@@ -362,7 +362,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
               </p>
               <Link
                 href="/app/create"
-                className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+                className="inline-flex items-center gap-1.5 bg-accent text-accent-foreground px-4 py-2.5 rounded-full text-xs font-display font-bold"
               >
                 <Plus size={14} /> List an item
               </Link>
@@ -384,7 +384,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                       aria-checked={selected}
                       onClick={() => setSelectedListingId(l.id)}
                       className={cn(
-                        "text-left rounded-sm overflow-hidden border transition-colors",
+                        "text-left rounded-lg overflow-hidden border transition-colors",
                         selected
                           ? "border-accent ring-1 ring-accent"
                           : "border-border hover:border-muted-foreground",
@@ -415,13 +415,13 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Optional note — condition details, what you'd want for it…"
                 rows={2}
-                className="w-full bg-surface border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+                className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
               />
               <button
                 type="button"
                 onClick={sendResponse}
                 disabled={!selectedListingId}
-                className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3 rounded-sm text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full bg-accent text-accent-foreground font-display font-bold py-3 rounded-full text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Send it
               </button>

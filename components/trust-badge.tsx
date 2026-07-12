@@ -8,18 +8,18 @@ const BADGE_CONFIG: Record<
 > = {
   "first-trade": {
     icon: Handshake,
-    color: "text-teal-400 border-teal-400",
-    bg: "bg-teal-400/10",
+    color: "text-teal-700 border-teal-600 dark:text-teal-400 dark:border-teal-400",
+    bg: "bg-teal-600/10 dark:bg-teal-400/10",
   },
   generous: {
     icon: HeartHandshake,
-    color: "text-pink-400 border-pink-400",
-    bg: "bg-pink-400/10",
+    color: "text-pink-700 border-pink-600 dark:text-pink-400 dark:border-pink-400",
+    bg: "bg-pink-600/10 dark:bg-pink-400/10",
   },
   founding: {
     icon: Trophy,
-    color: "text-yellow-400 border-yellow-400",
-    bg: "bg-yellow-400/10",
+    color: "text-amber-700 border-amber-600 dark:text-yellow-400 dark:border-yellow-400",
+    bg: "bg-amber-500/10 dark:bg-yellow-400/10",
   },
   trusted: {
     icon: ShieldCheck,
@@ -28,18 +28,18 @@ const BADGE_CONFIG: Record<
   },
   veteran: {
     icon: Star,
-    color: "text-sky-400 border-sky-400",
-    bg: "bg-sky-400/10",
+    color: "text-sky-700 border-sky-600 dark:text-sky-400 dark:border-sky-400",
+    bg: "bg-sky-600/10 dark:bg-sky-400/10",
   },
   collector: {
     icon: Package,
-    color: "text-purple-400 border-purple-400",
-    bg: "bg-purple-400/10",
+    color: "text-purple-700 border-purple-600 dark:text-purple-400 dark:border-purple-400",
+    bg: "bg-purple-600/10 dark:bg-purple-400/10",
   },
   "quick-shipper": {
     icon: Zap,
-    color: "text-orange-400 border-orange-400",
-    bg: "bg-orange-400/10",
+    color: "text-orange-700 border-orange-600 dark:text-orange-400 dark:border-orange-400",
+    bg: "bg-orange-500/10 dark:bg-orange-400/10",
   },
 };
 
@@ -83,7 +83,7 @@ export function TrustScore({ score, trades, size = "md" }: TrustScoreProps) {
             size={size === "sm" ? 11 : size === "lg" ? 16 : 13}
             className={cn(
               s <= Math.round(score)
-                ? "fill-yellow-400 text-yellow-400"
+                ? "fill-amber-500 text-amber-500 dark:fill-yellow-400 dark:text-yellow-400"
                 : "fill-transparent text-muted-foreground",
             )}
             strokeWidth={1.5}

@@ -32,20 +32,60 @@ const TYPE_ICONS: Record<
   { icon: React.ElementType; className: string }
 > = {
   trade_proposal: { icon: ArrowRightLeft, className: "text-accent bg-accent/10" },
-  buy_offer: { icon: HandCoins, className: "text-sky-400 bg-sky-400/10" },
-  claim_request: { icon: Gift, className: "text-pink-400 bg-pink-400/10" },
+  buy_offer: {
+    icon: HandCoins,
+    className: "text-sky-700 bg-sky-600/10 dark:text-sky-400 dark:bg-sky-400/10",
+  },
+  claim_request: {
+    icon: Gift,
+    className: "text-pink-700 bg-pink-600/10 dark:text-pink-400 dark:bg-pink-400/10",
+  },
   offer_accepted: { icon: Handshake, className: "text-accent bg-accent/10" },
-  offer_rejected: { icon: X, className: "text-red-400 bg-red-400/10" },
+  offer_rejected: {
+    icon: X,
+    className: "text-red-700 bg-red-600/10 dark:text-red-400 dark:bg-red-400/10",
+  },
   offer_withdrawn: { icon: X, className: "text-muted-foreground bg-surface" },
-  offer_countered: { icon: RefreshCw, className: "text-yellow-400 bg-yellow-400/10" },
-  shipped: { icon: Package, className: "text-sky-400 bg-sky-400/10" },
-  deal_complete: { icon: PartyPopper, className: "text-emerald-400 bg-emerald-400/10" },
-  iso_match: { icon: Target, className: "text-purple-400 bg-purple-400/10" },
-  new_message: { icon: MessageSquare, className: "text-sky-400 bg-sky-400/10" },
-  new_rating: { icon: Star, className: "text-yellow-400 bg-yellow-400/10" },
-  badge_earned: { icon: Award, className: "text-orange-400 bg-orange-400/10" },
-  deal_cancelled: { icon: AlertTriangle, className: "text-orange-400 bg-orange-400/10" },
-  deal_disputed: { icon: AlertTriangle, className: "text-red-400 bg-red-400/10" },
+  offer_countered: {
+    icon: RefreshCw,
+    className: "text-amber-700 bg-amber-600/10 dark:text-yellow-400 dark:bg-yellow-400/10",
+  },
+  shipped: {
+    icon: Package,
+    className: "text-sky-700 bg-sky-600/10 dark:text-sky-400 dark:bg-sky-400/10",
+  },
+  deal_complete: {
+    icon: PartyPopper,
+    className:
+      "text-emerald-700 bg-emerald-600/10 dark:text-emerald-400 dark:bg-emerald-400/10",
+  },
+  iso_match: {
+    icon: Target,
+    className:
+      "text-purple-700 bg-purple-600/10 dark:text-purple-400 dark:bg-purple-400/10",
+  },
+  new_message: {
+    icon: MessageSquare,
+    className: "text-sky-700 bg-sky-600/10 dark:text-sky-400 dark:bg-sky-400/10",
+  },
+  new_rating: {
+    icon: Star,
+    className: "text-amber-700 bg-amber-600/10 dark:text-yellow-400 dark:bg-yellow-400/10",
+  },
+  badge_earned: {
+    icon: Award,
+    className:
+      "text-orange-700 bg-orange-600/10 dark:text-orange-400 dark:bg-orange-400/10",
+  },
+  deal_cancelled: {
+    icon: AlertTriangle,
+    className:
+      "text-orange-700 bg-orange-600/10 dark:text-orange-400 dark:bg-orange-400/10",
+  },
+  deal_disputed: {
+    icon: AlertTriangle,
+    className: "text-red-700 bg-red-600/10 dark:text-red-400 dark:bg-red-400/10",
+  },
   listing_removed: { icon: Info, className: "text-muted-foreground bg-surface" },
   system: { icon: Info, className: "text-muted-foreground bg-surface" },
 };
@@ -128,7 +168,7 @@ function NotificationRow({ n }: { n: Notification }) {
 
 function ListSkeleton() {
   return (
-    <div className="divide-y divide-border">
+    <div className="mx-4 mt-4 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="px-4 py-3 flex gap-3 items-start">
           <div className="w-9 h-9 rounded-full bg-surface animate-pulse flex-shrink-0" />
@@ -158,7 +198,7 @@ export default function NotificationsPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <h1 className="font-display font-bold text-xl uppercase tracking-tight">
+          <h1 className="font-display font-bold text-xl tracking-tight">
             Notifications
           </h1>
           <Hydrated fallback={null}>
@@ -187,7 +227,7 @@ export default function NotificationsPage() {
         {notifications.length === 0 ? (
           <div className="text-center py-20 px-6">
             <Bell size={28} className="mx-auto mb-3 text-muted-foreground" />
-            <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+            <p className="font-display font-bold text-xl text-muted-foreground mb-1">
               All quiet.
             </p>
             <p className="text-sm text-muted-foreground mb-5">
@@ -195,7 +235,7 @@ export default function NotificationsPage() {
             </p>
             <Link
               href="/app/browse"
-              className="inline-block bg-accent text-accent-foreground px-4 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+              className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-sm font-semibold"
             >
               Browse the market
             </Link>
@@ -207,7 +247,7 @@ export default function NotificationsPage() {
                 <h2 className="px-4 pt-5 pb-2 text-[11px] font-display font-bold uppercase tracking-widest text-muted-foreground">
                   {label}
                 </h2>
-                <div className="divide-y divide-border border-y border-border">
+                <div className="mx-4 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
                   {items.map((n) => (
                     <NotificationRow key={n.id} n={n} />
                   ))}

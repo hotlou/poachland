@@ -33,11 +33,11 @@ const STEP_TITLES: Record<StepKey, string> = {
 function FlowSkeleton() {
   return (
     <div className="px-4 py-6 space-y-4">
-      <div className="h-20 bg-card border border-border rounded-lg animate-pulse" />
-      <div className="h-5 w-2/3 bg-surface rounded-sm animate-pulse" />
+      <div className="h-20 bg-card border border-border rounded-xl animate-pulse" />
+      <div className="h-5 w-2/3 bg-surface rounded-full animate-pulse" />
       <div className="grid grid-cols-2 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="aspect-square bg-card border border-border rounded-lg animate-pulse" />
+          <div key={i} className="aspect-square bg-card border border-border rounded-xl animate-pulse" />
         ))}
       </div>
     </div>
@@ -63,7 +63,7 @@ function StepDots({ steps, current }: { steps: StepKey[]; current: number }) {
 /** Compact "you're poaching this" card pinned to the top of steps 1-3. */
 function TargetCard({ listing }: { listing: Listing }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-3 flex items-center gap-3">
+    <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-3">
       <div className="relative w-14 h-14 rounded-md overflow-hidden bg-surface border border-border flex-shrink-0">
         {/* plain img: photos may be data URLs */}
         <img
@@ -114,7 +114,7 @@ function TradeComparison({
   cash: number;
 }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+    <div className="bg-card border border-border rounded-xl p-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2">
       <div>
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold mb-2">
           Your items
@@ -159,13 +159,13 @@ function GuardScreen({
   return (
     <div className="px-6 py-20 text-center">
       <Crosshair size={32} className="mx-auto mb-4 text-muted-foreground" />
-      <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+      <h2 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
         {title}
       </h2>
       <p className="text-sm text-muted-foreground leading-relaxed mb-6">{body}</p>
       <Link
         href={href}
-        className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm"
+        className="inline-block bg-accent text-accent-foreground font-display font-bold text-sm px-6 py-3 rounded-full"
       >
         {cta}
       </Link>
@@ -235,7 +235,7 @@ function NewTradeContent() {
         <div className="w-20 h-20 rounded-full bg-accent-dim border-2 border-accent flex items-center justify-center mb-6 animate-in zoom-in-50 fade-in duration-500">
           <CheckCircle2 size={40} className="text-accent" />
         </div>
-        <h2 className="font-display font-bold text-3xl uppercase tracking-tight text-foreground mb-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <h2 className="font-display font-bold text-3xl tracking-tight text-foreground mb-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
           Proposal sent
         </h2>
         <p className="text-sm text-foreground mb-1">
@@ -248,7 +248,7 @@ function NewTradeContent() {
         <div className="w-full max-w-xs space-y-3">
           <Link
             href={`/app/trades/${sent.dealId}`}
-            className="block w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3.5 rounded-sm text-center"
+            className="block w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full text-center"
           >
             Go to deal room
           </Link>
@@ -318,7 +318,7 @@ function NewTradeContent() {
           <button onClick={goBack} aria-label="Back" className="text-foreground">
             <ArrowLeft size={20} />
           </button>
-          <h1 className="font-display font-bold text-lg uppercase tracking-tight text-foreground flex-1">
+          <h1 className="font-display font-bold text-lg tracking-tight text-foreground flex-1">
             {STEP_TITLES[stepKey]}
           </h1>
           <StepDots steps={steps} current={stepIndex} />
@@ -345,7 +345,7 @@ function NewTradeContent() {
             {stepKey === "offer" && (
               <div>
                 {myListings.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-border rounded-lg">
+                  <div className="text-center py-12 border border-dashed border-border rounded-xl">
                     <p className="text-sm text-muted-foreground mb-1">
                       Nothing in your locker to offer.
                     </p>
@@ -373,7 +373,7 @@ function NewTradeContent() {
                             type="button"
                             onClick={() => toggleSelected(listing.id)}
                             className={cn(
-                              "relative text-left bg-card rounded-lg overflow-hidden border transition-colors",
+                              "relative text-left bg-card rounded-xl overflow-hidden border transition-colors",
                               selected ? "border-accent" : "border-border",
                             )}
                           >
@@ -412,7 +412,7 @@ function NewTradeContent() {
                       type="button"
                       disabled={!canContinue}
                       onClick={() => setStepIndex(stepIndex + 1)}
-                      className="mt-5 w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3.5 rounded-sm disabled:opacity-40 transition-opacity"
+                      className="mt-5 w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full disabled:opacity-40 transition-opacity"
                     >
                       Continue
                     </button>
@@ -437,7 +437,7 @@ function NewTradeContent() {
                       step={5}
                       className="flex-1"
                     />
-                    <div className="flex items-center gap-1 bg-surface border border-border rounded-sm px-2.5 py-2 w-24 flex-shrink-0">
+                    <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-2.5 py-2 w-24 flex-shrink-0">
                       <span className="text-muted-foreground text-sm">$</span>
                       <input
                         type="number"
@@ -463,7 +463,7 @@ function NewTradeContent() {
                 <button
                   type="button"
                   onClick={() => setStepIndex(stepIndex + 1)}
-                  className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3.5 rounded-sm"
+                  className="w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full"
                 >
                   Continue
                 </button>
@@ -484,12 +484,12 @@ function NewTradeContent() {
                       selectedListings[0] ? `my ${selectedListings[0].title}` : "my item"
                     } — let me know what you think.`}
                     rows={5}
-                    className="w-full bg-surface border border-border rounded-sm px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
                   />
                   <p
                     className={cn(
                       "text-[11px] text-right mt-1",
-                      note.length >= 500 ? "text-red-400" : "text-muted-foreground",
+                      note.length >= 500 ? "text-red-700 dark:text-red-400" : "text-muted-foreground",
                     )}
                   >
                     {note.length}/500
@@ -497,12 +497,12 @@ function NewTradeContent() {
                 </div>
 
                 <div>
-                  <h3 className="font-display font-bold uppercase tracking-tight text-sm text-foreground mb-2">
+                  <h3 className="font-display font-bold tracking-tight text-sm text-foreground mb-2">
                     Your proposal
                   </h3>
                   <TradeComparison mine={selectedListings} target={target} cash={cash} />
                   {note.trim() && (
-                    <div className="bg-surface border border-border rounded-lg p-3 mt-3">
+                    <div className="bg-card border border-border rounded-xl p-3 mt-3">
                       <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold mb-1">
                         Your note
                       </p>
@@ -518,7 +518,7 @@ function NewTradeContent() {
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3.5 rounded-sm flex items-center justify-center gap-2"
+                  className="w-full bg-accent text-accent-foreground font-display font-bold py-3.5 rounded-full flex items-center justify-center gap-2"
                 >
                   <Send size={16} /> Send proposal
                 </button>
@@ -546,7 +546,7 @@ function TargetPicker({
 
   if (candidates.length === 0) {
     return (
-      <div className="text-center py-12 border border-dashed border-border rounded-lg">
+      <div className="text-center py-12 border border-dashed border-border rounded-xl">
         <p className="text-sm text-muted-foreground mb-4">
           Nothing to poach right now. Check back soon.
         </p>
@@ -569,7 +569,7 @@ function TargetPicker({
             type="button"
             onClick={() => onPick(listing.id)}
             className={cn(
-              "text-left bg-card rounded-lg overflow-hidden border card-lift transition-colors",
+              "text-left bg-card rounded-xl overflow-hidden border card-lift transition-colors",
               pickedId === listing.id ? "border-accent" : "border-border",
             )}
           >
