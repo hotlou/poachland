@@ -16,7 +16,7 @@ const MAX_TEAMS = 8;
 
 function EditSkeleton() {
   return (
-    <div className="px-4 pt-5 space-y-4 animate-pulse">
+    <div className="px-4 md:px-6 pt-5 space-y-4 animate-pulse md:max-w-2xl md:mx-auto">
       <div className="h-10 bg-surface rounded-md" />
       <div className="h-10 bg-surface rounded-md" />
       <div className="h-24 bg-surface rounded-md" />
@@ -84,7 +84,7 @@ function EditForm({ me }: { me: User }) {
 
   return (
     <form
-      className="px-4 pt-5 pb-8 space-y-5"
+      className="px-4 md:px-6 pt-5 md:pt-6 pb-8 space-y-5 md:max-w-2xl md:mx-auto"
       onSubmit={(e) => {
         e.preventDefault();
         save();
@@ -216,7 +216,7 @@ function EditForm({ me }: { me: User }) {
             {teams.map((team) => (
               <span
                 key={team}
-                className="inline-flex items-center gap-1 text-xs bg-card border border-border px-2.5 py-1 rounded-full text-foreground"
+                className="inline-flex items-center gap-1.5 text-[13px] bg-card border border-border px-3 py-1 rounded-full text-foreground"
               >
                 {team}
                 <button
@@ -249,7 +249,7 @@ function EditForm({ me }: { me: User }) {
             type="button"
             onClick={addTeam}
             aria-label="Add team"
-            className="w-11 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-accent hover:border-accent transition-colors"
+            className="w-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-accent hover:border-accent transition-colors"
           >
             <Plus size={16} />
           </button>
@@ -286,7 +286,7 @@ function EditProfileContent() {
 export default function EditProfilePage() {
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <Link href="/app/profile" aria-label="Back to profile">
           <ArrowLeft
             size={20}

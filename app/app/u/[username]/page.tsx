@@ -48,7 +48,7 @@ import {
 
 function PageSkeleton() {
   return (
-    <div className="px-4 pt-5 space-y-4 animate-pulse">
+    <div className="px-4 md:px-6 pt-5 space-y-4 animate-pulse">
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-full bg-surface" />
         <div className="flex-1 space-y-2">
@@ -225,10 +225,63 @@ function PublicProfile({ user }: { user: User }) {
     router.push(`/app/inbox/${res.value.id}`);
   };
 
+  const bio = user.bio ? (
+    <p className="text-sm text-muted-foreground leading-relaxed">{user.bio}</p>
+  ) : null;
+
+  const actions = !isSelf ? (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={message}
+        className="flex-1 md:flex-none md:px-6 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
+      >
+        <MessageCircle size={15} /> Message
+      </button>
+      <ReportUserDialog user={user} />
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <button
+            type="button"
+            aria-label="Block user"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-red-700 hover:border-red-700 dark:hover:text-red-400 dark:hover:border-red-400 transition-colors"
+          >
+            <Ban size={16} />
+          </button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block @{user.username}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Their listings, wanted posts, and messages disappear for
+              you — and yours for them. Open negotiations stay put; close
+              those separately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const res = store.blockUser(user.id);
+                if (!res.ok) {
+                  toast.error(res.error);
+                  return;
+                }
+                toast.success(`Blocked @${user.username}`);
+              }}
+            >
+              Block
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  ) : null;
+
   return (
     <>
       {isSelf && (
-        <div className="mx-4 mt-4 bg-accent/10 border border-accent/40 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+        <div className="mx-4 md:mx-6 mt-4 bg-accent/10 border border-accent/40 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
           <p className="text-xs text-foreground">
             This is your public profile — how other traders see you.
           </p>
@@ -242,9 +295,9 @@ function PublicProfile({ user }: { user: User }) {
       )}
 
       {/* Hero */}
-      <div className="px-4 pt-5 pb-4 border-b border-border">
-        <div className="flex items-start gap-4">
-          <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-accent ring-offset-2 ring-offset-background flex-shrink-0">
+      <div className="px-4 md:px-6 pt-5 md:pt-6 pb-4 border-b border-border">
+        <div className="flex items-start gap-4 md:gap-6">
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden ring-2 ring-accent ring-offset-2 ring-offset-background flex-shrink-0">
             <img
               src={user.avatar}
               alt={user.displayName}
@@ -261,7 +314,7 @@ function PublicProfile({ user }: { user: User }) {
               )}
             </div>
             <p className="text-sm text-muted-foreground">@{user.username}</p>
-            <div className="flex flex-col gap-0.5 mt-2 text-xs text-muted-foreground">
+            <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-0.5 md:gap-x-4 mt-2 text-xs text-muted-foreground">
               {user.location && (
                 <span className="flex items-center gap-1">
                   <MapPin size={11} /> {user.location}
@@ -272,122 +325,75 @@ function PublicProfile({ user }: { user: User }) {
                 {formatMonthYear(user.memberSince)}
               </span>
             </div>
+            {bio && <div className="hidden md:block mt-3">{bio}</div>}
+            {actions && <div className="hidden md:block mt-4">{actions}</div>}
           </div>
         </div>
 
-        {user.bio && (
-          <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-            {user.bio}
-          </p>
-        )}
+        {bio && <div className="mt-3 md:hidden">{bio}</div>}
 
-        {/* Actions */}
-        {!isSelf && (
-          <div className="flex gap-2 mt-4">
-            <button
-              type="button"
-              onClick={message}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold"
-            >
-              <MessageCircle size={15} /> Message
-            </button>
-            <ReportUserDialog user={user} />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Block user"
-                  className="w-10 h-10 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:text-red-700 hover:border-red-700 dark:hover:text-red-400 dark:hover:border-red-400 transition-colors"
-                >
-                  <Ban size={16} />
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="max-w-sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Block @{user.username}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Their listings, wanted posts, and messages disappear for
-                    you — and yours for them. Open negotiations stay put; close
-                    those separately.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      const res = store.blockUser(user.id);
-                      if (!res.ok) {
-                        toast.error(res.error);
-                        return;
-                      }
-                      toast.success(`Blocked @${user.username}`);
-                    }}
-                  >
-                    Block
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+        {/* Actions (mobile) */}
+        {actions && <div className="mt-4 md:hidden">{actions}</div>}
 
-        {/* Trust card */}
-        <div className="mt-4 bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                Trust Score
-              </p>
-              <TrustScore
-                score={user.trustScore}
-                trades={user.tradesCompleted}
-                size="lg"
-              />
+        {/* Trust card + stats */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="bg-card border border-border border-l-2 border-l-accent rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                  Trust Score
+                </p>
+                <TrustScore
+                  score={user.trustScore}
+                  trades={user.tradesCompleted}
+                  size="lg"
+                />
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="font-display font-bold text-3xl text-accent leading-none">
+                  {user.tradesCompleted}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                  Trades done
+                </p>
+              </div>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="font-display font-bold text-3xl text-accent leading-none">
-                {user.tradesCompleted}
-              </p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                Trades done
-              </p>
-            </div>
+            {user.badges.length > 0 && (
+              <div className="flex gap-1.5 mt-3 flex-wrap">
+                {user.badges.map((b) => (
+                  <TrustBadge key={b.id} badge={b} size="sm" />
+                ))}
+              </div>
+            )}
           </div>
-          {user.badges.length > 0 && (
-            <div className="flex gap-1.5 mt-3 flex-wrap">
-              {user.badges.map((b) => (
-                <TrustBadge key={b.id} badge={b} size="sm" />
-              ))}
-            </div>
-          )}
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl md:content-center">
+            {[
+              { label: "Active Listings", value: stats.activeListings },
+              { label: "Trades Done", value: stats.completedDeals },
+              { label: "Saves Received", value: stats.savesReceived },
+            ].map(({ label, value }) => (
+              <div key={label} className="py-3 px-1 text-center">
+                <p className="font-display font-bold text-2xl">{value}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
+                  {label}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Linked identities */}
         <IdentityChips userId={user.id} ownProfile={isSelf} />
 
-        {/* Stats row */}
-        <div className="mt-3 grid grid-cols-3 divide-x divide-border bg-card border border-border rounded-xl">
-          {[
-            { label: "Active Listings", value: stats.activeListings },
-            { label: "Trades Done", value: stats.completedDeals },
-            { label: "Saves Received", value: stats.savesReceived },
-          ].map(({ label, value }) => (
-            <div key={label} className="py-3 px-1 text-center">
-              <p className="font-display font-bold text-2xl">{value}</p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-tight">
-                {label}
-              </p>
-            </div>
-          ))}
-        </div>
-
         {/* Favorite teams */}
         {user.favoriteTeams.length > 0 && (
-          <div className="flex gap-1.5 mt-3 flex-wrap">
+          <div className="flex gap-2 mt-3 flex-wrap">
             {user.favoriteTeams.map((team) => (
               <span
                 key={team}
-                className="text-xs bg-card border border-border px-2.5 py-0.5 rounded-full text-foreground"
+                className="text-[13px] bg-card border border-border px-3 py-1 rounded-full text-foreground"
               >
                 {team}
               </span>
@@ -397,7 +403,7 @@ function PublicProfile({ user }: { user: User }) {
       </div>
 
       {/* Active listings */}
-      <section className="px-4 pt-5">
+      <section className="px-4 md:px-6 pt-5">
         <div className="flex items-center gap-1.5 mb-3">
           <Package size={15} className="text-accent" />
           <h3 className="font-display font-bold text-base tracking-tight">
@@ -412,7 +418,7 @@ function PublicProfile({ user }: { user: User }) {
             Nothing listed right now. Check back later.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {listings.map((l) => (
               <ListingCard key={l.id} listing={l} />
             ))}
@@ -422,7 +428,7 @@ function PublicProfile({ user }: { user: User }) {
 
       {/* Active ISO posts */}
       {isoPosts.length > 0 && (
-        <section className="px-4 pt-6">
+        <section className="px-4 md:px-6 pt-6">
           <div className="flex items-center gap-1.5 mb-3">
             <Search size={15} className="text-accent" />
             <h3 className="font-display font-bold text-base tracking-tight">
@@ -455,7 +461,7 @@ function PublicProfile({ user }: { user: User }) {
       )}
 
       {/* Recent ratings */}
-      <section className="px-4 pt-6 pb-8">
+      <section className="px-4 md:px-6 pt-6 pb-8">
         <div className="flex items-center gap-1.5 mb-3">
           <Star size={15} className="text-accent" />
           <h3 className="font-display font-bold text-base tracking-tight">
@@ -563,7 +569,7 @@ export default function PublicProfilePage() {
   const router = useRouter();
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <button
           type="button"
           onClick={() => router.back()}

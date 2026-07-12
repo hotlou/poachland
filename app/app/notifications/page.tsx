@@ -168,7 +168,7 @@ function NotificationRow({ n }: { n: Notification }) {
 
 function ListSkeleton() {
   return (
-    <div className="mx-4 mt-4 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+    <div className="mx-4 md:mx-6 mt-4 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="px-4 py-3 flex gap-3 items-start">
           <div className="w-9 h-9 rounded-full bg-surface animate-pulse flex-shrink-0" />
@@ -196,7 +196,7 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="font-display font-bold text-xl tracking-tight">
             Notifications
@@ -244,10 +244,10 @@ export default function NotificationsPage() {
           <div className="pb-6">
             {groups.map(([label, items]) => (
               <section key={label}>
-                <h2 className="px-4 pt-5 pb-2 text-[11px] font-display font-bold uppercase tracking-widest text-muted-foreground">
+                <h2 className="px-4 md:px-6 pt-5 pb-2 text-[11px] font-display font-bold uppercase tracking-widest text-muted-foreground">
                   {label}
                 </h2>
-                <div className="mx-4 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
+                <div className="mx-4 md:mx-6 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
                   {items.map((n) => (
                     <NotificationRow key={n.id} n={n} />
                   ))}
