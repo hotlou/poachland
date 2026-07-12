@@ -49,10 +49,10 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex-shrink-0 px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+        "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
         active
           ? "bg-accent text-accent-foreground border-accent"
-          : "bg-transparent text-muted-foreground border-border hover:text-foreground",
+          : "bg-card text-muted-foreground border-border hover:text-foreground",
       )}
     >
       {children}
@@ -72,7 +72,7 @@ function ResultsSkeleton() {
       <div className="h-3 w-24 bg-surface rounded-sm mb-4 animate-pulse" />
       <div className="grid grid-cols-2 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="bg-card border border-border rounded-lg overflow-hidden">
+          <div key={i} className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="aspect-[4/3] bg-surface animate-pulse" />
             <div className="p-3 space-y-2">
               <div className="h-2.5 w-2/3 bg-surface rounded-sm animate-pulse" />
@@ -165,13 +165,13 @@ function BrowseContent() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight mb-3">
+        <h1 className="font-display font-bold text-xl tracking-tight mb-3">
           Browse
         </h1>
 
         {/* Search bar + filter toggle */}
         <div className="flex gap-2">
-          <div className="flex-1 flex items-center gap-2 bg-surface rounded-sm px-3 py-2.5 border border-border">
+          <div className="flex-1 flex items-center gap-2 bg-card rounded-full px-4 py-2.5 border border-border">
             <Search size={16} className="text-muted-foreground flex-shrink-0" />
             <input
               type="text"
@@ -191,10 +191,10 @@ function BrowseContent() {
             onClick={() => setShowFilters((v) => !v)}
             aria-expanded={showFilters}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2.5 rounded-sm border text-sm font-semibold transition-colors",
+              "flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border text-sm font-semibold transition-colors",
               showFilters || panelFilterCount > 0
                 ? "bg-accent text-accent-foreground border-accent"
-                : "bg-surface border-border text-muted-foreground",
+                : "bg-card border-border text-muted-foreground",
             )}
           >
             <SlidersHorizontal size={15} />
@@ -247,7 +247,7 @@ function BrowseContent() {
               Price
             </p>
             <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-1 bg-background border border-border rounded-sm px-2.5 py-2">
+              <div className="flex-1 flex items-center gap-1 bg-card border border-border rounded-lg px-2.5 py-2">
                 <span className="text-xs text-muted-foreground">$</span>
                 <input
                   type="number"
@@ -260,7 +260,7 @@ function BrowseContent() {
                 />
               </div>
               <span className="text-xs text-muted-foreground">to</span>
-              <div className="flex-1 flex items-center gap-1 bg-background border border-border rounded-sm px-2.5 py-2">
+              <div className="flex-1 flex items-center gap-1 bg-card border border-border rounded-lg px-2.5 py-2">
                 <span className="text-xs text-muted-foreground">$</span>
                 <input
                   type="number"
@@ -285,7 +285,7 @@ function BrowseContent() {
               value={team}
               onChange={(e) => setTeam(e.target.value)}
               placeholder="e.g. Revolver, Truck Stop..."
-              className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-accent"
+              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-accent"
             />
           </div>
 
@@ -315,7 +315,7 @@ function BrowseContent() {
               id="browse-sort"
               value={sort}
               onChange={(e) => setSort(e.target.value as NonNullable<ListingFilter["sort"]>)}
-              className="w-full bg-background border border-border rounded-sm px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -351,7 +351,7 @@ function BrowseContent() {
                   <Link
                     key={u.id}
                     href={`/app/u/${u.username}`}
-                    className="flex-shrink-0 flex items-center gap-2.5 bg-card border border-border rounded-lg px-3 py-2 card-lift"
+                    className="flex-shrink-0 flex items-center gap-2.5 bg-card border border-border rounded-xl px-3 py-2 card-lift"
                   >
                     {/* plain img: avatars may be data URLs */}
                     <img
@@ -381,7 +381,7 @@ function BrowseContent() {
 
           {results.length === 0 ? (
             <div className="text-center py-14 px-6">
-              <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+              <p className="font-display font-bold text-xl text-muted-foreground mb-1">
                 Nothing here yet.
               </p>
               <p className="text-sm text-muted-foreground mb-5">
@@ -394,7 +394,7 @@ function BrowseContent() {
                   <button
                     type="button"
                     onClick={clearEverything}
-                    className="bg-accent text-accent-foreground px-4 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+                    className="bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
                   >
                     Clear search & filters
                   </button>

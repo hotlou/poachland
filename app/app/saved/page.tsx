@@ -18,7 +18,7 @@ function TabsSkeleton() {
     <div className="px-4 py-4">
       <div className="grid grid-cols-2 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-card border border-border rounded-lg overflow-hidden">
+          <div key={i} className="bg-card border border-border rounded-xl overflow-hidden">
             <div className="aspect-[4/3] bg-surface animate-pulse" />
             <div className="p-3 space-y-2">
               <div className="h-2.5 w-2/3 bg-surface rounded-sm animate-pulse" />
@@ -36,11 +36,11 @@ function SavedISOCard({ post, index }: { post: ISOPost; index: number }) {
   const rot = rotations[index % rotations.length];
   return (
     <div
-      className="relative bg-card border border-border rounded-sm p-4"
+      className="relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4"
       style={{ transform: `rotate(${rot}deg)` }}
     >
       {/* Pin dot */}
-      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-accent shadow-md border-2 border-background" />
+      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-pop shadow-md border-2 border-background" />
 
       <div className="flex items-start gap-3 pt-1">
         <Link
@@ -66,8 +66,8 @@ function SavedISOCard({ post, index }: { post: ISOPost; index: number }) {
               className={cn(
                 "badge-stamp text-[9px]",
                 post.itemType === "jersey"
-                  ? "text-sky-400 border-sky-400"
-                  : "text-purple-400 border-purple-400",
+                  ? "text-sky-700 border-sky-700 dark:text-sky-400 dark:border-sky-400"
+                  : "text-purple-700 border-purple-700 dark:text-purple-400 dark:border-purple-400",
               )}
             >
               {post.itemType}
@@ -77,7 +77,7 @@ function SavedISOCard({ post, index }: { post: ISOPost; index: number }) {
                 className={cn(
                   "badge-stamp text-[9px]",
                   post.status === "found"
-                    ? "text-emerald-400 border-emerald-400"
+                    ? "text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400"
                     : "text-muted-foreground border-border",
                 )}
               >
@@ -97,7 +97,7 @@ function SavedISOCard({ post, index }: { post: ISOPost; index: number }) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-amber-200/70 dark:border-border">
         <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
         <div className="flex items-center gap-4">
           <SaveButton
@@ -130,7 +130,7 @@ export default function SavedPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 pt-3">
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight mb-3">Saved</h1>
+        <h1 className="font-display font-bold text-xl tracking-tight mb-3">Saved</h1>
         <div className="flex gap-6">
           {(
             [
@@ -165,7 +165,7 @@ export default function SavedPage() {
             {listings.length === 0 ? (
               <div className="text-center py-16 px-6">
                 <Heart size={28} className="mx-auto mb-3 text-muted-foreground" />
-                <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+                <p className="font-display font-bold text-xl text-muted-foreground mb-1">
                   Nothing saved yet.
                 </p>
                 <p className="text-sm text-muted-foreground mb-5">
@@ -173,7 +173,7 @@ export default function SavedPage() {
                 </p>
                 <Link
                   href="/app/browse"
-                  className="inline-block bg-accent text-accent-foreground px-4 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+                  className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
                 >
                   Browse the market
                 </Link>
@@ -191,7 +191,7 @@ export default function SavedPage() {
             {isoPosts.length === 0 ? (
               <div className="text-center py-16 px-6">
                 <Bookmark size={28} className="mx-auto mb-3 text-muted-foreground" />
-                <p className="font-display font-bold text-xl uppercase text-muted-foreground mb-1">
+                <p className="font-display font-bold text-xl text-muted-foreground mb-1">
                   No wanted posts saved.
                 </p>
                 <p className="text-sm text-muted-foreground mb-5">
@@ -199,7 +199,7 @@ export default function SavedPage() {
                 </p>
                 <Link
                   href="/app/wanted"
-                  className="inline-block bg-accent text-accent-foreground px-4 py-2 rounded-sm text-xs font-display font-bold uppercase tracking-wide"
+                  className="inline-block bg-accent text-accent-foreground px-5 py-2 rounded-full text-xs font-bold"
                 >
                   Scan the Wanted Board
                 </Link>

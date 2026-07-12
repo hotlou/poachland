@@ -103,7 +103,7 @@ function YourMoveStrip() {
     <section className="mt-4">
       <div className="px-4 flex items-center gap-1.5 mb-2">
         <Zap size={15} className="text-accent" />
-        <h2 className="font-display font-bold text-base uppercase tracking-tight">
+        <h2 className="font-display font-bold text-base tracking-tight">
           Your move
         </h2>
         <span className="badge-stamp text-accent border-accent ml-1">
@@ -126,10 +126,10 @@ function YourMoveStrip() {
               key={key}
               href={`/app/trades/${deal.id}`}
               className={cn(
-                "snap-start flex-shrink-0 w-64 rounded-lg bg-card p-3 card-lift border",
-                kind === "respond" && "border-accent/60",
-                kind === "track" && "border-accent/30",
-                kind === "rate" && "border-yellow-400/40",
+                "snap-start flex-shrink-0 w-64 rounded-xl bg-card p-3 card-lift border border-border border-l-4",
+                kind === "respond" && "border-l-accent",
+                kind === "track" && "border-l-accent/40",
+                kind === "rate" && "border-l-amber-600 dark:border-l-yellow-400",
               )}
             >
               <div className="flex items-center gap-2 mb-2">
@@ -145,7 +145,7 @@ function YourMoveStrip() {
                     className={cn(
                       "badge-stamp",
                       kind === "rate"
-                        ? "text-yellow-400 border-yellow-400"
+                        ? "text-amber-700 border-amber-700 dark:text-yellow-400 dark:border-yellow-400"
                         : "text-accent border-accent",
                     )}
                   >
@@ -179,7 +179,7 @@ function HotRightNow() {
   return (
     <section className="mt-6">
       <div className="px-4 flex items-center justify-between mb-3">
-        <h2 className="font-display font-bold text-lg uppercase tracking-tight flex items-center gap-1.5">
+        <h2 className="font-display font-bold text-lg tracking-tight flex items-center gap-1.5">
           <Flame size={16} className="text-accent" /> Hot right now
         </h2>
         <Link
@@ -210,7 +210,7 @@ function FreshDrops() {
   return (
     <section className="px-4 mt-6">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-display font-bold text-lg uppercase tracking-tight">
+        <h2 className="font-display font-bold text-lg tracking-tight">
           Fresh drops
         </h2>
         <Link
@@ -221,13 +221,13 @@ function FreshDrops() {
         </Link>
       </div>
       {latest.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <p className="text-sm text-muted-foreground">
             Nothing here yet. Be the first to poach it.
           </p>
           <Link
             href="/app/create"
-            className="inline-block mt-3 px-4 py-2 rounded-md bg-accent text-accent-foreground text-xs font-display font-bold uppercase tracking-wide"
+            className="inline-block mt-3 px-5 py-2 rounded-full bg-accent text-accent-foreground text-xs font-bold"
           >
             List something
           </Link>
@@ -252,7 +252,7 @@ function ActivityTimeline() {
     <section className="px-4 mt-6">
       <div className="flex items-center gap-1.5 mb-3">
         <TrendingUp size={16} className="text-accent" />
-        <h2 className="font-display font-bold text-lg uppercase tracking-tight">
+        <h2 className="font-display font-bold text-lg tracking-tight">
           Around the fields
         </h2>
       </div>
@@ -308,7 +308,7 @@ function WantedPreview() {
   return (
     <section className="px-4 mt-6">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-display font-bold text-lg uppercase tracking-tight flex items-center gap-1.5">
+        <h2 className="font-display font-bold text-lg tracking-tight flex items-center gap-1.5">
           <Pin size={15} className="text-accent" /> Wanted board
         </h2>
         <Link
@@ -319,7 +319,7 @@ function WantedPreview() {
         </Link>
       </div>
       {posts.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <p className="text-sm text-muted-foreground">
             No active hunts. Post what you&apos;re chasing.
           </p>
@@ -337,13 +337,13 @@ function WantedPreview() {
               key={post.id}
               href="/app/wanted"
               className={cn(
-                "relative block bg-card border border-border rounded-sm p-3.5 card-lift",
+                "relative block bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-3.5 card-lift",
                 i % 2 === 0 ? "rotate-[0.6deg]" : "-rotate-[0.6deg]",
               )}
             >
               <Pin
                 size={14}
-                className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-accent rotate-[30deg]"
+                className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-pop rotate-[30deg]"
               />
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex-shrink-0">
@@ -395,7 +395,7 @@ function TraderSpotlight() {
     <section className="px-4 mt-6 mb-6">
       <Link
         href={`/app/u/${spotlight.username}`}
-        className="block bg-card border border-border rounded-lg p-4 card-lift"
+        className="block bg-card border border-border rounded-xl p-4 card-lift"
       >
         <p className="text-xs uppercase tracking-widest text-muted-foreground font-display font-bold mb-3 flex items-center gap-1.5">
           <Star size={12} className="text-accent" /> Trader spotlight
@@ -451,7 +451,7 @@ function HomeSkeleton() {
       <div className="flex gap-3 overflow-hidden px-4 mt-6">
         {[0, 1].map((i) => (
           <div key={i} className="flex-shrink-0 w-60 space-y-2">
-            <div className="aspect-[4/3] bg-surface rounded-lg" />
+            <div className="aspect-[4/3] bg-surface rounded-xl" />
             <div className="h-3 bg-surface rounded w-3/4" />
           </div>
         ))}
@@ -459,7 +459,7 @@ function HomeSkeleton() {
       <div className="grid grid-cols-2 gap-3 px-4 mt-6">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="space-y-2">
-            <div className="aspect-[4/3] bg-surface rounded-lg" />
+            <div className="aspect-[4/3] bg-surface rounded-xl" />
             <div className="h-3 bg-surface rounded w-2/3" />
           </div>
         ))}
