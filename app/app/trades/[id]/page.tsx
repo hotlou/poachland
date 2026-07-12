@@ -271,7 +271,7 @@ function CounterComposer({ deal, onDone }: { deal: Deal; onDone: () => void }) {
           <X size={16} />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-2 gap-3 md:gap-6 mb-3">
         <SideChecklist
           label={`@${deal.proposer.username} gives`}
           candidates={candidatesFor(deal.proposerId, current.proposerListingIds)}
@@ -299,7 +299,7 @@ function CounterComposer({ deal, onDone }: { deal: Deal; onDone: () => void }) {
       <button
         type="button"
         onClick={submit}
-        className="w-full bg-accent text-accent-foreground font-display font-semibold py-3 rounded-full flex items-center justify-center gap-2"
+        className="w-full bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm flex items-center justify-center gap-2"
       >
         <ArrowRightLeft size={15} /> Send counter
       </button>
@@ -362,7 +362,7 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
       <button
         type="button"
         onClick={submit}
-        className="w-full bg-accent text-accent-foreground font-display font-semibold py-3 rounded-full flex items-center justify-center gap-2"
+        className="w-full bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm flex items-center justify-center gap-2"
       >
         <Star size={15} /> Submit rating
       </button>
@@ -490,7 +490,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             <button
               type="button"
               onClick={ship}
-              className="flex-shrink-0 border border-accent text-accent font-display font-semibold text-xs px-4 py-3 rounded-full flex items-center gap-1.5"
+              className="flex-shrink-0 bg-card border border-accent text-accent font-display font-semibold text-sm px-4 py-2.5 rounded-full flex items-center gap-1.5"
             >
               <Package size={14} /> Mark shipped
             </button>
@@ -503,7 +503,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
           <AlertDialogTrigger asChild>
             <button
               type="button"
-              className="w-full bg-accent text-accent-foreground font-display font-semibold py-3.5 rounded-full flex items-center justify-center gap-2"
+              className="w-full bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm flex items-center justify-center gap-2"
             >
               <CheckCircle2 size={16} /> Confirm complete
             </button>
@@ -553,7 +553,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             <button
               type="button"
               onClick={cancel}
-              className="w-full bg-orange-600/10 border border-orange-600 text-orange-700 dark:bg-orange-400/15 dark:border-orange-400 dark:text-orange-400 font-display font-semibold py-3 rounded-full"
+              className="w-full bg-orange-600/10 border border-orange-600 text-orange-700 dark:bg-orange-400/15 dark:border-orange-400 dark:text-orange-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full"
             >
               Cancel the deal
             </button>
@@ -583,7 +583,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             <button
               type="button"
               onClick={dispute}
-              className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold py-3 rounded-full"
+              className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full"
             >
               Open dispute
             </button>
@@ -703,7 +703,7 @@ function DealRoom({ id }: { id: string }) {
         </p>
         <Link
           href="/app/trades"
-          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-6 py-3 rounded-full text-sm"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-5 py-2.5 rounded-full text-sm shadow-sm"
         >
           Back to your trades
         </Link>
@@ -722,7 +722,7 @@ function DealRoom({ id }: { id: string }) {
         </p>
         <Link
           href="/app/trades"
-          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-6 py-3 rounded-full text-sm"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-5 py-2.5 rounded-full text-sm shadow-sm"
         >
           Back to your trades
         </Link>
@@ -769,7 +769,7 @@ function DealRoom({ id }: { id: string }) {
   return (
     <div className="pb-8">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <button type="button" onClick={() => router.back()} aria-label="Back">
           <ArrowLeft size={20} />
         </button>
@@ -779,267 +779,275 @@ function DealRoom({ id }: { id: string }) {
         <DealStatusBadge status={deal.status} />
       </header>
 
-      <div className="px-4 py-4 space-y-5">
-        {/* Primary listing */}
-        <Link
-          href={`/app/listings/${deal.listing.id}`}
-          className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 card-lift"
-        >
-          <div className="w-14 h-14 rounded-lg overflow-hidden bg-surface flex-shrink-0">
-            <img
-              src={deal.listing.photos[0] || "/placeholder.jpg"}
-              alt={deal.listing.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold">
-              The item on the table
-            </p>
-            <p className="text-sm font-semibold text-foreground line-clamp-1 mt-0.5">{deal.listing.title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {deal.listing.condition} · {deal.listing.team}
-            </p>
-          </div>
-        </Link>
+      <div className="px-4 py-4 space-y-5 lg:grid lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:gap-8 lg:space-y-0 lg:px-6">
+        {/* Item + parties — right column on lg, top of page on mobile */}
+        <div className="space-y-5 lg:col-start-2 lg:row-start-1">
+          {/* Primary listing */}
+          <Link
+            href={`/app/listings/${deal.listing.id}`}
+            className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 card-lift"
+          >
+            <div className="w-14 h-14 rounded-lg overflow-hidden bg-surface flex-shrink-0">
+              <img
+                src={deal.listing.photos[0] || "/placeholder.jpg"}
+                alt={deal.listing.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold">
+                The item on the table
+              </p>
+              <p className="text-sm font-semibold text-foreground line-clamp-1 mt-0.5">{deal.listing.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {deal.listing.condition} · {deal.listing.team}
+              </p>
+            </div>
+          </Link>
 
-        {/* Parties */}
-        <div className="flex items-start justify-center gap-4 bg-card border border-border rounded-xl p-4">
-          <PartyChip user={deal.proposer} isMe={deal.proposerId === me.id} />
-          <div className="pt-3">
-            <ArrowRightLeft size={20} className="text-accent" />
+          {/* Parties */}
+          <div className="flex items-start justify-center gap-4 bg-card border border-border rounded-xl p-4">
+            <PartyChip user={deal.proposer} isMe={deal.proposerId === me.id} />
+            <div className="pt-3">
+              <ArrowRightLeft size={20} className="text-accent" />
+            </div>
+            <PartyChip user={deal.owner} isMe={deal.ownerId === me.id} />
           </div>
-          <PartyChip user={deal.owner} isMe={deal.ownerId === me.id} />
         </div>
 
-        {/* Negotiation timeline */}
-        <section>
-          <h2 className="font-display font-bold text-sm text-foreground mb-3">
-            Negotiation
-            {deal.offers.length > 1 && (
-              <span className="text-muted-foreground font-normal text-xs ml-2">
-                {deal.offers.length} rounds
-              </span>
-            )}
-          </h2>
-          <div className="space-y-2.5">
-            {deal.offers.map((offer, i) => (
-              <OfferCard
-                key={offer.id}
-                deal={deal}
-                offer={offer}
-                viewerId={me.id}
-                className={cn(i < deal.offers.length - 1 && "opacity-55")}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Closed-state banners */}
-        {deal.status === "declined" && (
-          <StatusBanner
-            tone="red"
-            icon={X}
-            title="Offer declined"
-            detail={deal.declineReason}
-          />
-        )}
-        {deal.status === "withdrawn" && (
-          <StatusBanner
-            tone="muted"
-            icon={Undo2}
-            title={`${current.byUserId === me.id ? "You" : `@${other.username}`} withdrew the offer`}
-            detail={deal.declineReason}
-          />
-        )}
-        {deal.status === "cancelled" && (
-          <StatusBanner
-            tone="orange"
-            icon={Ban}
-            title="Deal cancelled after acceptance"
-            detail={deal.declineReason}
-          />
-        )}
-        {deal.status === "expired" && (
-          <StatusBanner
-            tone="muted"
-            icon={AlertTriangle}
-            title="Offer expired"
-            detail="No response within 7 days. Feel free to open a fresh deal."
-          />
-        )}
-        {deal.status === "disputed" && (
-          <StatusBanner
-            tone="red"
-            icon={ShieldAlert}
-            title="Under review by moderators"
-            detail={deal.disputeReason}
-          />
-        )}
-
-        {/* ── ACTION ZONE ── */}
-
-        {deal.status === "open" && myTurn && (
-          <div className="space-y-2.5">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button
-                  type="button"
-                  className="w-full bg-accent text-accent-foreground font-display font-semibold py-4 rounded-full flex items-center justify-center gap-2"
-                >
-                  <Handshake size={17} /> Accept offer
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Lock it in?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Items in this deal get reserved and other negotiations on them close. You&apos;ll
-                    both ship, confirm, and rate each other.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Hold on</AlertDialogCancel>
-                  <AlertDialogAction onClick={accept}>Lock it in</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              {deal.kind !== "claim" && (
-                <button
-                  type="button"
-                  onClick={() => setComposerOpen((v) => !v)}
-                  className={cn(
-                    "border font-display font-semibold text-sm py-3 rounded-full flex items-center justify-center gap-1.5 transition-colors",
-                    composerOpen
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-border bg-card text-foreground",
-                  )}
-                >
-                  <ArrowRightLeft size={14} /> Counter
-                </button>
+        {/* Negotiation + actions — left column on lg */}
+        <div className="space-y-5 lg:col-start-1 lg:row-start-1 lg:row-span-2">
+          {/* Negotiation timeline */}
+          <section>
+            <h2 className="font-display font-bold text-sm text-foreground mb-3">
+              Negotiation
+              {deal.offers.length > 1 && (
+                <span className="text-muted-foreground font-normal text-xs ml-2">
+                  {deal.offers.length} rounds
+                </span>
               )}
-              <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
-                <DialogTrigger asChild>
+            </h2>
+            <div className="space-y-2.5">
+              {deal.offers.map((offer, i) => (
+                <OfferCard
+                  key={offer.id}
+                  deal={deal}
+                  offer={offer}
+                  viewerId={me.id}
+                  className={cn(i < deal.offers.length - 1 && "opacity-55")}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* Closed-state banners */}
+          {deal.status === "declined" && (
+            <StatusBanner
+              tone="red"
+              icon={X}
+              title="Offer declined"
+              detail={deal.declineReason}
+            />
+          )}
+          {deal.status === "withdrawn" && (
+            <StatusBanner
+              tone="muted"
+              icon={Undo2}
+              title={`${current.byUserId === me.id ? "You" : `@${other.username}`} withdrew the offer`}
+              detail={deal.declineReason}
+            />
+          )}
+          {deal.status === "cancelled" && (
+            <StatusBanner
+              tone="orange"
+              icon={Ban}
+              title="Deal cancelled after acceptance"
+              detail={deal.declineReason}
+            />
+          )}
+          {deal.status === "expired" && (
+            <StatusBanner
+              tone="muted"
+              icon={AlertTriangle}
+              title="Offer expired"
+              detail="No response within 7 days. Feel free to open a fresh deal."
+            />
+          )}
+          {deal.status === "disputed" && (
+            <StatusBanner
+              tone="red"
+              icon={ShieldAlert}
+              title="Under review by moderators"
+              detail={deal.disputeReason}
+            />
+          )}
+
+          {/* ── ACTION ZONE ── */}
+
+          {deal.status === "open" && myTurn && (
+            <div className="space-y-2.5">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
                   <button
                     type="button"
+                    className="w-full bg-accent text-accent-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <Handshake size={16} /> Accept offer
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Lock it in?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Items in this deal get reserved and other negotiations on them close. You&apos;ll
+                      both ship, confirm, and rate each other.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Hold on</AlertDialogCancel>
+                    <AlertDialogAction onClick={accept}>Lock it in</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {deal.kind !== "claim" && (
+                  <button
+                    type="button"
+                    onClick={() => setComposerOpen((v) => !v)}
                     className={cn(
-                      "border border-border bg-card text-muted-foreground font-display font-semibold text-sm py-3 rounded-full flex items-center justify-center gap-1.5",
-                      deal.kind === "claim" && "col-span-2",
+                      "border font-display font-semibold text-sm px-5 py-2.5 rounded-full flex items-center justify-center gap-1.5 transition-colors",
+                      composerOpen
+                        ? "border-accent bg-accent/10 text-accent"
+                        : "border-border bg-card text-foreground",
                     )}
                   >
-                    <X size={14} /> Decline
+                    <ArrowRightLeft size={14} /> Counter
                   </button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Pass on this offer?</DialogTitle>
-                    <DialogDescription>
-                      This closes the deal. A short reason keeps it friendly — optional.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <textarea
-                    value={declineReason}
-                    onChange={(e) => setDeclineReason(e.target.value)}
-                    placeholder="e.g. Holding out for a disc, not cash"
-                    rows={2}
-                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
-                  />
+                )}
+                <Dialog open={declineOpen} onOpenChange={setDeclineOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "border border-border bg-card text-muted-foreground font-display font-semibold text-sm px-5 py-2.5 rounded-full flex items-center justify-center gap-1.5",
+                        deal.kind === "claim" && "col-span-2",
+                      )}
+                    >
+                      <X size={14} /> Decline
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Pass on this offer?</DialogTitle>
+                      <DialogDescription>
+                        This closes the deal. A short reason keeps it friendly — optional.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <textarea
+                      value={declineReason}
+                      onChange={(e) => setDeclineReason(e.target.value)}
+                      placeholder="e.g. Holding out for a disc, not cash"
+                      rows={2}
+                      className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={decline}
+                      className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full"
+                    >
+                      Decline offer
+                    </button>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {composerOpen && deal.kind !== "claim" && (
+                <CounterComposer deal={deal} onDone={() => setComposerOpen(false)} />
+              )}
+            </div>
+          )}
+
+          {deal.status === "open" && !myTurn && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center space-y-3">
+              <p className="text-sm text-foreground">
+                Waiting on <Link href={`/app/u/${other.username}`} className="text-accent font-semibold">@{other.username}</Link>
+              </p>
+              <p className="text-xs text-amber-700/90 dark:text-yellow-400/80">
+                {timeUntil(current.expiresAt) === "expired"
+                  ? "Offer expired — refresh to close it out"
+                  : `Expires: ${timeUntil(current.expiresAt)}`}
+              </p>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
                   <button
                     type="button"
-                    onClick={decline}
-                    className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold py-3 rounded-full"
+                    className="text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors inline-flex items-center gap-1"
                   >
-                    Decline offer
+                    <Undo2 size={12} /> Withdraw offer
                   </button>
-                </DialogContent>
-              </Dialog>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Withdraw your offer?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This closes the deal. You can always open a new one later.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep it live</AlertDialogCancel>
+                    <AlertDialogAction onClick={withdraw}>Withdraw</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
+          )}
 
-            {composerOpen && deal.kind !== "claim" && (
-              <CounterComposer deal={deal} onDone={() => setComposerOpen(false)} />
-            )}
-          </div>
-        )}
+          {deal.status === "accepted" && <FulfillmentPanel deal={deal} me={me} other={other} />}
 
-        {deal.status === "open" && !myTurn && (
-          <div className="rounded-xl border border-border bg-card p-4 text-center space-y-3">
-            <p className="text-sm text-foreground">
-              Waiting on <Link href={`/app/u/${other.username}`} className="text-accent font-semibold">@{other.username}</Link>
-            </p>
-            <p className="text-xs text-amber-700/90 dark:text-yellow-400/80">
-              {timeUntil(current.expiresAt) === "expired"
-                ? "Offer expired — refresh to close it out"
-                : `Expires: ${timeUntil(current.expiresAt)}`}
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors inline-flex items-center gap-1"
-                >
-                  <Undo2 size={12} /> Withdraw offer
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Withdraw your offer?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This closes the deal. You can always open a new one later.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep it live</AlertDialogCancel>
-                  <AlertDialogAction onClick={withdraw}>Withdraw</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
-
-        {deal.status === "accepted" && <FulfillmentPanel deal={deal} me={me} other={other} />}
-
-        {deal.status === "completed" && (
-          <div className="space-y-3">
-            <div className="rounded-xl border border-emerald-600/40 bg-emerald-600/10 dark:border-emerald-400/50 dark:bg-emerald-400/10 p-4 flex items-center gap-3">
-              <PartyPopper size={22} className="text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
-              <div>
-                <p className="font-display font-bold text-sm text-emerald-700 dark:text-emerald-400">
-                  Deal complete
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Completed {deal.completedAt ? formatDate(deal.completedAt) : ""} · both sides confirmed
-                </p>
+          {deal.status === "completed" && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-emerald-600/40 bg-emerald-600/10 dark:border-emerald-400/50 dark:bg-emerald-400/10 p-4 flex items-center gap-3">
+                <PartyPopper size={22} className="text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
+                <div>
+                  <p className="font-display font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                    Deal complete
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Completed {deal.completedAt ? formatDate(deal.completedAt) : ""} · both sides confirmed
+                  </p>
+                </div>
               </div>
+
+              {canRate && <RateBlock deal={deal} other={other} />}
+
+              {myRating && <ExchangedRating rating={myRating} heading={`Your rating of @${other.username}`} />}
+              {theirRating && (
+                <ExchangedRating rating={theirRating} heading={`@${other.username}'s rating of you`} />
+              )}
+              {!canRate && !myRating && !theirRating && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Ratings for this deal are closed.
+                </p>
+              )}
             </div>
-
-            {canRate && <RateBlock deal={deal} other={other} />}
-
-            {myRating && <ExchangedRating rating={myRating} heading={`Your rating of @${other.username}`} />}
-            {theirRating && (
-              <ExchangedRating rating={theirRating} heading={`@${other.username}'s rating of you`} />
-            )}
-            {!canRate && !myRating && !theirRating && (
-              <p className="text-xs text-muted-foreground text-center">
-                Ratings for this deal are closed.
-              </p>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Conversation */}
-        {deal.status !== "declined" &&
-        deal.status !== "withdrawn" &&
-        deal.status !== "expired" ? (
-          <ConversationPreview deal={deal} meId={me.id} />
-        ) : (
-          <div className="text-center">
-            <Link href={`/app/inbox/${deal.threadId}`} className="text-xs text-accent font-semibold">
-              View the conversation →
-            </Link>
-          </div>
-        )}
+        <div className="lg:col-start-2 lg:row-start-2">
+          {deal.status !== "declined" &&
+          deal.status !== "withdrawn" &&
+          deal.status !== "expired" ? (
+            <ConversationPreview deal={deal} meId={me.id} />
+          ) : (
+            <div className="text-center">
+              <Link href={`/app/inbox/${deal.threadId}`} className="text-xs text-accent font-semibold">
+                View the conversation →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1048,11 +1056,11 @@ function DealRoom({ id }: { id: string }) {
 function DealRoomSkeleton() {
   return (
     <div>
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 md:top-14 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center gap-3">
         <ArrowLeft size={20} className="text-muted-foreground" />
         <div className="h-5 w-24 bg-surface rounded animate-pulse" />
       </header>
-      <div className="px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4 lg:px-6">
         <div className="h-20 bg-surface rounded-lg animate-pulse" />
         <div className="h-28 bg-surface rounded-lg animate-pulse" />
         <div className="h-40 bg-surface rounded-lg animate-pulse" />
