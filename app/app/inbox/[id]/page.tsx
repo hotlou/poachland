@@ -65,8 +65,8 @@ function MessageBubble({ message, mine, avatar }: { message: Message; mine: bool
         className={cn(
           "max-w-[78%] rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
           mine
-            ? "bg-accent/15 border-accent/30 text-foreground rounded-br-sm"
-            : "bg-surface border-border text-foreground rounded-bl-sm",
+            ? "bg-accent/10 border-accent/30 text-foreground rounded-br-sm"
+            : "bg-card border-border text-foreground rounded-bl-sm",
         )}
       >
         {message.content}
@@ -78,7 +78,7 @@ function MessageBubble({ message, mine, avatar }: { message: Message; mine: bool
 function ContextCard({ thread }: { thread: Thread }) {
   if (!thread.listing && !thread.deal) return null;
   return (
-    <div className="mx-4 mt-3 bg-card border border-border rounded-lg p-3 space-y-2">
+    <div className="mx-4 mt-3 bg-card border border-border rounded-xl p-3 space-y-2">
       {thread.listing && (
         <Link href={`/app/listings/${thread.listing.id}`} className="flex items-center gap-2.5 group">
           <div className="relative w-10 h-10 rounded-md overflow-hidden bg-surface border border-border flex-shrink-0">
@@ -117,7 +117,7 @@ function NotFound() {
   return (
     <div className="px-6 py-24 text-center">
       <MessageSquare size={32} className="mx-auto mb-4 text-muted-foreground" />
-      <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+      <h2 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
         Thread not found
       </h2>
       <p className="text-sm text-muted-foreground mb-6">
@@ -125,7 +125,7 @@ function NotFound() {
       </p>
       <Link
         href="/app/inbox"
-        className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm"
+        className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-6 py-3 rounded-full"
       >
         Back to inbox
       </Link>
@@ -241,7 +241,7 @@ function ThreadContent({ threadId }: { threadId: string }) {
                   }
                 }}
                 placeholder={`Message @${other.username}...`}
-                className="flex-1 bg-background border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
+                className="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
               />
               <button
                 type="button"

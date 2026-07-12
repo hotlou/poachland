@@ -94,7 +94,7 @@ function DealRow({ deal, meId }: { deal: Deal; meId: string }) {
   return (
     <Link
       href={`/app/trades/${deal.id}`}
-      className="flex gap-3 bg-card border border-border rounded-lg p-3 card-lift"
+      className="flex gap-3 bg-card border border-border rounded-xl p-3 card-lift"
     >
       <div className="relative w-12 h-12 rounded-md overflow-hidden bg-surface border border-border flex-shrink-0">
         <img
@@ -126,7 +126,7 @@ function MessagesTab({ threads }: { threads: Thread[] }) {
     return (
       <div className="px-6 py-20 text-center">
         <MessageSquare size={32} className="mx-auto mb-4 text-muted-foreground" />
-        <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+        <h2 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
           No conversations yet
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
@@ -134,7 +134,7 @@ function MessagesTab({ threads }: { threads: Thread[] }) {
         </p>
         <Link
           href="/app/browse"
-          className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide text-sm px-6 py-3 rounded-sm"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold text-sm px-6 py-3 rounded-full"
         >
           Browse the market
         </Link>
@@ -155,7 +155,7 @@ function DealsTab({ yourMove, others, meId }: { yourMove: Deal[]; others: Deal[]
     return (
       <div className="px-6 py-20 text-center">
         <ArrowRightLeft size={32} className="mx-auto mb-4 text-muted-foreground" />
-        <h2 className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+        <h2 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
           No live deals
         </h2>
         <p className="text-sm text-muted-foreground mb-6">
@@ -234,10 +234,10 @@ function InboxContent() {
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors",
               tab === key
                 ? "bg-accent text-accent-foreground border-accent"
-                : "bg-transparent text-muted-foreground border-border hover:text-foreground",
+                : "bg-card text-muted-foreground border-border hover:text-foreground",
             )}
           >
             {label}
@@ -270,7 +270,7 @@ function InboxSkeleton() {
     <div>
       <div className="flex gap-2 px-4 pt-4 pb-3">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="h-8 w-28 bg-surface rounded-sm animate-pulse" />
+          <div key={i} className="h-8 w-28 bg-surface rounded-full animate-pulse" />
         ))}
       </div>
       <div className="divide-y divide-border">
@@ -292,7 +292,7 @@ export default function InboxPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <h1 className="font-display font-bold text-2xl uppercase tracking-tight text-foreground">
+        <h1 className="font-display font-bold text-2xl tracking-tight text-foreground">
           Inbox
         </h1>
       </header>

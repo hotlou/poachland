@@ -85,18 +85,18 @@ function StatusBanner({
   return (
     <div
       className={cn(
-        "rounded-lg border p-3 flex items-start gap-3",
-        tone === "red" && "border-red-400/50 bg-red-400/10",
-        tone === "orange" && "border-orange-400/50 bg-orange-400/10",
-        tone === "muted" && "border-border bg-surface",
+        "rounded-xl border p-3 flex items-start gap-3",
+        tone === "red" && "border-red-600/40 bg-red-600/10 dark:border-red-400/50 dark:bg-red-400/10",
+        tone === "orange" && "border-orange-600/40 bg-orange-600/10 dark:border-orange-400/50 dark:bg-orange-400/10",
+        tone === "muted" && "border-border bg-card",
       )}
     >
       <Icon
         size={18}
         className={cn(
           "flex-shrink-0 mt-0.5",
-          tone === "red" && "text-red-400",
-          tone === "orange" && "text-orange-400",
+          tone === "red" && "text-red-600 dark:text-red-400",
+          tone === "orange" && "text-orange-700 dark:text-orange-400",
           tone === "muted" && "text-muted-foreground",
         )}
       />
@@ -117,7 +117,9 @@ function MiniStars({ value }: { value: number }) {
           size={12}
           strokeWidth={1.5}
           className={cn(
-            s <= Math.round(value) ? "fill-yellow-400 text-yellow-400" : "fill-transparent text-muted-foreground",
+            s <= Math.round(value)
+              ? "fill-amber-500 text-amber-500 dark:fill-yellow-400 dark:text-yellow-400"
+              : "fill-transparent text-muted-foreground",
           )}
         />
       ))}
@@ -129,7 +131,7 @@ function MiniStars({ value }: { value: number }) {
 function ExchangedRating({ rating, heading }: { rating: HydratedRating; heading: string }) {
   const overall = (rating.communication + rating.shippingSpeed + rating.itemAccuracy) / 3;
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
+    <div className="rounded-xl border border-border bg-card p-3">
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-display font-bold">
           {heading}
@@ -202,7 +204,7 @@ function SideChecklist({
           })}
         </div>
       )}
-      <div className="flex items-center gap-1.5 bg-surface border border-border rounded-sm px-2 py-2">
+      <div className="flex items-center gap-1.5 bg-surface border border-border rounded-lg px-2 py-2">
         <span className="text-muted-foreground text-xs">$</span>
         <input
           type="number"
@@ -260,9 +262,9 @@ function CounterComposer({ deal, onDone }: { deal: Deal; onDone: () => void }) {
   };
 
   return (
-    <div className="rounded-lg border border-accent/40 bg-card p-4">
+    <div className="rounded-xl border border-accent/40 bg-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display font-bold uppercase tracking-tight text-sm text-foreground">
+        <h3 className="font-display font-bold text-sm text-foreground">
           Your counter
         </h3>
         <button type="button" onClick={onDone} aria-label="Close composer" className="text-muted-foreground">
@@ -292,12 +294,12 @@ function CounterComposer({ deal, onDone }: { deal: Deal; onDone: () => void }) {
         onChange={(e) => setNote(e.target.value)}
         placeholder="Add a note — why this counter works for both of you"
         rows={2}
-        className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none mb-3"
+        className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none mb-3"
       />
       <button
         type="button"
         onClick={submit}
-        className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3 rounded-sm flex items-center justify-center gap-2"
+        className="w-full bg-accent text-accent-foreground font-display font-semibold py-3 rounded-full flex items-center justify-center gap-2"
       >
         <ArrowRightLeft size={15} /> Send counter
       </button>
@@ -334,8 +336,8 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
   };
 
   return (
-    <div className="rounded-lg border border-accent/40 bg-card p-4">
-      <h3 className="font-display font-bold uppercase tracking-tight text-sm text-foreground mb-1">
+    <div className="rounded-xl border border-accent/40 bg-card p-4">
+      <h3 className="font-display font-bold text-sm text-foreground mb-1">
         Rate @{other.username}
       </h3>
       <p className="text-xs text-muted-foreground mb-4">
@@ -355,12 +357,12 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
         onChange={(e) => setComment(e.target.value)}
         placeholder="Optional — a line about how it went"
         rows={2}
-        className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none mb-3"
+        className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none mb-3"
       />
       <button
         type="button"
         onClick={submit}
-        className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3 rounded-sm flex items-center justify-center gap-2"
+        className="w-full bg-accent text-accent-foreground font-display font-semibold py-3 rounded-full flex items-center justify-center gap-2"
       >
         <Star size={15} /> Submit rating
       </button>
@@ -446,7 +448,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             "Not shipped yet"
           )}
         </p>
-        <p className={cn("text-xs mt-0.5", f?.receivedAt ? "text-emerald-400" : "text-muted-foreground")}>
+        <p className={cn("text-xs mt-0.5", f?.receivedAt ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
           {f?.receivedAt ? (
             <>
               <CheckCircle2 size={11} className="inline mr-1 -mt-0.5" />
@@ -461,10 +463,10 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
   );
 
   return (
-    <div className="rounded-lg border border-accent/40 bg-card p-4">
+    <div className="rounded-xl border border-accent/40 bg-card p-4">
       <div className="flex items-center gap-2 mb-2">
         <Handshake size={16} className="text-accent" />
-        <h3 className="font-display font-bold uppercase tracking-tight text-sm text-foreground">
+        <h3 className="font-display font-bold text-sm text-foreground">
           Deal agreed — time to deliver
         </h3>
       </div>
@@ -483,12 +485,12 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
               value={tracking}
               onChange={(e) => setTracking(e.target.value)}
               placeholder="Tracking # (optional)"
-              className="flex-1 bg-surface border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
+              className="flex-1 bg-surface border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
             />
             <button
               type="button"
               onClick={ship}
-              className="flex-shrink-0 border border-accent text-accent font-display font-bold uppercase tracking-wide text-xs px-4 py-3 rounded-sm flex items-center gap-1.5"
+              className="flex-shrink-0 border border-accent text-accent font-display font-semibold text-xs px-4 py-3 rounded-full flex items-center gap-1.5"
             >
               <Package size={14} /> Mark shipped
             </button>
@@ -501,7 +503,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
           <AlertDialogTrigger asChild>
             <button
               type="button"
-              className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-3.5 rounded-sm flex items-center justify-center gap-2"
+              className="w-full bg-accent text-accent-foreground font-display font-semibold py-3.5 rounded-full flex items-center justify-center gap-2"
             >
               <CheckCircle2 size={16} /> Confirm complete
             </button>
@@ -522,7 +524,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
           </AlertDialogContent>
         </AlertDialog>
       ) : (
-        <div className="rounded-md bg-surface border border-border px-3 py-2.5 text-sm text-muted-foreground text-center">
+        <div className="rounded-lg bg-surface border border-border px-3 py-2.5 text-sm text-muted-foreground text-center">
           You&apos;ve confirmed — waiting on @{other.username}.
         </div>
       )}
@@ -530,7 +532,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
       <div className="flex items-center justify-center gap-4 mt-3">
         <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
           <DialogTrigger asChild>
-            <button type="button" className="text-xs text-muted-foreground hover:text-orange-400 transition-colors flex items-center gap-1">
+            <button type="button" className="text-xs text-muted-foreground hover:text-orange-700 dark:hover:text-orange-400 transition-colors flex items-center gap-1">
               <Ban size={12} /> Cancel deal
             </button>
           </DialogTrigger>
@@ -546,12 +548,12 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
               onChange={(e) => setCancelReason(e.target.value)}
               placeholder="Reason (optional)"
               rows={2}
-              className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
             <button
               type="button"
               onClick={cancel}
-              className="w-full bg-orange-400/15 border border-orange-400 text-orange-400 font-display font-bold uppercase tracking-wide py-3 rounded-sm"
+              className="w-full bg-orange-600/10 border border-orange-600 text-orange-700 dark:bg-orange-400/15 dark:border-orange-400 dark:text-orange-400 font-display font-semibold py-3 rounded-full"
             >
               Cancel the deal
             </button>
@@ -560,7 +562,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
 
         <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
           <DialogTrigger asChild>
-            <button type="button" className="text-xs text-muted-foreground hover:text-red-400 transition-colors flex items-center gap-1">
+            <button type="button" className="text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1">
               <ShieldAlert size={12} /> Report a problem
             </button>
           </DialogTrigger>
@@ -576,12 +578,12 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
               onChange={(e) => setDisputeReason(e.target.value)}
               placeholder="Describe what went wrong"
               rows={3}
-              className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+              className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
             <button
               type="button"
               onClick={dispute}
-              className="w-full bg-red-400/15 border border-red-400 text-red-400 font-display font-bold uppercase tracking-wide py-3 rounded-sm"
+              className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold py-3 rounded-full"
             >
               Open dispute
             </button>
@@ -614,7 +616,7 @@ function ConversationPreview({ deal, meId }: { deal: Deal; meId: string }) {
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-display font-bold uppercase tracking-tight text-sm text-foreground flex items-center gap-2">
+        <h2 className="font-display font-bold text-sm text-foreground flex items-center gap-2">
           <MessageCircle size={15} className="text-accent" /> Conversation
         </h2>
         <Link href={`/app/inbox/${deal.threadId}`} className="text-xs text-accent font-semibold">
@@ -640,8 +642,8 @@ function ConversationPreview({ deal, meId }: { deal: Deal; meId: string }) {
               <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-lg px-3 py-2",
-                    mine ? "bg-accent/15 border border-accent/30" : "bg-surface border border-border",
+                    "max-w-[80%] rounded-xl px-3 py-2",
+                    mine ? "bg-accent/10 border border-accent/30" : "bg-card border border-border",
                   )}
                 >
                   <p className="text-sm text-foreground leading-relaxed break-words">{m.content}</p>
@@ -693,7 +695,7 @@ function DealRoom({ id }: { id: string }) {
   if (!deal) {
     return (
       <div className="px-6 py-20 text-center">
-        <p className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+        <p className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
           No deal here
         </p>
         <p className="text-sm text-muted-foreground mb-6">
@@ -701,7 +703,7 @@ function DealRoom({ id }: { id: string }) {
         </p>
         <Link
           href="/app/trades"
-          className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide px-6 py-3 rounded-sm text-sm"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-6 py-3 rounded-full text-sm"
         >
           Back to your trades
         </Link>
@@ -712,7 +714,7 @@ function DealRoom({ id }: { id: string }) {
   if (deal.proposerId !== me.id && deal.ownerId !== me.id) {
     return (
       <div className="px-6 py-20 text-center">
-        <p className="font-display font-bold uppercase tracking-tight text-xl text-foreground mb-2">
+        <p className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
           Not your deal
         </p>
         <p className="text-sm text-muted-foreground mb-6">
@@ -720,7 +722,7 @@ function DealRoom({ id }: { id: string }) {
         </p>
         <Link
           href="/app/trades"
-          className="inline-block bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide px-6 py-3 rounded-sm text-sm"
+          className="inline-block bg-accent text-accent-foreground font-display font-semibold px-6 py-3 rounded-full text-sm"
         >
           Back to your trades
         </Link>
@@ -771,7 +773,7 @@ function DealRoom({ id }: { id: string }) {
         <button type="button" onClick={() => router.back()} aria-label="Back">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="font-display font-bold text-lg uppercase tracking-tight flex-1">
+        <h1 className="font-display font-bold text-lg tracking-tight flex-1">
           {DEAL_KIND_LABELS[deal.kind]}
         </h1>
         <DealStatusBadge status={deal.status} />
@@ -781,7 +783,7 @@ function DealRoom({ id }: { id: string }) {
         {/* Primary listing */}
         <Link
           href={`/app/listings/${deal.listing.id}`}
-          className="flex items-center gap-3 bg-card border border-border rounded-lg p-3 card-lift"
+          className="flex items-center gap-3 bg-card border border-border rounded-xl p-3 card-lift"
         >
           <div className="w-14 h-14 rounded-lg overflow-hidden bg-surface flex-shrink-0">
             <img
@@ -802,7 +804,7 @@ function DealRoom({ id }: { id: string }) {
         </Link>
 
         {/* Parties */}
-        <div className="flex items-start justify-center gap-4 bg-surface border border-border rounded-lg p-4">
+        <div className="flex items-start justify-center gap-4 bg-card border border-border rounded-xl p-4">
           <PartyChip user={deal.proposer} isMe={deal.proposerId === me.id} />
           <div className="pt-3">
             <ArrowRightLeft size={20} className="text-accent" />
@@ -812,10 +814,10 @@ function DealRoom({ id }: { id: string }) {
 
         {/* Negotiation timeline */}
         <section>
-          <h2 className="font-display font-bold uppercase tracking-tight text-sm text-foreground mb-3">
+          <h2 className="font-display font-bold text-sm text-foreground mb-3">
             Negotiation
             {deal.offers.length > 1 && (
-              <span className="text-muted-foreground font-normal normal-case tracking-normal text-xs ml-2">
+              <span className="text-muted-foreground font-normal text-xs ml-2">
                 {deal.offers.length} rounds
               </span>
             )}
@@ -883,7 +885,7 @@ function DealRoom({ id }: { id: string }) {
               <AlertDialogTrigger asChild>
                 <button
                   type="button"
-                  className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-4 rounded-sm flex items-center justify-center gap-2"
+                  className="w-full bg-accent text-accent-foreground font-display font-semibold py-4 rounded-full flex items-center justify-center gap-2"
                 >
                   <Handshake size={17} /> Accept offer
                 </button>
@@ -909,10 +911,10 @@ function DealRoom({ id }: { id: string }) {
                   type="button"
                   onClick={() => setComposerOpen((v) => !v)}
                   className={cn(
-                    "border font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm flex items-center justify-center gap-1.5 transition-colors",
+                    "border font-display font-semibold text-sm py-3 rounded-full flex items-center justify-center gap-1.5 transition-colors",
                     composerOpen
                       ? "border-accent bg-accent/10 text-accent"
-                      : "border-border text-foreground",
+                      : "border-border bg-card text-foreground",
                   )}
                 >
                   <ArrowRightLeft size={14} /> Counter
@@ -923,7 +925,7 @@ function DealRoom({ id }: { id: string }) {
                   <button
                     type="button"
                     className={cn(
-                      "border border-border text-muted-foreground font-display font-bold uppercase tracking-wide text-sm py-3 rounded-sm flex items-center justify-center gap-1.5",
+                      "border border-border bg-card text-muted-foreground font-display font-semibold text-sm py-3 rounded-full flex items-center justify-center gap-1.5",
                       deal.kind === "claim" && "col-span-2",
                     )}
                   >
@@ -942,12 +944,12 @@ function DealRoom({ id }: { id: string }) {
                     onChange={(e) => setDeclineReason(e.target.value)}
                     placeholder="e.g. Holding out for a disc, not cash"
                     rows={2}
-                    className="w-full bg-surface border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
                   />
                   <button
                     type="button"
                     onClick={decline}
-                    className="w-full bg-red-400/15 border border-red-400 text-red-400 font-display font-bold uppercase tracking-wide py-3 rounded-sm"
+                    className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold py-3 rounded-full"
                   >
                     Decline offer
                   </button>
@@ -962,11 +964,11 @@ function DealRoom({ id }: { id: string }) {
         )}
 
         {deal.status === "open" && !myTurn && (
-          <div className="rounded-lg border border-border bg-surface p-4 text-center space-y-3">
+          <div className="rounded-xl border border-border bg-card p-4 text-center space-y-3">
             <p className="text-sm text-foreground">
               Waiting on <Link href={`/app/u/${other.username}`} className="text-accent font-semibold">@{other.username}</Link>
             </p>
-            <p className="text-xs text-yellow-400/80">
+            <p className="text-xs text-amber-700/90 dark:text-yellow-400/80">
               {timeUntil(current.expiresAt) === "expired"
                 ? "Offer expired — refresh to close it out"
                 : `Expires: ${timeUntil(current.expiresAt)}`}
@@ -975,7 +977,7 @@ function DealRoom({ id }: { id: string }) {
               <AlertDialogTrigger asChild>
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground hover:text-red-400 transition-colors inline-flex items-center gap-1"
+                  className="text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 transition-colors inline-flex items-center gap-1"
                 >
                   <Undo2 size={12} /> Withdraw offer
                 </button>
@@ -1000,10 +1002,10 @@ function DealRoom({ id }: { id: string }) {
 
         {deal.status === "completed" && (
           <div className="space-y-3">
-            <div className="rounded-lg border border-emerald-400/50 bg-emerald-400/10 p-4 flex items-center gap-3">
-              <PartyPopper size={22} className="text-emerald-400 flex-shrink-0" />
+            <div className="rounded-xl border border-emerald-600/40 bg-emerald-600/10 dark:border-emerald-400/50 dark:bg-emerald-400/10 p-4 flex items-center gap-3">
+              <PartyPopper size={22} className="text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
               <div>
-                <p className="font-display font-bold uppercase tracking-tight text-sm text-emerald-400">
+                <p className="font-display font-bold text-sm text-emerald-700 dark:text-emerald-400">
                   Deal complete
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
