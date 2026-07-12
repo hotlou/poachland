@@ -38,9 +38,9 @@ const LISTING_TYPES: { value: ListingType; label: string; desc: string }[] = [
 
 const LISTING_TYPE_SELECTED: Record<ListingType, string> = {
   trade: "border-accent bg-accent-dim",
-  sell: "border-sky-400 bg-sky-400/10",
-  "trade+cash": "border-purple-400 bg-purple-400/10",
-  free: "border-pink-400 bg-pink-400/10",
+  sell: "border-sky-600 bg-sky-600/10 dark:border-sky-400 dark:bg-sky-400/10",
+  "trade+cash": "border-purple-600 bg-purple-600/10 dark:border-purple-400 dark:bg-purple-400/10",
+  free: "border-pop bg-pop/10",
 };
 
 const LEVELS: Level[] = ["club", "college", "pro", "national", "tournament"];
@@ -56,7 +56,7 @@ const SHIPPING_OPTIONS: { value: ShippingPreference; label: string; desc: string
 const MAX_TAGS = 8;
 
 const inputCls =
-  "w-full bg-surface border border-border rounded-sm px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
+  "w-full bg-card border border-border rounded-lg px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors";
 
 function FieldLabel({
   children,
@@ -84,7 +84,7 @@ function SectionHeading({ index, title, sub }: { index: string; title: string; s
       <p className="text-[10px] font-display font-bold tracking-[0.2em] text-accent mb-1">
         {index}
       </p>
-      <h2 className="font-display font-bold text-xl uppercase tracking-tight">{title}</h2>
+      <h2 className="font-display font-bold text-xl tracking-tight">{title}</h2>
       {sub && <p className="text-sm text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
@@ -92,7 +92,7 @@ function SectionHeading({ index, title, sub }: { index: string; title: string; s
 
 function ErrorHint({ message }: { message: string | null }) {
   if (!message) return null;
-  return <p className="text-xs text-red-400 mt-1.5">{message}</p>;
+  return <p className="text-xs text-red-700 dark:text-red-400 mt-1.5">{message}</p>;
 }
 
 export default function CreateListingPage() {
@@ -199,8 +199,8 @@ export default function CreateListingPage() {
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">
-          <h1 className="font-display font-bold text-lg uppercase tracking-tight">
-            Post a Listing
+          <h1 className="font-display font-bold text-lg tracking-tight">
+            Post a listing
           </h1>
           <p className="text-xs text-muted-foreground">No fees. Ever. That&apos;s the point.</p>
         </div>
@@ -215,7 +215,7 @@ export default function CreateListingPage() {
       >
         {/* ── 01 · The item ─────────────────────────────────────────── */}
         <section>
-          <SectionHeading index="01" title="The Item" sub="Be specific. Traders respect detail." />
+          <SectionHeading index="01" title="The item" sub="Be specific. Traders respect detail." />
 
           {/* Item type toggle */}
           <div className="flex gap-2 mb-6">
@@ -231,10 +231,10 @@ export default function CreateListingPage() {
                 onClick={() => setItemType(value)}
                 aria-pressed={itemType === value}
                 className={cn(
-                  "flex-1 flex flex-col items-center gap-1.5 py-4 rounded-sm border-2 font-display font-bold uppercase tracking-wide text-sm transition-colors",
+                  "flex-1 flex flex-col items-center gap-1.5 py-4 rounded-xl border-2 font-display font-bold text-sm transition-colors",
                   itemType === value
                     ? "bg-accent text-accent-foreground border-accent"
-                    : "bg-surface text-muted-foreground border-border hover:border-muted-foreground",
+                    : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
                 )}
               >
                 <Icon size={22} strokeWidth={itemType === value ? 2.5 : 2} />
@@ -257,7 +257,10 @@ export default function CreateListingPage() {
                     ? "e.g. Brute Squad 2022 Game Jersey"
                     : "e.g. 2019 WFDF Worlds Disc — Cologne"
                 }
-                className={cn(inputCls, attempted && errors.title && "border-red-400")}
+                className={cn(
+                  inputCls,
+                  attempted && errors.title && "border-red-600 dark:border-red-400",
+                )}
               />
               {attempted && <ErrorHint message={errors.title} />}
             </div>
@@ -271,7 +274,10 @@ export default function CreateListingPage() {
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
                 placeholder="e.g. Brute Squad, USAU Nationals"
-                className={cn(inputCls, attempted && errors.team && "border-red-400")}
+                className={cn(
+                  inputCls,
+                  attempted && errors.team && "border-red-600 dark:border-red-400",
+                )}
               />
               {attempted && <ErrorHint message={errors.team} />}
             </div>
@@ -303,10 +309,10 @@ export default function CreateListingPage() {
                     onClick={() => setLevel(l)}
                     aria-pressed={level === l}
                     className={cn(
-                      "px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+                      "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
                       level === l
                         ? "bg-accent text-accent-foreground border-accent"
-                        : "text-muted-foreground border-border hover:border-muted-foreground",
+                        : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
                     )}
                   >
                     {l}
@@ -327,10 +333,10 @@ export default function CreateListingPage() {
                       onClick={() => setDivision(division === d ? null : d)}
                       aria-pressed={division === d}
                       className={cn(
-                        "px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wide border transition-colors",
+                        "px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border transition-colors",
                         division === d
                           ? "bg-accent text-accent-foreground border-accent"
-                          : "text-muted-foreground border-border hover:border-muted-foreground",
+                          : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
                       )}
                     >
                       {d}
@@ -352,10 +358,10 @@ export default function CreateListingPage() {
                       onClick={() => setSize(s)}
                       aria-pressed={size === s}
                       className={cn(
-                        "w-12 py-2 rounded-sm text-xs font-semibold border transition-colors",
+                        "w-12 py-2 rounded-full text-xs font-semibold border transition-colors",
                         size === s
                           ? "bg-accent text-accent-foreground border-accent"
-                          : "text-muted-foreground border-border hover:border-muted-foreground",
+                          : "bg-card text-muted-foreground border-border hover:border-muted-foreground",
                       )}
                     >
                       {s}
@@ -395,7 +401,7 @@ export default function CreateListingPage() {
         <section>
           <SectionHeading
             index="02"
-            title="The Deal"
+            title="The deal"
             sub="Every listing is free to post. Pick how you want to transact."
           />
 
@@ -408,15 +414,15 @@ export default function CreateListingPage() {
                 onClick={() => setListingType(value)}
                 aria-pressed={listingType === value}
                 className={cn(
-                  "flex flex-col gap-1 p-3.5 rounded-sm border-2 text-left transition-colors card-lift",
+                  "flex flex-col gap-1 p-3.5 rounded-xl border-2 text-left transition-colors card-lift",
                   listingType === value
                     ? LISTING_TYPE_SELECTED[value]
-                    : "border-border bg-surface hover:border-muted-foreground",
+                    : "border-border bg-card hover:border-muted-foreground",
                 )}
               >
                 <span
                   className={cn(
-                    "font-display font-bold uppercase tracking-wide text-sm",
+                    "font-display font-bold text-sm",
                     listingType === value ? "text-foreground" : "text-muted-foreground",
                   )}
                 >
@@ -439,8 +445,8 @@ export default function CreateListingPage() {
                 </FieldLabel>
                 <div
                   className={cn(
-                    "flex items-center gap-2 bg-surface border border-border rounded-sm px-3 py-3 focus-within:border-accent transition-colors",
-                    attempted && errors.price && "border-red-400",
+                    "flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-3 focus-within:border-accent transition-colors",
+                    attempted && errors.price && "border-red-600 dark:border-red-400",
                   )}
                 >
                   <span className="text-muted-foreground text-sm">$</span>
@@ -493,10 +499,10 @@ export default function CreateListingPage() {
                     aria-checked={shippingPref === value}
                     onClick={() => setShippingPref(value)}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-sm border text-left transition-colors",
+                      "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors",
                       shippingPref === value
                         ? "border-accent bg-accent-dim"
-                        : "border-border bg-surface hover:border-muted-foreground",
+                        : "border-border bg-card hover:border-muted-foreground",
                     )}
                   >
                     <span
@@ -520,7 +526,7 @@ export default function CreateListingPage() {
         <section>
           <SectionHeading
             index="03"
-            title="The Story"
+            title="The story"
             sub="Honest detail closes deals. Flaws included."
           />
 
@@ -545,20 +551,20 @@ export default function CreateListingPage() {
               </FieldLabel>
               <div
                 className={cn(
-                  "flex flex-wrap items-center gap-1.5 bg-surface border border-border rounded-sm px-3 py-2.5 focus-within:border-accent transition-colors",
+                  "flex flex-wrap items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-2.5 focus-within:border-accent transition-colors",
                 )}
               >
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 bg-surface-raised border border-border rounded-sm px-2 py-1 text-xs text-foreground"
+                    className="inline-flex items-center gap-1 bg-surface border border-border rounded-full px-2.5 py-1 text-xs text-foreground"
                   >
                     {tag}
                     <button
                       type="button"
                       aria-label={`Remove tag ${tag}`}
                       onClick={() => setTags(tags.filter((t) => t !== tag))}
-                      className="text-muted-foreground hover:text-red-400 transition-colors"
+                      className="text-muted-foreground hover:text-red-700 dark:hover:text-red-400 transition-colors"
                     >
                       <X size={12} />
                     </button>
@@ -588,7 +594,7 @@ export default function CreateListingPage() {
             </div>
 
             {/* Rare switch */}
-            <div className="flex items-center justify-between gap-3 p-3.5 rounded-sm border border-border bg-surface">
+            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-border bg-card">
               <div className="flex items-start gap-3">
                 <Flame
                   size={18}
@@ -615,8 +621,10 @@ export default function CreateListingPage() {
           />
           <div
             className={cn(
-              "rounded-sm border p-3",
-              attempted && errors.photos ? "border-red-400" : "border-border",
+              "rounded-xl border bg-card p-3",
+              attempted && errors.photos
+                ? "border-red-600 dark:border-red-400"
+                : "border-border",
             )}
           >
             <PhotoPicker photos={photos} onChange={setPhotos} itemType={itemType} />
@@ -629,9 +637,9 @@ export default function CreateListingPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-accent text-accent-foreground font-display font-bold uppercase tracking-wide py-4 rounded-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+            className="w-full bg-accent text-accent-foreground font-semibold py-4 rounded-full hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {submitting ? "Posting…" : "Post Listing — It's Free"}
+            {submitting ? "Posting…" : "Post listing — it's free"}
           </button>
           <p className="text-xs text-muted-foreground text-center mt-3 leading-relaxed">
             Hunters with a matching wanted post get pinged the moment this goes live.
