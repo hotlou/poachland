@@ -6,31 +6,47 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
+  Ban,
+  Clock,
   ExternalLink,
+  EyeOff,
   Flag,
   Gavel,
   IdCard,
   LayoutGrid,
+  MoreHorizontal,
   Package,
+  RotateCcw,
   ShieldAlert,
   Star,
   Trash2,
+  UserCog,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { dispatchOp, fetchAdminData } from "@/app/actions/engine";
+import { useAsUser } from "@/app/actions/auth";
 import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
 import { useHydrated, useStore } from "@/lib/store-context";
 import type { RemotePoachStore } from "@/lib/remote-store";
 import { DealStatusBadge } from "@/components/deal-status-badge";
 import { IDENTITY_PROVIDER_META, IDENTITY_STATUS_META } from "@/components/identity-chips";
-import { formatMonthYear, timeAgo } from "@/lib/format";
+import { formatDate, formatMonthYear, timeAgo } from "@/lib/format";
 import { LISTING_STATUS_LABELS } from "@/lib/constants";
-import type { DealRecord, IdentityRecord, Listing, Report } from "@/lib/types";
+import type { DealRecord, IdentityRecord, Listing, Report, UserStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -138,6 +154,22 @@ const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string
     cls: "text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400",
   },
   dismissed: { label: "Dismissed", cls: "text-muted-foreground border-border" },
+};
+
+/** Moderation status → quiet chip. `active` shows nothing (kept off the roster). */
+const USER_STATUS_CHIP: Record<Exclude<UserStatus, "active">, { label: string; cls: string }> = {
+  shadowbanned: {
+    label: "Shadowbanned",
+    cls: "text-purple-700 border-purple-700/50 dark:text-purple-400 dark:border-purple-400/50",
+  },
+  suspended: {
+    label: "Suspended",
+    cls: "text-amber-700 border-amber-700/50 dark:text-yellow-400 dark:border-yellow-400/50",
+  },
+  banned: {
+    label: "Banned",
+    cls: "text-red-700 border-red-700/50 dark:text-red-400 dark:border-red-400/50",
+  },
 };
 
 /* ── 1. Stats grid ───────────────────────────────────────────────────────── */
@@ -891,13 +923,46 @@ function DisputesSection({
 
 /* ── 5. Users ────────────────────────────────────────────────────────────── */
 
+/** Small quiet chip for a member's moderation standing. `active` → nothing. */
+function UserStatusChip({ user }: { user: AdminUser }) {
+  if (user.status === "active") return null;
+  const meta = USER_STATUS_CHIP[user.status];
+  const label =
+    user.status === "suspended" && user.suspendedUntil
+      ? `Suspended · until ${formatDate(user.suspendedUntil)}`
+      : meta.label;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[13px] font-medium shrink-0",
+        meta.cls,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+type ModAction = "shadowban" | "suspend" | "ban";
+
 function UsersSection({
   users,
   onSetVerified,
+  onSetStatus,
 }: {
   users: AdminUser[];
   onSetVerified: (userId: string, verified: boolean) => Promise<boolean>;
+  onSetStatus: (
+    userId: string,
+    status: UserStatus,
+    opts?: { days?: number; note?: string },
+  ) => Promise<boolean>;
 }) {
+  const [modTarget, setModTarget] = useState<{ user: AdminUser; action: ModAction } | null>(null);
+  const [days, setDays] = useState("7");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
   const toggleVerified = async (user: AdminUser, verified: boolean) => {
     const ok = await onSetVerified(user.id, verified);
     if (ok) {
@@ -906,6 +971,55 @@ function UsersSection({
           ? `${user.username} is now verified`
           : `Verification pulled from ${user.username}`,
       );
+    }
+  };
+
+  const openMod = (user: AdminUser, action: ModAction) => {
+    setDays("7");
+    setNote("");
+    setModTarget({ user, action });
+  };
+
+  const restore = async (user: AdminUser) => {
+    const ok = await onSetStatus(user.id, "active");
+    if (ok) toast.success(`@${user.username} restored`);
+  };
+
+  const useAs = async (user: AdminUser) => {
+    const res = await useAsUser(user.id);
+    if (res.ok) {
+      toast.success(`Now using Poachland as @${user.username}`);
+      // Full navigation so the impersonated session bootstraps cleanly.
+      window.location.assign("/app");
+    } else {
+      toast.error(res.error);
+    }
+  };
+
+  const confirmMod = async () => {
+    if (!modTarget || busy) return;
+    const { user, action } = modTarget;
+    setBusy(true);
+    let ok = false;
+    if (action === "shadowban") {
+      ok = await onSetStatus(user.id, "shadowbanned");
+    } else if (action === "suspend") {
+      const parsed = Number.parseInt(days, 10);
+      const d = Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
+      ok = await onSetStatus(user.id, "suspended", { days: d, note: note.trim() || undefined });
+    } else {
+      ok = await onSetStatus(user.id, "banned", { note: note.trim() || undefined });
+    }
+    setBusy(false);
+    if (ok) {
+      toast.success(
+        action === "shadowban"
+          ? `@${user.username} shadowbanned`
+          : action === "suspend"
+            ? `@${user.username} suspended`
+            : `@${user.username} banned`,
+      );
+      setModTarget(null);
     }
   };
 
@@ -923,7 +1037,7 @@ function UsersSection({
               />
             </Link>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground flex items-center gap-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 min-w-0 flex-wrap">
                 <Link
                   href={`/app/u/${u.username}`}
                   className="truncate hover:text-accent transition-colors"
@@ -932,6 +1046,12 @@ function UsersSection({
                 </Link>
                 {u.isVerified && (
                   <BadgeCheck size={14} className="text-accent shrink-0" strokeWidth={2.5} />
+                )}
+                <UserStatusChip user={u} />
+                {u.isAdmin && (
+                  <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[13px] font-medium text-muted-foreground shrink-0">
+                    Mod
+                  </span>
                 )}
               </p>
               <p className="text-xs text-muted-foreground truncate">{u.email}</p>
@@ -943,6 +1063,11 @@ function UsersSection({
                 {u.trustScore.toFixed(1)} · {u.tradesCompleted} trades · since{" "}
                 {formatMonthYear(u.memberSince)}
               </p>
+              {u.moderationNote && (
+                <p className="text-xs text-muted-foreground/80 italic truncate mt-0.5">
+                  {u.moderationNote}
+                </p>
+              )}
             </div>
             <label className="flex items-center gap-2 shrink-0 cursor-pointer">
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium hidden sm:inline">
@@ -955,9 +1080,166 @@ function UsersSection({
                 aria-label={`Verify ${u.username}`}
               />
             </label>
+            {!u.isAdmin && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                    aria-label={`Moderate ${u.username}`}
+                  >
+                    <MoreHorizontal size={16} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 bg-card border-border">
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Moderation
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => openMod(u, "shadowban")}>
+                    <EyeOff /> Shadowban
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openMod(u, "suspend")}>
+                    <Clock /> Suspend
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={() => openMod(u, "ban")}>
+                    <Ban /> Ban
+                  </DropdownMenuItem>
+                  {u.status !== "active" && (
+                    <DropdownMenuItem onSelect={() => void restore(u)}>
+                      <RotateCcw /> Restore
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onSelect={() => void useAs(u)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <UserCog /> Use as @{u.username}
+                    </span>
+                    <span className="pl-6 text-[11px] text-muted-foreground">
+                      View the app exactly as they see it. Exit anytime from the banner.
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Shadowban / Suspend — reversible, accent-styled dialogs. */}
+      <Dialog
+        open={modTarget?.action === "shadowban" || modTarget?.action === "suspend"}
+        onOpenChange={(o) => !o && setModTarget(null)}
+      >
+        <DialogContent className="max-w-sm bg-card border-border">
+          {modTarget?.action === "shadowban" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold tracking-tight">
+                  Shadowban @{modTarget.user.username}?
+                </DialogTitle>
+                <DialogDescription>
+                  Their listings, posts, and profile vanish for everyone else. They won&apos;t know.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" className="rounded-full" onClick={() => setModTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+                  disabled={busy}
+                  onClick={() => void confirmMod()}
+                >
+                  {busy ? "Working…" : "Shadowban"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+          {modTarget?.action === "suspend" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold tracking-tight">
+                  Suspend @{modTarget.user.username}?
+                </DialogTitle>
+                <DialogDescription>Locks them out with a notice until it lifts.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-1">
+                <label className="block">
+                  <span className="text-xs font-medium text-muted-foreground">Days</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={days}
+                    onChange={(e) => setDays(e.target.value)}
+                    className="mt-1 bg-surface"
+                    aria-label="Suspension length in days"
+                  />
+                </label>
+                <Textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Optional note — the user sees this on their notice."
+                  rows={3}
+                  className="bg-surface resize-none"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" className="rounded-full" onClick={() => setModTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+                  disabled={busy}
+                  onClick={() => void confirmMod()}
+                >
+                  {busy ? "Working…" : "Suspend"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban — permanent, destructive confirm. */}
+      <AlertDialog
+        open={modTarget?.action === "ban"}
+        onOpenChange={(o) => !o && setModTarget(null)}
+      >
+        <AlertDialogContent className="max-w-sm bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display font-bold tracking-tight">
+              Ban @{modTarget?.user.username}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanent. They see a banned notice and can&apos;t act. Content hidden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Optional note — the user sees this on their notice."
+            rows={3}
+            className="bg-surface resize-none"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Keep them</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault(); // keep the dialog open until the server answers
+                void confirmMod();
+              }}
+            >
+              {busy ? "Banning…" : "Ban user"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
@@ -1236,6 +1518,14 @@ export default function AdminPage() {
                 users={data.users}
                 onSetVerified={(userId, verified) =>
                   run("adminSetUserVerified", { userId, verified })
+                }
+                onSetStatus={(userId, status, opts) =>
+                  run("adminSetUserStatus", {
+                    userId,
+                    status,
+                    days: opts?.days,
+                    note: opts?.note,
+                  })
                 }
               />
               <ListingsSection

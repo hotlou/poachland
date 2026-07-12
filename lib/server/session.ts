@@ -8,7 +8,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import { getSessionUser, type SessionUser } from "./auth";
+import { getSessionContext, getSessionUser, type SessionContext, type SessionUser } from "./auth";
 
 export const SESSION_COOKIE = "poach_session";
 export const SESSION_COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days, seconds
@@ -42,6 +42,13 @@ export async function readSessionUser(): Promise<SessionUser | null> {
   const sessionId = await readSessionCookie();
   if (!sessionId) return null;
   return getSessionUser(sessionId);
+}
+
+/** Full session context (real + effective user, impersonation), or null. */
+export async function readSessionContext(): Promise<SessionContext | null> {
+  const sessionId = await readSessionCookie();
+  if (!sessionId) return null;
+  return getSessionContext(sessionId);
 }
 
 /** Thrown by requireSessionUser when there is no valid session. */

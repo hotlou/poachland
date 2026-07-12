@@ -47,6 +47,7 @@ import type {
   ReportTargetType,
   SaveTargetType,
   ShippingPreference,
+  UserStatus,
 } from "../types";
 
 // ─── Identity scaffolding enums (server-only, not part of lib/types.ts) ──────
@@ -84,6 +85,10 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true, mode: "date" }),
+  // Moderation.
+  status: text("status").$type<UserStatus>().notNull().default("active"),
+  suspendedUntil: timestamp("suspended_until", { withTimezone: true, mode: "date" }),
+  moderationNote: text("moderation_note"),
 });
 
 // ─── Listings ────────────────────────────────────────────────────────────────
@@ -393,6 +398,11 @@ export const sessions = pgTable("sessions", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" })
     .notNull()
     .defaultNow(),
+  // Admin "use as" — when set (and the session's real user is an admin), the
+  // request acts as this user. Cleared on stop-impersonation.
+  impersonatingUserId: text("impersonating_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
 });
 
 // ─── Identity scaffolding (future real-life reputation binding) ──────────────

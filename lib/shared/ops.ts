@@ -29,6 +29,7 @@ import type {
   SaveTargetType,
   ShippingPreference,
   UserRecord,
+  UserStatus,
 } from "../types";
 
 // ─── Snapshot ─────────────────────────────────────────────────────────────────
@@ -56,6 +57,15 @@ export interface SessionMe extends UserRecord {
   needsOnboarding: boolean;
   /** Whether a password is set (magic link always works either way). */
   hasPassword: boolean;
+  /**
+   * Account standing as shown TO THE USER. `shadowbanned` is masked to
+   * `active` here — the user must never see it. Drives the gate screen.
+   */
+  accountStatus: "active" | "suspended" | "banned";
+  suspendedUntil?: string;
+  moderationNote?: string;
+  /** Set when an admin is viewing the app "as" this user (support/debug). */
+  impersonatedByAdmin?: string;
 }
 
 /** Admin-only view fetched separately (fetchAdminData). */
@@ -63,7 +73,13 @@ export interface AdminData {
   reports: DBState["reports"];
   disputedDeals: DBState["deals"];
   identityQueue: IdentityRecord[];
-  users: (UserRecord & { email: string })[];
+  users: (UserRecord & {
+    email: string;
+    status: UserStatus;
+    suspendedUntil?: string;
+    moderationNote?: string;
+    isAdmin: boolean;
+  })[];
   stats: {
     users: number;
     verifiedUsers: number;
@@ -208,6 +224,13 @@ export interface OpMap {
   adminResolveReport: { reportId: string; action: "dismiss" | "remove-listing" | "warn-user"; note?: string };
   adminResolveDispute: { dealId: string; outcome: "cancelled" | "completed"; note?: string };
   adminSetUserVerified: { userId: string; verified: boolean };
+  adminSetUserStatus: {
+    userId: string;
+    status: UserStatus;
+    /** For "suspended": days from now until it auto-lifts (default 7). */
+    days?: number;
+    note?: string;
+  };
   adminSetListingFeatured: { id: string; featured: boolean };
   adminRemoveListing: { id: string; reason?: string };
   adminReviewIdentity: { identityId: string; status: "verified" | "rejected" | "pending"; note?: string };

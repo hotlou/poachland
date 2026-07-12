@@ -56,6 +56,10 @@ function toUserRecord(me: SessionMe): UserRecord {
     isAdmin: _isAdmin,
     needsOnboarding: _needs,
     hasPassword: _hasPassword,
+    accountStatus: _status,
+    suspendedUntil: _suspendedUntil,
+    moderationNote: _modNote,
+    impersonatedByAdmin: _impersonatedBy,
     ...user
   } = me;
   return user;

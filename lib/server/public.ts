@@ -9,7 +9,7 @@
 
 import "server-only";
 
-import { asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import type { Badge, HistoryEntry } from "../types";
 import { getDb } from "./db";
 import { users } from "./schema";
@@ -62,6 +62,7 @@ export async function getPublicProfile(
       isVerified: users.isVerified,
       memberSince: users.memberSince,
       badges: users.badges,
+      status: users.status,
     })
     .from(users)
     .where(eq(users.username, uname))
@@ -69,6 +70,8 @@ export async function getPublicProfile(
 
   const row = rows[0];
   if (!row?.username) return null;
+  // Moderated accounts have no public presence.
+  if (row.status !== "active") return null;
 
   return {
     id: row.id,
@@ -111,7 +114,7 @@ export async function listPublicUsernames(
       onboardedAt: users.onboardedAt,
     })
     .from(users)
-    .where(isNotNull(users.username))
+    .where(and(isNotNull(users.username), eq(users.status, "active")))
     .orderBy(desc(users.tradesCompleted), asc(users.memberSince), asc(users.id))
     .limit(limit);
 

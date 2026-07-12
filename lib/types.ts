@@ -15,6 +15,13 @@ export type Level = "club" | "college" | "pro" | "national" | "tournament";
 export type Division = "open" | "women" | "mixed" | "masters";
 export type ShippingPreference = "seller-pays" | "buyer-pays" | "local-only";
 
+/**
+ * Moderation status. `shadowbanned` is invisible to the user themselves —
+ * their content is hidden from others but they see a normal app. `suspended`
+ * and `banned` gate the account to a notice screen and block all writes.
+ */
+export type UserStatus = "active" | "shadowbanned" | "suspended" | "banned";
+
 export type ListingStatus =
   | "active" // visible, open to offers
   | "pending" // locked inside an accepted deal
