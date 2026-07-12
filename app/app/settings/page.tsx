@@ -11,6 +11,7 @@ import {
   Mail,
   Plus,
   ShieldCheck,
+  SunMoon,
   Trash2,
   UserCircle,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { logOut, updatePassword } from "@/app/actions/auth";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   IDENTITY_PROVIDER_META,
   IDENTITY_STATUS_META,
@@ -39,14 +41,14 @@ import {
 const PROVIDER_OPTIONS: IdentityProvider[] = ["instagram", "facebook", "usau", "other"];
 
 const inputCls =
-  "w-full rounded-md bg-input border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
+  "w-full rounded-lg bg-input border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow";
 
 function SettingsSkeleton() {
   return (
     <div className="px-4 pt-5 space-y-4 animate-pulse">
-      <div className="h-32 bg-surface rounded-lg" />
-      <div className="h-20 bg-surface rounded-lg" />
-      <div className="h-20 bg-surface rounded-lg" />
+      <div className="h-32 bg-surface rounded-xl" />
+      <div className="h-20 bg-surface rounded-xl" />
+      <div className="h-20 bg-surface rounded-xl" />
     </div>
   );
 }
@@ -61,7 +63,7 @@ function SectionTitle({
   return (
     <div className="flex items-center gap-1.5 mb-2">
       <Icon size={14} className="text-accent" />
-      <h2 className="font-display font-bold text-sm uppercase tracking-wider">
+      <h2 className="font-display font-bold text-xs uppercase tracking-[0.14em] text-muted-foreground">
         {children}
       </h2>
     </div>
@@ -105,7 +107,7 @@ function IdentitiesSection() {
 
   return (
     <section>
-      <SectionTitle icon={IdCard}>Linked Identities</SectionTitle>
+      <SectionTitle icon={IdCard}>Linked identities</SectionTitle>
       <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
         Tie your trader rep to a real identity. Verification reviews are coming
         soon — linked handles already show on your profile.
@@ -120,9 +122,9 @@ function IdentitiesSection() {
             return (
               <div
                 key={identity.id}
-                className="flex items-center gap-3 bg-card border border-border rounded-lg p-3"
+                className="flex items-center gap-3 bg-card border border-border rounded-xl p-3"
               >
-                <div className="w-9 h-9 rounded-md bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                <div className="w-9 h-9 rounded-lg bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
                   <Icon size={16} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -153,7 +155,7 @@ function IdentitiesSection() {
                   type="button"
                   onClick={() => remove(identity.id, `@${identity.handle}`)}
                   aria-label={`Remove ${identity.handle}`}
-                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-red-400 transition-colors"
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400 transition-colors"
                 >
                   <Trash2 size={15} />
                 </button>
@@ -169,7 +171,7 @@ function IdentitiesSection() {
           e.preventDefault();
           add();
         }}
-        className="bg-card border border-border rounded-lg p-3.5 space-y-2.5"
+        className="bg-card border border-border rounded-xl p-3.5 space-y-2.5"
       >
         <div className="flex gap-2">
           <select
@@ -205,7 +207,7 @@ function IdentitiesSection() {
         <button
           type="submit"
           disabled={!handle.trim()}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-md bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Plus size={14} /> Link identity
         </button>
@@ -260,7 +262,7 @@ function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md border border-border text-sm font-semibold text-foreground hover:border-accent hover:text-accent transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-accent hover:text-accent transition-colors"
         >
           {hasPassword ? "Change password" : "Set a password"}
         </button>
@@ -323,14 +325,14 @@ function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
         <button
           type="submit"
           disabled={saving || !next || !confirm || (hasPassword && !current)}
-          className="flex-1 py-2 rounded-md bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-40"
+          className="flex-1 py-2 rounded-full bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40"
         >
           {saving ? "Saving…" : hasPassword ? "Change password" : "Set password"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="px-4 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground"
+          className="px-4 py-2 rounded-full border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>
@@ -358,7 +360,7 @@ function SettingsContent() {
       {/* Account */}
       <section>
         <SectionTitle icon={UserCircle}>Account</SectionTitle>
-        <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-sm">
             <Mail size={14} className="text-muted-foreground flex-shrink-0" />
             <span className="text-muted-foreground">Signed in as</span>
@@ -369,10 +371,21 @@ function SettingsContent() {
             type="button"
             onClick={signOut}
             disabled={signingOut}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md border border-border text-sm font-semibold text-foreground hover:border-red-400/60 hover:text-red-400 transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:border-red-700/60 hover:text-red-700 dark:hover:border-red-400/60 dark:hover:text-red-400 transition-colors disabled:opacity-50"
           >
             <LogOut size={15} /> {signingOut ? "Signing out…" : "Sign out"}
           </button>
+        </div>
+      </section>
+
+      {/* Appearance */}
+      <section>
+        <SectionTitle icon={SunMoon}>Appearance</SectionTitle>
+        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Day mode by default. Night market if you&apos;re into that.
+          </p>
+          <ThemeToggle withLabel className="flex-shrink-0" />
         </div>
       </section>
 
@@ -381,9 +394,9 @@ function SettingsContent() {
 
       {/* Blocked traders */}
       <section>
-        <SectionTitle icon={Ban}>Blocked Traders</SectionTitle>
+        <SectionTitle icon={Ban}>Blocked traders</SectionTitle>
         {blocked.length === 0 ? (
-          <p className="text-sm text-muted-foreground bg-card border border-border rounded-lg p-4 text-center">
+          <p className="text-sm text-muted-foreground bg-card border border-border rounded-xl p-4 text-center">
             Nobody blocked. Keep it that way.
           </p>
         ) : (
@@ -391,7 +404,7 @@ function SettingsContent() {
             {blocked.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center gap-3 bg-card border border-border rounded-lg p-3"
+                className="flex items-center gap-3 bg-card border border-border rounded-xl p-3"
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden border border-border flex-shrink-0 grayscale opacity-60">
                   <img
@@ -408,7 +421,7 @@ function SettingsContent() {
                   <AlertDialogTrigger asChild>
                     <button
                       type="button"
-                      className="flex-shrink-0 px-3 py-1.5 rounded-md border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+                      className="flex-shrink-0 px-3 py-1.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
                     >
                       Unblock
                     </button>
@@ -450,7 +463,7 @@ function SettingsContent() {
           <SectionTitle icon={ShieldCheck}>Moderation</SectionTitle>
           <Link
             href="/admin"
-            className="flex items-center justify-between bg-card border border-border rounded-lg p-4 card-lift"
+            className="flex items-center justify-between bg-card border border-border rounded-xl p-4 card-lift"
           >
             <div>
               <p className="text-sm font-semibold">Moderator dashboard</p>
@@ -465,7 +478,7 @@ function SettingsContent() {
 
       {/* About */}
       <section className="pt-2 border-t border-border">
-        <h2 className="font-display font-bold text-sm uppercase tracking-wider mb-2">
+        <h2 className="font-display font-bold text-xs uppercase tracking-[0.14em] text-muted-foreground mb-2">
           About Poachland
         </h2>
         <p className="text-xs text-muted-foreground leading-relaxed">
@@ -494,7 +507,7 @@ export default function SettingsPage() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="font-display font-bold text-xl uppercase tracking-tight">
+        <h1 className="font-display font-bold text-xl tracking-tight">
           Settings
         </h1>
       </header>

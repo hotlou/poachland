@@ -93,8 +93,8 @@ function SectionHeading({
 }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <Icon size={16} className="text-accent" strokeWidth={2.5} />
-      <h2 className="font-display font-bold uppercase tracking-wider text-base text-foreground">
+      <Icon size={15} className="text-accent" strokeWidth={2.5} />
+      <h2 className="font-display font-bold uppercase tracking-[0.14em] text-xs text-muted-foreground">
         {title}
       </h2>
       {count !== undefined && count > 0 && (
@@ -106,15 +106,21 @@ function SectionHeading({
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-lg px-4 py-8 text-center text-sm text-muted-foreground">
+    <div className="bg-card border border-border rounded-xl px-4 py-8 text-center text-sm text-muted-foreground">
       {children}
     </div>
   );
 }
 
 const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string }> = {
-  pending: { label: "Pending", cls: "text-yellow-400 border-yellow-400" },
-  resolved: { label: "Resolved", cls: "text-emerald-400 border-emerald-400" },
+  pending: {
+    label: "Pending",
+    cls: "text-amber-700 border-amber-700 dark:text-yellow-400 dark:border-yellow-400",
+  },
+  resolved: {
+    label: "Resolved",
+    cls: "text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400",
+  },
   dismissed: { label: "Dismissed", cls: "text-muted-foreground border-border" },
 };
 
@@ -149,24 +155,24 @@ function StatsSection({ stats }: { stats: AdminData["stats"] }) {
   ];
   return (
     <section>
-      <SectionHeading icon={LayoutGrid} title="The State of the Land" />
+      <SectionHeading icon={LayoutGrid} title="The state of the land" />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {tiles.map((t) => (
           <div
             key={t.label}
             className={cn(
-              "bg-card border border-border rounded-lg p-3",
-              t.tone === "alert" && "border-red-400/50",
-              t.tone === "warn" && "border-yellow-400/50",
+              "bg-card border border-border rounded-xl p-3",
+              t.tone === "alert" && "border-red-700/50 dark:border-red-400/50",
+              t.tone === "warn" && "border-amber-700/50 dark:border-yellow-400/50",
             )}
           >
             <p
               className={cn(
                 "font-display font-bold text-2xl leading-none",
                 t.tone === "alert"
-                  ? "text-red-400"
+                  ? "text-red-700 dark:text-red-400"
                   : t.tone === "warn"
-                    ? "text-yellow-400"
+                    ? "text-amber-700 dark:text-yellow-400"
                     : "text-foreground",
               )}
             >
@@ -224,7 +230,7 @@ function IdentityQueueSection({
 
   return (
     <section>
-      <SectionHeading icon={IdCard} title="Identity Review Queue" count={queue.length} />
+      <SectionHeading icon={IdCard} title="Identity review queue" count={queue.length} />
       {queue.length === 0 ? (
         <EmptyRow>No identities waiting on review.</EmptyRow>
       ) : (
@@ -237,11 +243,11 @@ function IdentityQueueSection({
             return (
               <div
                 key={identity.id}
-                className="bg-card border border-border rounded-lg p-3.5 space-y-2.5"
+                className="bg-card border border-border rounded-xl p-3.5 space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-md bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                    <div className="w-9 h-9 rounded-lg bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
                       <Icon size={16} />
                     </div>
                     <div className="min-w-0">
@@ -282,7 +288,7 @@ function IdentityQueueSection({
                 <div className="flex gap-2 pt-1">
                   <Button
                     size="sm"
-                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
                     onClick={() => open(identity, "verified")}
                   >
                     Verify
@@ -290,7 +296,7 @@ function IdentityQueueSection({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="text-red-400 border-red-400/40 hover:text-red-400"
+                    className="rounded-full text-red-700 border-red-700/40 hover:text-red-700 dark:text-red-400 dark:border-red-400/40 dark:hover:text-red-400"
                     onClick={() => open(identity, "rejected")}
                   >
                     Reject
@@ -307,7 +313,7 @@ function IdentityQueueSection({
           {reviewing && (
             <>
               <DialogHeader>
-                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                <DialogTitle className="font-display font-bold tracking-tight">
                   {reviewing.status === "verified" ? "Verify identity" : "Reject identity"}
                 </DialogTitle>
                 <DialogDescription>
@@ -326,15 +332,15 @@ function IdentityQueueSection({
                 />
               </div>
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => setReviewing(null)}>
+                <Button variant="outline" className="rounded-full" onClick={() => setReviewing(null)}>
                   Cancel
                 </Button>
                 <Button
                   variant={reviewing.status === "rejected" ? "destructive" : "default"}
                   className={
                     reviewing.status === "rejected"
-                      ? undefined
-                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                      ? "rounded-full"
+                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
                   }
                   disabled={busy}
                   onClick={() => void confirm()}
@@ -473,7 +479,7 @@ function ReportRow({
   const reporter = findUser(report.reporterId);
   const stamp = REPORT_STATUS_STAMP[report.status];
   return (
-    <div className="bg-card border border-border rounded-lg p-3.5 space-y-2.5">
+    <div className="bg-card border border-border rounded-xl p-3.5 space-y-2.5">
       <div className="flex items-start justify-between gap-3">
         <ReportTarget report={report} findUser={findUser} findDisputedDeal={findDisputedDeal} />
         <span className={cn("badge-stamp shrink-0", stamp.cls)}>{stamp.label}</span>
@@ -504,6 +510,7 @@ function ReportRow({
             <Button
               size="sm"
               variant="destructive"
+              className="rounded-full"
               onClick={() => onAction(report, "remove-listing")}
             >
               Remove listing
@@ -513,13 +520,18 @@ function ReportRow({
             <Button
               size="sm"
               variant="outline"
-              className="text-yellow-400 border-yellow-400/40 hover:text-yellow-400"
+              className="rounded-full text-amber-700 border-amber-700/40 hover:text-amber-700 dark:text-yellow-400 dark:border-yellow-400/40 dark:hover:text-yellow-400"
               onClick={() => onAction(report, "warn-user")}
             >
               Warn user
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => onAction(report, "dismiss")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => onAction(report, "dismiss")}
+          >
             Dismiss
           </Button>
           {report.targetType === "deal" && (
@@ -585,7 +597,7 @@ function ReportsSection({
 
   return (
     <section>
-      <SectionHeading icon={Flag} title="Reports Queue" count={pending.length} />
+      <SectionHeading icon={Flag} title="Reports queue" count={pending.length} />
       <Tabs defaultValue="pending">
         <TabsList className="mb-2">
           <TabsTrigger value="pending">
@@ -631,7 +643,7 @@ function ReportsSection({
           {resolving && copy && (
             <>
               <DialogHeader>
-                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                <DialogTitle className="font-display font-bold tracking-tight">
                   {copy.title}
                 </DialogTitle>
                 <DialogDescription>{copy.description}</DialogDescription>
@@ -646,15 +658,15 @@ function ReportsSection({
                 />
               </div>
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => setResolving(null)}>
+                <Button variant="outline" className="rounded-full" onClick={() => setResolving(null)}>
                   Cancel
                 </Button>
                 <Button
                   variant={copy.destructive ? "destructive" : "default"}
                   className={
                     copy.destructive
-                      ? undefined
-                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                      ? "rounded-full"
+                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
                   }
                   disabled={busy}
                   onClick={() => void confirm()}
@@ -715,7 +727,7 @@ function DisputesSection({
 
   return (
     <section>
-      <SectionHeading icon={Gavel} title="Disputed Deals" count={disputes.length} />
+      <SectionHeading icon={Gavel} title="Disputed deals" count={disputes.length} />
       {disputes.length === 0 ? (
         <EmptyRow>No open disputes. Peace in the land.</EmptyRow>
       ) : (
@@ -727,7 +739,7 @@ function DisputesSection({
             return (
               <div
                 key={deal.id}
-                className="bg-card border border-red-400/40 rounded-lg p-3.5 space-y-2.5"
+                className="bg-card border border-red-700/40 dark:border-red-400/40 rounded-xl p-3.5 space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -749,7 +761,7 @@ function DisputesSection({
                 </div>
                 {deal.disputeReason && (
                   <p className="text-sm text-muted-foreground leading-snug">
-                    <span className="font-bold text-red-400">Dispute:</span> {deal.disputeReason}
+                    <span className="font-bold text-red-700 dark:text-red-400">Dispute:</span> {deal.disputeReason}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
@@ -757,6 +769,7 @@ function DisputesSection({
                   <Button
                     size="sm"
                     variant="destructive"
+                    className="rounded-full"
                     onClick={() => openResolve(deal, "cancelled")}
                   >
                     Cancel deal
@@ -764,7 +777,7 @@ function DisputesSection({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="text-accent border-accent/40 hover:text-accent"
+                    className="rounded-full text-accent border-accent/40 hover:text-accent"
                     onClick={() => openResolve(deal, "completed")}
                   >
                     Force complete
@@ -781,7 +794,7 @@ function DisputesSection({
           {resolving && (
             <>
               <DialogHeader>
-                <DialogTitle className="font-display font-bold uppercase tracking-wide">
+                <DialogTitle className="font-display font-bold tracking-tight">
                   {resolving.outcome === "cancelled" ? "Cancel this deal?" : "Force complete?"}
                 </DialogTitle>
                 <DialogDescription>
@@ -800,15 +813,15 @@ function DisputesSection({
                 />
               </div>
               <DialogFooter className="gap-2">
-                <Button variant="outline" onClick={() => setResolving(null)}>
+                <Button variant="outline" className="rounded-full" onClick={() => setResolving(null)}>
                   Back
                 </Button>
                 <Button
                   variant={resolving.outcome === "cancelled" ? "destructive" : "default"}
                   className={
                     resolving.outcome === "cancelled"
-                      ? undefined
-                      : "bg-accent text-accent-foreground hover:bg-accent/90"
+                      ? "rounded-full"
+                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
                   }
                   disabled={busy}
                   onClick={() => void confirm()}
@@ -851,7 +864,7 @@ function UsersSection({
   return (
     <section>
       <SectionHeading icon={Users} title="Members" />
-      <div className="bg-card border border-border rounded-lg divide-y divide-border">
+      <div className="bg-card border border-border rounded-xl divide-y divide-border">
         {users.map((u) => (
           <div key={u.id} className="flex items-center gap-3 px-3.5 py-3">
             <Link href={`/app/u/${u.username}`} className="shrink-0">
@@ -875,7 +888,10 @@ function UsersSection({
               </p>
               <p className="text-xs text-muted-foreground truncate">{u.email}</p>
               <p className="text-xs text-muted-foreground truncate">
-                <Star size={10} className="inline fill-yellow-400 text-yellow-400 -mt-0.5" />{" "}
+                <Star
+                  size={10}
+                  className="inline fill-amber-700 text-amber-700 dark:fill-yellow-400 dark:text-yellow-400 -mt-0.5"
+                />{" "}
                 {u.trustScore.toFixed(1)} · {u.tradesCompleted} trades · since{" "}
                 {formatMonthYear(u.memberSince)}
               </p>
@@ -940,11 +956,11 @@ function ListingsSection({
 
   return (
     <section>
-      <SectionHeading icon={Package} title="Recent Listings" />
+      <SectionHeading icon={Package} title="Recent listings" />
       {listings.length === 0 ? (
         <EmptyRow>No live listings. A quiet marketplace is a suspicious marketplace.</EmptyRow>
       ) : (
-        <div className="bg-card border border-border rounded-lg divide-y divide-border">
+        <div className="bg-card border border-border rounded-xl divide-y divide-border">
           {listings.map((l) => (
             <div key={l.id} className="flex items-center gap-3 px-3.5 py-3">
               <Link href={`/app/listings/${l.id}`} className="shrink-0">
@@ -964,7 +980,7 @@ function ListingsSection({
                 <p className="text-xs text-muted-foreground truncate">
                   {l.seller.username} · {timeAgo(l.createdAt)}
                   {l.status === "pending" && (
-                    <span className="text-yellow-400"> · deal pending</span>
+                    <span className="text-amber-700 dark:text-yellow-400"> · deal pending</span>
                   )}
                 </p>
               </div>
@@ -975,7 +991,9 @@ function ListingsSection({
                 <Star
                   size={13}
                   className={cn(
-                    l.isFeatured ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground",
+                    l.isFeatured
+                      ? "fill-amber-700 text-amber-700 dark:fill-yellow-400 dark:text-yellow-400"
+                      : "text-muted-foreground",
                   )}
                 />
                 <Switch
@@ -988,7 +1006,7 @@ function ListingsSection({
               <Button
                 size="icon"
                 variant="ghost"
-                className="shrink-0 text-muted-foreground hover:text-red-400"
+                className="shrink-0 rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400"
                 aria-label={`Remove ${l.title}`}
                 onClick={() => {
                   setReason("");
@@ -1005,7 +1023,7 @@ function ListingsSection({
       <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
         <AlertDialogContent className="max-w-sm bg-card border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display font-bold uppercase tracking-wide">
+            <AlertDialogTitle className="font-display font-bold tracking-tight">
               Remove &quot;{removeTarget?.title}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -1021,9 +1039,9 @@ function ListingsSection({
             className="bg-surface resize-none"
           />
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-full">Keep it</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault(); // keep the dialog open until the server answers
@@ -1046,14 +1064,14 @@ function AdminSkeleton() {
     <div className="space-y-10 animate-pulse">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {Array.from({ length: 12 }).map((_, i) => (
-          <div key={i} className="h-16 bg-card border border-border rounded-lg" />
+          <div key={i} className="h-16 bg-card border border-border rounded-xl" />
         ))}
       </div>
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="space-y-2">
           <div className="h-5 w-40 bg-card rounded" />
-          <div className="h-24 bg-card border border-border rounded-lg" />
-          <div className="h-24 bg-card border border-border rounded-lg" />
+          <div className="h-24 bg-card border border-border rounded-xl" />
+          <div className="h-24 bg-card border border-border rounded-xl" />
         </div>
       ))}
     </div>
@@ -1115,13 +1133,13 @@ export default function AdminPage() {
               Back to app
             </Link>
             <span className="text-border">/</span>
-            <h1 className="font-display font-bold uppercase tracking-wider text-lg text-foreground flex items-center gap-1.5 truncate">
+            <h1 className="font-display font-bold tracking-tight text-lg text-foreground flex items-center gap-1.5 truncate">
               <ShieldAlert size={18} className="text-accent shrink-0" />
-              Mod Desk
+              Mod desk
             </h1>
           </div>
           <span className="badge-stamp text-accent border-accent hidden sm:inline-flex shrink-0">
-            Moderators only
+            Mod access
           </span>
         </div>
       </header>
