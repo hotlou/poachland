@@ -787,6 +787,34 @@ const handlers: Handlers = {
       if (Number(onboarded) <= FOUNDER_LIMIT) {
         await awardEventBadge(tx, me.id, "founding");
       }
+
+      // Referral attribution: credit whoever's invite link brought them.
+      const refName = sanitizeUsername(String(input.referrerUsername ?? ""));
+      if (refName && refName !== username) {
+        const [referrer] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(
+            and(
+              eq(users.username, refName),
+              isNotNull(users.onboardedAt),
+              sql`${users.deletedAt} is null`,
+            ),
+          )
+          .limit(1);
+        if (referrer && referrer.id !== me.id) {
+          await tx.update(users).set({ referredBy: referrer.id }).where(eq(users.id, me.id));
+          await awardEventBadge(tx, referrer.id, "connector");
+          await notify(
+            tx,
+            referrer.id,
+            "system",
+            "Your invite landed 🎉",
+            `${username} joined Poachland through your invite link.`,
+            "/app/invite",
+          );
+        }
+      }
       return ok(me.id);
     });
   },

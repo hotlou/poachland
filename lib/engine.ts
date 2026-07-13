@@ -342,6 +342,8 @@ export class PoachStore {
     bio?: string;
     favoriteTeams?: string[];
     avatar?: string;
+    /** Passed through to the server for referral attribution; unused locally. */
+    referrerUsername?: string;
   }): Res<User> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");

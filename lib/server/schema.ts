@@ -106,6 +106,8 @@ export const users = pgTable("users", {
   // Self-serve account deletion: personal data is scrubbed and the row is
   // tombstoned (kept only so counterparties' completed deals/ratings resolve).
   deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+  // Referral attribution: the userId of whoever's invite link brought them.
+  referredBy: text("referred_by"),
 });
 
 // ─── Listings ────────────────────────────────────────────────────────────────
