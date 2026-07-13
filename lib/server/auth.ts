@@ -21,6 +21,7 @@ import {
 import { promisify } from "node:util";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { getDb, type Db } from "./db";
+import { underRateLimit } from "./rate-limit";
 import { loginTokens, sessions, users, type UserRow } from "./schema";
 
 const scryptAsync = promisify(scrypt) as (
@@ -76,6 +77,7 @@ function adminEmails(): Set<string> {
 export async function requestMagicLink(
   rawEmail: string,
   origin: string,
+  ip?: string,
 ): Promise<RequestMagicLinkResult> {
   const email = normalizeEmail(rawEmail);
   if (!email) {
@@ -84,6 +86,14 @@ export async function requestMagicLink(
 
   const db = await getDb();
   const now = new Date();
+
+  // Per-IP cap (defends against email-bombing many addresses from one source).
+  if (ip && !(await underRateLimit(db, `ip:${ip}:magiclink`, 15, 3600))) {
+    return {
+      ok: false,
+      error: "Too many sign-in links requested. Try again in a little while.",
+    };
+  }
 
   // Rate limit: at most 3 unconsumed tokens per email per 15-minute window.
   const [{ pending }] = await db
