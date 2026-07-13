@@ -10,6 +10,7 @@
  */
 
 import { OFFER_EXPIRY_DAYS } from "./constants";
+import { BADGE_BY_TYPE, qualifyingBadges, type BadgeStats } from "./badges";
 import { buildSeedState } from "./seed";
 import type {
   ActivityEvent,
@@ -518,35 +519,43 @@ export class PoachStore {
   }
 
   private awardBadges(user: UserRecord) {
-    const has = (t: BadgeType) => user.badges.some((b) => b.type === t);
-    const award = (type: BadgeType, label: string) => {
-      if (has(type)) return;
-      user.badges.push({ id: uid("b"), label, type });
-      this.notify(
-        user.id,
-        "badge_earned",
-        `Badge earned: ${label}`,
-        "It now shows on your profile. Wear it well.",
-        "/app/profile",
-      );
-    };
     const ratings = this.state.ratings.filter((r) => r.toUserId === user.id);
-    if (user.tradesCompleted >= 1) award("first-trade", "First Trade");
-    if (user.tradesCompleted >= 25) award("veteran", "Veteran Trader");
-    if (user.tradesCompleted >= 10 && user.trustScore >= 4.5 && user.ratingsCount >= 5)
-      award("trusted", "Trusted Trader");
-    if (this.state.listings.filter((l) => l.sellerId === user.id).length >= 8)
-      award("collector", "Collector");
     const shipRatings = ratings.map((r) => r.shippingSpeed);
-    if (
-      shipRatings.length >= 5 &&
-      shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length >= 4.7
-    )
-      award("quick-shipper", "Quick Shipper");
-    const givenAway = this.state.deals.filter(
-      (d) => d.status === "completed" && d.kind === "claim" && d.ownerId === user.id,
-    ).length;
-    if (givenAway >= 3) award("generous", "Community Giver");
+    const stats: BadgeStats = {
+      tradesCompleted: user.tradesCompleted,
+      trustScore: user.trustScore,
+      ratingsCount: user.ratingsCount,
+      ratingsReceived: ratings.length,
+      allFiveStar:
+        ratings.length > 0 &&
+        ratings.every(
+          (r) => r.communication === 5 && r.shippingSpeed === 5 && r.itemAccuracy === 5,
+        ),
+      shippingAvg: shipRatings.length
+        ? shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length
+        : 0,
+      shippingCount: shipRatings.length,
+      listingCount: this.state.listings.filter((l) => l.sellerId === user.id).length,
+      givenAway: this.state.deals.filter(
+        (d) => d.status === "completed" && d.kind === "claim" && d.ownerId === user.id,
+      ).length,
+      isoCount: this.state.isoPosts.filter((p) => p.userId === user.id).length,
+    };
+    for (const type of qualifyingBadges(stats)) this.awardBadge(user, type);
+  }
+
+  /** Grant a badge (criteria or event) to a user if not already held. */
+  private awardBadge(user: UserRecord, type: BadgeType) {
+    if (user.badges.some((b) => b.type === type)) return;
+    const label = BADGE_BY_TYPE[type].label;
+    user.badges.push({ id: uid("b"), label, type });
+    this.notify(
+      user.id,
+      "badge_earned",
+      `Badge earned: ${label}`,
+      "It now shows on your profile. Wear it well.",
+      "/app/badges",
+    );
   }
 
   // ── Listings ───────────────────────────────────────────────────────────────
@@ -2208,6 +2217,7 @@ export class PoachStore {
       `${me.username} shared a trade to the Haul`,
       "/app/haul",
     );
+    this.awardBadge(me, "show-off");
     this.commit();
     return ok(this.hydrateHaul(post));
   }

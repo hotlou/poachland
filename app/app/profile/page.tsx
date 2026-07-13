@@ -365,12 +365,20 @@ function ProfileContent() {
                 ))}
               </div>
             )}
-            <Link
-              href="/app/ratings"
-              className="inline-flex items-center gap-1 text-xs text-accent font-semibold mt-3"
-            >
-              See all ratings <ArrowRight size={12} />
-            </Link>
+            <div className="flex items-center gap-4 mt-3">
+              <Link
+                href="/app/ratings"
+                className="inline-flex items-center gap-1 text-xs text-accent font-semibold"
+              >
+                See all ratings <ArrowRight size={12} />
+              </Link>
+              <Link
+                href="/app/badges"
+                className="inline-flex items-center gap-1 text-xs text-accent font-semibold"
+              >
+                Badges <ArrowRight size={12} />
+              </Link>
+            </div>
           </div>
 
           {/* Stats row */}

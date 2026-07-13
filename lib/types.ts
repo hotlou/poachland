@@ -33,13 +33,30 @@ export type ListingStatus =
 // ─── Users & reputation ──────────────────────────────────────────────────────
 
 export type BadgeType =
-  | "founding"
-  | "trusted"
-  | "veteran"
-  | "collector"
-  | "quick-shipper"
+  // trading milestones
   | "first-trade"
-  | "generous";
+  | "regular"
+  | "veteran"
+  | "centurion"
+  // trust & quality
+  | "trusted"
+  | "flawless"
+  | "quick-shipper"
+  // collecting
+  | "collector"
+  | "curator"
+  // generosity
+  | "generous"
+  | "philanthropist"
+  // community
+  | "hunter"
+  | "show-off"
+  | "crowd-pleaser"
+  | "heist-legend"
+  | "connector"
+  // identity & founder
+  | "verified"
+  | "founding";
 
 export interface Badge {
   id: string;
