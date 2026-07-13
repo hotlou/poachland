@@ -23,6 +23,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Public profiles & SEO** — every trader gets a public page at `/u/username` (server-rendered metadata, dynamic branded OG images, sitemap, robots) plus a public `/traders` directory. Profiles carry a playing history (teams / tournaments / leagues — hints at what gear someone holds) and a photo gallery.
 - **Settle up, privately** — traders save payment handles (Venmo / PayPal / Cash App / Zelle / crypto); they are never public and are revealed only to the counterparty of an **accepted** deal.
 - **Deal proof** — both parties can attach proof photos (packed item, receipt, label) alongside tracking numbers; proof surfaces in the deal room and as evidence in disputes.
+- **The Haul** — a community wall of completed trades. Either party can "show off" a finished deal; the trade sides show as thumbnails with a deliberately *vague, rounded* cash figure (we celebrate the swap, not the receipt). Additive-only reactions (🔥 Heat · 👏 Clean · 🤝 Fair · 😮 Whoa · 🏴‍☠️ Heist — a heist badge is honor, never shame) and comments let the community cheer surprising or lopsided deals without punching down. Weekly leaderboards crown the Heist of the week and the Cleanest deal. Consent-first: the *other* trader can hide any post or turn its comments off at any time; re-sharing brings a hidden post back. There's a public, crawlable `/haul` wall (with its own OG card) so great trades are shareable off-platform.
 - **Roadmap** — middleman/escrow for high-value deals; public listing pages; native app wrappers. Deliberately not built yet: trust features ship first, bloat waits for demand.
 
 **Routes:**
@@ -36,7 +37,9 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/app/wanted`, `/app/wanted/create` — wanted board (ISO)
 - `/app/trades` — deals dashboard
 - `/app/trades/new` — trade proposal flow
-- `/app/trades/[id]` — deal room (negotiation timeline, counter composer, fulfillment, ratings)
+- `/app/trades/[id]` — deal room (negotiation timeline, counter composer, fulfillment, ratings, share-to-Haul)
+- `/app/haul` — The Haul: community wall of completed trades (reactions, comments, weekly leaderboards)
+- `/haul` — public, crawlable Haul wall (SEO + OG card)
 - `/app/inbox`, `/app/inbox/[id]` — messages
 - `/app/notifications` — notification feed
 - `/app/ratings` — reputation dashboard

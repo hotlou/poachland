@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   Smartphone,
   Star,
+  Trophy,
   Truck,
   Undo2,
   Wallet,
@@ -375,6 +376,51 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
       >
         <Star size={15} /> Submit rating
       </button>
+    </div>
+  );
+}
+
+// ─── Show off to the Haul ─────────────────────────────────────────────────────
+
+function ShareToHaul({ deal }: { deal: Deal }) {
+  const store = useStore();
+  const existing = store.haulForDeal(deal.id);
+
+  if (existing && !existing.hidden) {
+    return (
+      <div className="rounded-full border border-border bg-card px-4 py-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Trophy size={14} className="text-accent" />
+        <span className="font-semibold text-foreground">On the Haul</span>
+        <Link href="/app/haul" className="text-accent font-semibold">
+          View →
+        </Link>
+      </div>
+    );
+  }
+
+  const wasHidden = existing?.hidden ?? false;
+
+  const share = () => {
+    const res = store.shareHaul({ dealId: deal.id });
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Shared to the Haul 🏆");
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={share}
+        className="w-full border border-accent/50 bg-card text-accent font-display font-semibold text-sm px-5 py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-accent/10 transition-colors"
+      >
+        <Trophy size={15} /> {wasHidden ? "Re-share to the Haul" : "Show off this trade"}
+      </button>
+      <p className="text-[11px] text-muted-foreground text-center mt-1.5">
+        Celebrate the swap — your trade partner can hide it anytime.
+      </p>
     </div>
   );
 }
@@ -1267,6 +1313,8 @@ function DealRoom({ id }: { id: string }) {
                   </p>
                 </div>
               </div>
+
+              <ShareToHaul deal={deal} />
 
               {canRate && <RateBlock deal={deal} other={other} />}
 
