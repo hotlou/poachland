@@ -378,6 +378,12 @@ function ProfileContent() {
               >
                 Badges <ArrowRight size={12} />
               </Link>
+              <Link
+                href="/app/invite"
+                className="inline-flex items-center gap-1 text-xs text-accent font-semibold"
+              >
+                Invite <ArrowRight size={12} />
+              </Link>
             </div>
           </div>
 

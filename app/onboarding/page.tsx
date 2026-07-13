@@ -17,6 +17,7 @@ import {
 import { useHydrated, useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { STOCK_AVATARS } from "@/lib/constants";
+import { consumeReferral, peekReferral } from "@/lib/referral";
 import { cn } from "@/lib/utils";
 import type { User } from "@/lib/types";
 
@@ -53,6 +54,8 @@ export default function OnboardingPage() {
 
   const [step, setStep] = useState(0);
   const [created, setCreated] = useState<User | null>(null);
+  const [invitedBy, setInvitedBy] = useState<string | null>(null);
+  useEffect(() => setInvitedBy(peekReferral() ?? null), []);
 
   // Session gates: onboarding needs a signed-in user; already-onboarded users
   // (unless they just finished here) go straight to the app.
@@ -108,6 +111,7 @@ export default function OnboardingPage() {
       bio,
       favoriteTeams: teams,
       avatar,
+      referrerUsername: consumeReferral(),
     });
     if (!res.ok) {
       toast.error(res.error);
@@ -204,9 +208,15 @@ export default function OnboardingPage() {
         {/* Step 1 — Welcome */}
         {step === 0 && (
           <div className="flex-1 flex flex-col">
-            <div className="badge-stamp text-accent border-accent self-start mb-5">
-              Ultimate frisbee only
-            </div>
+            {invitedBy ? (
+              <div className="badge-stamp text-pop border-pop self-start mb-5">
+                Invited by @{invitedBy}
+              </div>
+            ) : (
+              <div className="badge-stamp text-accent border-accent self-start mb-5">
+                Ultimate frisbee only
+              </div>
+            )}
             <h1 className="font-display font-black text-4xl leading-[1.05] tracking-tight text-balance mb-3">
               The collector&apos;s <span className="text-accent">sideline</span>
             </h1>

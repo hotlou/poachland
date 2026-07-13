@@ -454,6 +454,11 @@ export async function buildSnapshot(
 
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
   const viewerIsAdmin = !!viewerRow?.isAdmin;
+  const referralCount = viewerId ? userRows.filter((u) => u.referredBy === viewerId).length : 0;
+  const viewerOnboarded = viewerRow?.onboardedAt?.getTime();
+  const memberNumber = viewerOnboarded
+    ? userRows.filter((u) => u.onboardedAt && u.onboardedAt.getTime() <= viewerOnboarded).length
+    : 0;
   const me: SessionMe | null = viewerRow
     ? {
         ...toUserRecord(viewerRow),
@@ -481,6 +486,8 @@ export async function buildSnapshot(
           community: true,
           account: true,
         },
+        referralCount,
+        memberNumber,
       }
     : null;
 

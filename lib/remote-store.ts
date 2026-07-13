@@ -178,6 +178,7 @@ export class RemotePoachStore extends PoachStore {
     bio?: string;
     favoriteTeams?: string[];
     avatar?: string;
+    referrerUsername?: string;
   }): Res<User> {
     const res = super.completeOnboarding(input);
     if (res.ok) {
@@ -194,6 +195,7 @@ export class RemotePoachStore extends PoachStore {
         bio: input.bio,
         favoriteTeams: input.favoriteTeams,
         avatar: input.avatar,
+        referrerUsername: input.referrerUsername,
       });
     }
     return res;

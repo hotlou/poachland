@@ -70,6 +70,10 @@ export interface SessionMe extends UserRecord {
   impersonatedByAdmin?: string;
   /** Per-category email notification opt-ins. */
   emailPrefs: EmailPrefs;
+  /** How many traders joined through this user's invite link. */
+  referralCount: number;
+  /** 1-based join rank among onboarded members (for "Founding Member #N"). */
+  memberNumber: number;
 }
 
 /** Admin-only view fetched separately (fetchAdminData). */
@@ -156,6 +160,8 @@ export interface OpMap {
     bio?: string;
     favoriteTeams?: string[];
     avatar?: string;
+    /** Username of the trader whose invite link brought them, if any. */
+    referrerUsername?: string;
   };
   updateProfile: {
     patch: Partial<

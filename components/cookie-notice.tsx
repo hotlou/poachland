@@ -12,6 +12,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { captureReferralFromUrl } from "@/lib/referral";
 
 const KEY = "poachland.cookie-notice.v1";
 
@@ -20,6 +21,9 @@ export function CookieNotice() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Capture an invite link's ?ref= on any landing page (survives the
+    // magic-link round trip in localStorage until onboarding reads it).
+    captureReferralFromUrl();
     try {
       if (!window.localStorage.getItem(KEY)) setShow(true);
     } catch {
