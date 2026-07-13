@@ -77,10 +77,13 @@ export default function PrivacyPage() {
         You can edit your profile and linked identities anytime, and remove your
         payment handles. You control which emails you receive with per-category
         toggles in Settings, and every notification email has a one-click
-        unsubscribe. To access, export, or delete your account and associated
-        data, email us at{" "}
-        <a href={`mailto:${CONTACT}`} className="text-accent font-semibold hover:underline">{CONTACT}</a>
-        {" "}and we&apos;ll take care of it.
+        unsubscribe. From <strong>Settings → Danger zone</strong> you can{" "}
+        <strong>download all your data</strong> as a file and{" "}
+        <strong>delete your account</strong> yourself — deletion scrubs your
+        personal data (completed deals and the ratings you exchanged stay on
+        record for your trade partners, with your name removed). Prefer we
+        handle it? Email{" "}
+        <a href={`mailto:${CONTACT}`} className="text-accent font-semibold hover:underline">{CONTACT}</a>.
       </p>
 
       <LegalHeading>Retention &amp; security</LegalHeading>

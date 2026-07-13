@@ -500,6 +500,12 @@ export async function buildSnapshot(
       }
     }
   }
+  // Deleted accounts vanish from discovery for everyone (even admins); they
+  // stay resolvable only via the relationship allowlist so a counterparty's
+  // completed deals and the ratings they left still render.
+  for (const u of userRows) {
+    if (u.deletedAt && u.id !== viewerId) hidden.add(u.id);
+  }
   const related = new Set<string>();
   if (viewerId) {
     related.add(viewerId);

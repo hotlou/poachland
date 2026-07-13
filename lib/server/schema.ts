@@ -103,6 +103,9 @@ export const users = pgTable("users", {
     .notNull()
     .default({ deals: true, messages: true, community: true, account: true }),
   emailUnsubToken: text("email_unsub_token"),
+  // Self-serve account deletion: personal data is scrubbed and the row is
+  // tombstoned (kept only so counterparties' completed deals/ratings resolve).
+  deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
 });
 
 // ─── Listings ────────────────────────────────────────────────────────────────

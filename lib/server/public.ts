@@ -9,7 +9,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import type {
   Badge,
   Condition,
@@ -77,6 +77,7 @@ export async function getPublicProfile(
       memberSince: users.memberSince,
       badges: users.badges,
       status: users.status,
+      deletedAt: users.deletedAt,
     })
     .from(users)
     .where(eq(users.username, uname))
@@ -84,8 +85,8 @@ export async function getPublicProfile(
 
   const row = rows[0];
   if (!row?.username) return null;
-  // Moderated accounts have no public presence.
-  if (row.status !== "active") return null;
+  // Moderated or deleted accounts have no public presence.
+  if (row.status !== "active" || row.deletedAt) return null;
 
   return {
     id: row.id,
@@ -128,7 +129,9 @@ export async function listPublicUsernames(
       onboardedAt: users.onboardedAt,
     })
     .from(users)
-    .where(and(isNotNull(users.username), eq(users.status, "active")))
+    .where(
+      and(isNotNull(users.username), eq(users.status, "active"), isNull(users.deletedAt)),
+    )
     .orderBy(desc(users.tradesCompleted), asc(users.memberSince), asc(users.id))
     .limit(limit);
 
@@ -332,6 +335,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
       tradesCompleted: users.tradesCompleted,
       isVerified: users.isVerified,
       sellerStatus: users.status,
+      sellerDeletedAt: users.deletedAt,
     })
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
@@ -341,7 +345,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
   if (!row) return null;
   const l = row.l;
   if (l.status === "removed") return null;
-  if (row.sellerStatus !== "active" || !row.username) return null;
+  if (row.sellerStatus !== "active" || !row.username || row.sellerDeletedAt) return null;
 
   return {
     id: l.id,
@@ -384,7 +388,9 @@ export async function listPublicListingIds(
     .select({ id: listings.id, updatedAt: listings.updatedAt })
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
-    .where(and(ne(listings.status, "removed"), eq(users.status, "active")))
+    .where(
+      and(ne(listings.status, "removed"), eq(users.status, "active"), isNull(users.deletedAt)),
+    )
     .orderBy(desc(listings.createdAt))
     .limit(limit);
   return rows;

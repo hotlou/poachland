@@ -450,6 +450,11 @@ export async function getSessionContext(
     await db.delete(sessions).where(eq(sessions.id, sessionId));
     return null;
   }
+  // A deleted account is gone — treat any lingering session as signed out.
+  if (row.user.deletedAt) {
+    await db.delete(sessions).where(eq(sessions.id, sessionId));
+    return null;
+  }
 
   // Sliding renewal: bump expiry at most once a day, not on every request.
   if (now.getTime() - row.session.lastSeenAt.getTime() > SESSION_RENEW_AFTER_MS) {
