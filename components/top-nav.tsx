@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Handshake, Home, Pin, PlusCircle, MessageSquare, Search } from "lucide-react";
+import { Bell, Handshake, Home, Pin, PlusCircle, MessageSquare, Search, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHydrated, useStore } from "@/lib/store-context";
 
@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/app/browse", label: "Browse", icon: Search },
   { href: "/app/wanted", label: "Wanted", icon: Pin },
   { href: "/app/trades", label: "Deals", icon: Handshake },
+  { href: "/app/haul", label: "The Haul", icon: Trophy },
   { href: "/app/inbox", label: "Inbox", icon: MessageSquare },
 ];
 

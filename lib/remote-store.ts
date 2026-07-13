@@ -33,6 +33,9 @@ import {
 } from "./engine";
 import type {
   Deal,
+  HaulComment,
+  HaulPost,
+  HaulReactionEmoji,
   IdentityProvider,
   IdentityRecord,
   EmailPrefs,
@@ -114,6 +117,7 @@ export class RemotePoachStore extends PoachStore {
       activity: snap.activity,
       identities: snap.identities ?? [],
       paymentMethods: snap.paymentMethods ?? [],
+      haulPosts: snap.haulPosts ?? [],
     };
     this.sessionMe = me;
     this.ready = true;
@@ -528,6 +532,44 @@ export class RemotePoachStore extends PoachStore {
   override attachProof(dealId: string, photos: string[]): Res {
     const res = super.attachProof(dealId, photos);
     if (res.ok) this.send("attachProof", { dealId, photos });
+    return res;
+  }
+
+  // ── The Haul ──────────────────────────────────────────────────────────────
+
+  override shareHaul(input: { dealId: string; note?: string; id?: string }): Res<HaulPost> {
+    const res = super.shareHaul(input);
+    if (res.ok) this.send("shareHaul", { id: res.value.id, dealId: input.dealId, note: input.note });
+    return res;
+  }
+
+  override hideHaul(haulId: string, opts: { byAdmin?: boolean } = {}): Res {
+    const res = super.hideHaul(haulId, opts);
+    if (res.ok) this.send("hideHaul", { haulId });
+    return res;
+  }
+
+  override reactHaul(haulId: string, emoji: HaulReactionEmoji): Res {
+    const res = super.reactHaul(haulId, emoji);
+    if (res.ok) this.send("reactHaul", { haulId, emoji });
+    return res;
+  }
+
+  override commentHaul(input: { haulId: string; body: string; id?: string }): Res<HaulComment> {
+    const res = super.commentHaul(input);
+    if (res.ok) this.send("commentHaul", { id: res.value.id, haulId: input.haulId, body: input.body });
+    return res;
+  }
+
+  override setHaulComments(haulId: string, enabled: boolean): Res {
+    const res = super.setHaulComments(haulId, enabled);
+    if (res.ok) this.send("setHaulComments", { haulId, enabled });
+    return res;
+  }
+
+  override deleteHaulComment(commentId: string, opts: { byAdmin?: boolean } = {}): Res {
+    const res = super.deleteHaulComment(commentId, opts);
+    if (res.ok) this.send("deleteHaulComment", { commentId });
     return res;
   }
 }

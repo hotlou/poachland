@@ -19,6 +19,7 @@ import type {
   DBState,
   Division,
   EmailPrefs,
+  HaulReactionEmoji,
   IdentityProvider,
   IdentityRecord,
   ISOStatus,
@@ -178,6 +179,13 @@ export interface OpMap {
   removePaymentMethod: { id: string };
   // deal proof (shipping photos / receipts)
   attachProof: { dealId: string; photos: string[] };
+  // The Haul — community wall of completed trades
+  shareHaul: { id: string; dealId: string; note?: string };
+  hideHaul: { haulId: string };
+  reactHaul: { haulId: string; emoji: HaulReactionEmoji };
+  commentHaul: { id: string; haulId: string; body: string };
+  setHaulComments: { haulId: string; enabled: boolean };
+  deleteHaulComment: { commentId: string };
   // listings
   createListing: { id: string; input: ListingInput };
   updateListing: { id: string; patch: Partial<ListingInput> };

@@ -35,6 +35,8 @@ import type {
   EmailCategory,
   EmailPrefs,
   FulfillmentState,
+  HaulReactionEmoji,
+  HaulSide,
   HistoryEntry,
   ISOStatus,
   ItemType,
@@ -492,8 +494,76 @@ export const emailOutbox = pgTable(
   ],
 );
 
+// ─── The Haul: community wall of shared completed trades ─────────────────────
+
+export const haulPosts = pgTable(
+  "haul_posts",
+  {
+    id: text("id").primaryKey(),
+    dealId: text("deal_id").notNull().unique(), // one post per deal
+    kind: text("kind").$type<DealKind>().notNull(),
+    proposerId: text("proposer_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sharedBy: text("shared_by").notNull(),
+    // Denormalized at share time so the wall stays public-safe & immutable.
+    proposerSide: jsonb("proposer_side").$type<HaulSide>().notNull(),
+    ownerSide: jsonb("owner_side").$type<HaulSide>().notNull(),
+    note: text("note"),
+    commentsEnabled: boolean("comments_enabled").notNull().default(true),
+    hidden: boolean("hidden").notNull().default(false),
+    hiddenBy: text("hidden_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("haul_posts_hidden_created_idx").on(t.hidden, t.createdAt)],
+);
+
+export const haulReactions = pgTable(
+  "haul_reactions",
+  {
+    haulId: text("haul_id")
+      .notNull()
+      .references(() => haulPosts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: text("emoji").$type<HaulReactionEmoji>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.haulId, t.userId] })], // one reaction/user/post
+);
+
+export const haulComments = pgTable(
+  "haul_comments",
+  {
+    id: text("id").primaryKey(),
+    haulId: text("haul_id")
+      .notNull()
+      .references(() => haulPosts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("haul_comments_haul_idx").on(t.haulId)],
+);
+
 // ─── Inferred row types ──────────────────────────────────────────────────────
 
+export type HaulPostRow = typeof haulPosts.$inferSelect;
+export type HaulReactionRow = typeof haulReactions.$inferSelect;
+export type HaulCommentRow = typeof haulComments.$inferSelect;
 export type EmailOutboxRow = typeof emailOutbox.$inferSelect;
 export type PaymentMethodRow = typeof paymentMethods.$inferSelect;
 export type UserRow = typeof users.$inferSelect;

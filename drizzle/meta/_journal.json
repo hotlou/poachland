@@ -43,6 +43,13 @@
       "when": 1783919998678,
       "tag": "0005_yielding_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783953883527,
+      "tag": "0006_narrow_mastermind",
+      "breakpoints": true
     }
   ]
 }

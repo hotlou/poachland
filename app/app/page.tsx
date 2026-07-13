@@ -9,6 +9,7 @@ import {
   Pin,
   Star,
   TrendingUp,
+  Trophy,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { timeAgo } from "@/lib/format";
 import { money } from "@/lib/format";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
+import { HaulCard } from "@/components/haul-card";
 import { ListingCard } from "@/components/listing-card";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import type { Deal } from "@/lib/types";
@@ -196,6 +198,34 @@ function HotRightNow() {
             listing={listing}
             className="snap-start flex-shrink-0 w-60 md:w-72"
           />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ── The Haul ────────────────────────────────────────────────────────────── */
+
+function TheHaul() {
+  const store = useStore();
+  const posts = store.listHaul(2);
+  if (posts.length === 0) return null;
+  return (
+    <section className="mt-6">
+      <div className="px-4 md:px-6 flex items-center justify-between mb-3">
+        <h2 className="font-display font-bold text-lg tracking-tight flex items-center gap-1.5">
+          <Trophy size={16} className="text-accent" /> The Haul
+        </h2>
+        <Link
+          href="/app/haul"
+          className="text-xs text-accent font-semibold flex items-center gap-0.5"
+        >
+          See all <ChevronRight size={12} />
+        </Link>
+      </div>
+      <div className="px-4 md:px-6 flex flex-col gap-4">
+        {posts.map((post) => (
+          <HaulCard key={post.id} post={post} compact />
         ))}
       </div>
     </section>
@@ -508,6 +538,7 @@ export default function HomeFeedPage() {
       <Hydrated fallback={<HomeSkeleton />}>
         <YourMoveStrip />
         <HotRightNow />
+        <TheHaul />
         <FreshDrops />
         <ActivityTimeline />
         <WantedPreview />

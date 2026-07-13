@@ -19,6 +19,8 @@ import type {
   DealKind,
   DealStatus,
   FulfillmentState,
+  HaulReactionEmoji,
+  HaulSide,
   ISOStatus,
   MessageKind,
   RatingSummary,
@@ -31,6 +33,9 @@ import {
   activity,
   blocks,
   deals,
+  haulComments,
+  haulPosts,
+  haulReactions,
   identities,
   isoPosts,
   listings,
@@ -1890,6 +1895,211 @@ const handlers: Handlers = {
         `${user.username} attached proof photos to your deal.`,
         `/app/trades/${deal.id}`,
       );
+      return ok(null);
+    });
+  },
+
+  // ── The Haul (community wall) ──────────────────────────────────────────────
+
+  async shareHaul(db, user, { id, dealId, note }) {
+    return db.transaction(async (tx) => {
+      if (!isClientId(id)) return err("Invalid id");
+      const deal = await getDealForUpdate(tx, dealId);
+      if (!deal) return err("Deal not found");
+      if (deal.proposerId !== user.id && deal.ownerId !== user.id) return err("Not your deal");
+      if (deal.status !== "completed") return err("Only completed deals can go on the Haul");
+      const [existing] = await tx
+        .select({ id: haulPosts.id, hidden: haulPosts.hidden })
+        .from(haulPosts)
+        .where(eq(haulPosts.dealId, dealId))
+        .limit(1);
+      if (existing) {
+        // Re-share of a previously hidden post — un-hide it, keep reactions.
+        if (existing.hidden) {
+          await tx
+            .update(haulPosts)
+            .set({ hidden: false, hiddenBy: null })
+            .where(eq(haulPosts.id, existing.id));
+          return ok(existing.id);
+        }
+        return err("This trade is already on the Haul");
+      }
+      const offer = await latestOffer(tx, dealId);
+      if (!offer) return err("Deal has no offer");
+      const side = async (ids: string[], cash: number): Promise<HaulSide> => {
+        const items = ids.length
+          ? await tx
+              .select({ id: listings.id, title: listings.title, photos: listings.photos })
+              .from(listings)
+              .where(inArray(listings.id, ids))
+          : [];
+        return {
+          items: items.map((l) => ({ listingId: l.id, title: l.title, photo: l.photos[0] })),
+          cash,
+        };
+      };
+      const now = new Date();
+      await tx.insert(haulPosts).values({
+        id,
+        dealId,
+        kind: deal.kind,
+        proposerId: deal.proposerId,
+        ownerId: deal.ownerId,
+        sharedBy: user.id,
+        proposerSide: await side(offer.proposerListingIds, offer.cashFromProposer),
+        ownerSide: await side(offer.ownerListingIds, offer.cashFromOwner),
+        note: note?.trim().slice(0, 240) || null,
+        commentsEnabled: true,
+        hidden: false,
+        createdAt: now,
+      });
+      await notify(
+        tx,
+        otherParty(deal, user.id),
+        "system",
+        "Your trade hit the Haul 🎉",
+        `${user.username} shared your completed trade to the community wall. You can hide it anytime.`,
+        `/app/haul`,
+      );
+      await pushActivity(
+        tx,
+        "deal_completed",
+        user.id,
+        id,
+        `${user.username} shared a trade to the Haul`,
+        `/app/haul`,
+      );
+      return ok(id);
+    });
+  },
+
+  async hideHaul(db, user, { haulId }) {
+    return db.transaction(async (tx) => {
+      const [post] = await tx.select().from(haulPosts).where(eq(haulPosts.id, haulId)).for("update");
+      if (!post) return err("Haul post not found");
+      const isParty = post.proposerId === user.id || post.ownerId === user.id;
+      if (!isParty && !user.isAdmin) return err("Only the traders (or a mod) can hide this");
+      await tx
+        .update(haulPosts)
+        .set({ hidden: true, hiddenBy: user.id })
+        .where(eq(haulPosts.id, haulId));
+      return ok(null);
+    });
+  },
+
+  async reactHaul(db, user, { haulId, emoji }) {
+    return db.transaction(async (tx) => {
+      const valid: HaulReactionEmoji[] = ["🔥", "👏", "🤝", "😮", "🏴‍☠️"];
+      if (!valid.includes(emoji)) return err("Unknown reaction");
+      const [post] = await tx
+        .select({ id: haulPosts.id, hidden: haulPosts.hidden })
+        .from(haulPosts)
+        .where(eq(haulPosts.id, haulId))
+        .limit(1);
+      if (!post || post.hidden) return err("Haul post not found");
+      const [mine] = await tx
+        .select()
+        .from(haulReactions)
+        .where(and(eq(haulReactions.haulId, haulId), eq(haulReactions.userId, user.id)))
+        .limit(1);
+      if (mine && mine.emoji === emoji) {
+        // Tapping the same reaction again clears it.
+        await tx
+          .delete(haulReactions)
+          .where(and(eq(haulReactions.haulId, haulId), eq(haulReactions.userId, user.id)));
+        return ok(null);
+      }
+      if (mine) {
+        await tx
+          .update(haulReactions)
+          .set({ emoji, createdAt: new Date() })
+          .where(and(eq(haulReactions.haulId, haulId), eq(haulReactions.userId, user.id)));
+      } else {
+        await tx
+          .insert(haulReactions)
+          .values({ haulId, userId: user.id, emoji, createdAt: new Date() });
+      }
+      return ok(null);
+    });
+  },
+
+  async commentHaul(db, user, { id, haulId, body }) {
+    return db.transaction(async (tx) => {
+      if (!isClientId(id)) return err("Invalid id");
+      const trimmed = String(body ?? "").trim();
+      if (!trimmed) return err("Say something");
+      if (trimmed.length > 500) return err("Comment is too long (500 characters max)");
+      const [post] = await tx
+        .select()
+        .from(haulPosts)
+        .where(eq(haulPosts.id, haulId))
+        .limit(1);
+      if (!post || post.hidden) return err("Haul post not found");
+      if (!post.commentsEnabled) return err("Comments are turned off for this trade");
+      // Respect blocks against either participant.
+      if (
+        (await isBlockedPair(tx, user.id, post.proposerId)) ||
+        (await isBlockedPair(tx, user.id, post.ownerId))
+      ) {
+        return err("You can't comment on this trade");
+      }
+      await tx.insert(haulComments).values({
+        id,
+        haulId,
+        userId: user.id,
+        body: trimmed,
+        hidden: false,
+        createdAt: new Date(),
+      });
+      // Notify both traders (except the commenter).
+      for (const party of [post.proposerId, post.ownerId]) {
+        if (party === user.id) continue;
+        await notify(
+          tx,
+          party,
+          "system",
+          "New comment on your Haul",
+          `${user.username}: "${trimmed.length > 80 ? trimmed.slice(0, 80) + "…" : trimmed}"`,
+          `/app/haul`,
+        );
+      }
+      return ok(id);
+    });
+  },
+
+  async setHaulComments(db, user, { haulId, enabled }) {
+    return db.transaction(async (tx) => {
+      const [post] = await tx.select().from(haulPosts).where(eq(haulPosts.id, haulId)).for("update");
+      if (!post) return err("Haul post not found");
+      if (post.proposerId !== user.id && post.ownerId !== user.id)
+        return err("Only the traders can change this");
+      await tx
+        .update(haulPosts)
+        .set({ commentsEnabled: !!enabled })
+        .where(eq(haulPosts.id, haulId));
+      return ok(null);
+    });
+  },
+
+  async deleteHaulComment(db, user, { commentId }) {
+    return db.transaction(async (tx) => {
+      const [c] = await tx
+        .select()
+        .from(haulComments)
+        .where(eq(haulComments.id, commentId))
+        .limit(1);
+      if (!c) return err("Comment not found");
+      const [post] = await tx
+        .select({ proposerId: haulPosts.proposerId, ownerId: haulPosts.ownerId })
+        .from(haulPosts)
+        .where(eq(haulPosts.id, c.haulId))
+        .limit(1);
+      const canRemove =
+        c.userId === user.id ||
+        user.isAdmin ||
+        (post && (post.proposerId === user.id || post.ownerId === user.id));
+      if (!canRemove) return err("You can't remove that comment");
+      await tx.update(haulComments).set({ hidden: true }).where(eq(haulComments.id, commentId));
       return ok(null);
     });
   },
