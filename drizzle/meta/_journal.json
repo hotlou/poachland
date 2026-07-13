@@ -57,6 +57,13 @@
       "when": 1783967045268,
       "tag": "0007_curly_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783976421429,
+      "tag": "0008_stale_peter_parker",
+      "breakpoints": true
     }
   ]
 }

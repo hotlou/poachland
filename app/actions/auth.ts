@@ -114,6 +114,27 @@ export async function stopUsingAs(): Promise<{ ok: boolean }> {
   }
 }
 
+/**
+ * Permanently delete the signed-in user's account (scrub + tombstone). Refused
+ * while deals are in flight or if the typed username doesn't match; clears the
+ * session cookie on success so the client can bounce to the goodbye page.
+ */
+export async function deleteMyAccount(
+  confirmUsername: string,
+): Promise<{ ok: true } | { ok: false; error: string; code?: string }> {
+  try {
+    const { deleteAccount } = await import("@/lib/server/account");
+    const user = await readSessionUser();
+    if (!user) return { ok: false, error: "Sign in first." };
+    const res = await deleteAccount(user.id, confirmUsername ?? "");
+    if (res.ok) await clearSessionCookie();
+    return res;
+  } catch (error) {
+    console.error("[account] deleteMyAccount failed:", error);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+}
+
 export async function logOut(): Promise<never> {
   const sessionId = await readSessionCookie();
   if (sessionId) {

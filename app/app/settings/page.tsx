@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { logOut, updatePassword } from "@/app/actions/auth";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
+import { AccountDangerZone } from "@/components/account-danger-zone";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   IDENTITY_PROVIDER_META,
@@ -711,6 +712,9 @@ function SettingsContent() {
           </Link>
         </section>
       )}
+
+      {/* Danger zone: export + delete */}
+      <AccountDangerZone />
 
       {/* About */}
       <section className="pt-2 border-t border-border">
