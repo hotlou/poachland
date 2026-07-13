@@ -20,7 +20,8 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Moderation** — report listings/users/deals, block traders, admin dashboard with a report queue, dispute resolution, verification, and featuring. Moderator powers over any trader: **shadowban** (their content silently vanishes from everyone else; they see a normal app), **suspend** (time-boxed lockout that auto-lifts), **ban** (permanent gate), and **"use as"** — impersonate any non-admin to see the app exactly as they do (with an exit banner; admin powers drop while impersonating).
 - **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres.
 - **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
-- **Public profiles & SEO** — every trader gets a public page at `/u/username` (server-rendered metadata, dynamic branded OG images, sitemap, robots) plus a public `/traders` directory. Profiles carry a playing history (teams / tournaments / leagues — hints at what gear someone holds) and a photo gallery.
+- **Public profiles, listings & SEO** — every trader gets a public page at `/u/username`, every listing a shareable public page at `/l/id`, and completed trades a public wall at `/haul` — all server-rendered with metadata, dynamic branded OG images, sitemap, and robots, plus a public `/traders` directory. Profiles carry a playing history (teams / tournaments / leagues — hints at what gear someone holds) and a photo gallery. In-app listings have a one-tap Share button.
+- **Abuse controls** — server-side, per-user rate limits on listings, wanted posts, deal openings, messages, and Haul comments, plus a per-IP cap on sign-in-link requests; all enforced transactionally so a failed action never burns quota.
 - **Settle up, privately** — traders save payment handles (Venmo / PayPal / Cash App / Zelle / crypto); they are never public and are revealed only to the counterparty of an **accepted** deal.
 - **Deal proof** — both parties can attach proof photos (packed item, receipt, label) alongside tracking numbers; proof surfaces in the deal room and as evidence in disputes.
 - **The Haul** — a community wall of completed trades. Either party can "show off" a finished deal; the trade sides show as thumbnails with a deliberately *vague, rounded* cash figure (we celebrate the swap, not the receipt). Additive-only reactions (🔥 Heat · 👏 Clean · 🤝 Fair · 😮 Whoa · 🏴‍☠️ Heist — a heist badge is honor, never shame) and comments let the community cheer surprising or lopsided deals without punching down. Weekly leaderboards crown the Heist of the week and the Cleanest deal. Consent-first: the *other* trader can hide any post or turn its comments off at any time; re-sharing brings a hidden post back. There's a public, crawlable `/haul` wall (with its own OG card) so great trades are shareable off-platform.
@@ -31,7 +32,9 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/onboarding` — account creation flow
 - `/app` — Home feed (your-move strip, hot items, fresh drops, activity, spotlight)
 - `/app/browse` — search + filters + sort
-- `/app/listings/[id]` — listing detail (state-aware CTAs: propose / buy / offer / claim / message)
+- `/app/listings/[id]` — listing detail (state-aware CTAs: propose / buy / offer / claim / message / share)
+- `/l/[id]` — public, crawlable listing page (SEO + OG card)
+- `/terms`, `/privacy` — legal pages
 - `/app/listings/[id]/edit` — edit listing
 - `/app/create` — create listing
 - `/app/wanted`, `/app/wanted/create` — wanted board (ISO)

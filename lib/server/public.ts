@@ -9,10 +9,24 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
-import type { Badge, HaulComment, HaulPost, HaulReactionEmoji, HistoryEntry, User } from "../types";
+import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import type {
+  Badge,
+  Condition,
+  Division,
+  HaulComment,
+  HaulPost,
+  HaulReactionEmoji,
+  HistoryEntry,
+  ItemType,
+  Level,
+  ListingStatus,
+  ListingType,
+  ShippingPreference,
+  User,
+} from "../types";
 import { getDb } from "./db";
-import { haulComments, haulPosts, haulReactions, users } from "./schema";
+import { haulComments, haulPosts, haulReactions, listings, users } from "./schema";
 
 export interface PublicProfile {
   id: string;
@@ -264,4 +278,114 @@ export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
         commentCount: comments.length,
       };
     });
+}
+
+// ─── Public listing pages ────────────────────────────────────────────────────
+
+export interface PublicListing {
+  id: string;
+  sellerId: string;
+  type: ItemType;
+  title: string;
+  team: string;
+  year?: string;
+  division?: Division;
+  level: Level;
+  size?: string;
+  condition: Condition;
+  listingType: ListingType;
+  askingPrice?: number;
+  tradeFor?: string;
+  photos: string[];
+  description: string;
+  shippingPreference: ShippingPreference;
+  tags: string[];
+  status: ListingStatus;
+  createdAt: string;
+  seller: {
+    username: string;
+    displayName: string;
+    avatar: string;
+    location: string;
+    trustScore: number;
+    tradesCompleted: number;
+    isVerified: boolean;
+  };
+}
+
+/**
+ * A single listing for its public, shareable page — safe for signed-out
+ * visitors and crawlers. Returns null for unknown/removed listings and for
+ * listings whose seller is moderated (not active). No private data.
+ */
+export async function getPublicListing(id: string): Promise<PublicListing | null> {
+  if (!id) return null;
+  const db = await getDb();
+  const [row] = await db
+    .select({
+      l: listings,
+      username: users.username,
+      displayName: users.displayName,
+      avatar: users.avatar,
+      location: users.location,
+      trustScore: users.trustScore,
+      tradesCompleted: users.tradesCompleted,
+      isVerified: users.isVerified,
+      sellerStatus: users.status,
+    })
+    .from(listings)
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .where(eq(listings.id, id))
+    .limit(1);
+
+  if (!row) return null;
+  const l = row.l;
+  if (l.status === "removed") return null;
+  if (row.sellerStatus !== "active" || !row.username) return null;
+
+  return {
+    id: l.id,
+    sellerId: l.sellerId,
+    type: l.type,
+    title: l.title,
+    team: l.team,
+    year: l.year ?? undefined,
+    division: l.division ?? undefined,
+    level: l.level,
+    size: l.size ?? undefined,
+    condition: l.condition,
+    listingType: l.listingType,
+    askingPrice: l.askingPrice ?? undefined,
+    tradeFor: l.tradeFor ?? undefined,
+    photos: l.photos,
+    description: l.description,
+    shippingPreference: l.shippingPreference,
+    tags: l.tags,
+    status: l.status,
+    createdAt: l.createdAt.toISOString(),
+    seller: {
+      username: row.username,
+      displayName: row.displayName,
+      avatar: row.avatar,
+      location: row.location,
+      trustScore: row.trustScore,
+      tradesCompleted: row.tradesCompleted,
+      isVerified: row.isVerified,
+    },
+  };
+}
+
+/** Non-removed listings by active sellers (newest first), for the sitemap. */
+export async function listPublicListingIds(
+  limit = 1000,
+): Promise<{ id: string; updatedAt: Date }[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ id: listings.id, updatedAt: listings.updatedAt })
+    .from(listings)
+    .innerJoin(users, eq(listings.sellerId, users.id))
+    .where(and(ne(listings.status, "removed"), eq(users.status, "active")))
+    .orderBy(desc(listings.createdAt))
+    .limit(limit);
+  return rows;
 }

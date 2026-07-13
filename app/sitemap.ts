@@ -4,7 +4,7 @@
  */
 
 import type { MetadataRoute } from "next";
-import { listPublicUsernames } from "@/lib/server/public";
+import { listPublicListingIds, listPublicUsernames } from "@/lib/server/public";
 
 export const revalidate = 3600;
 
@@ -13,9 +13,14 @@ const origin = (
 ).replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const traders = await listPublicUsernames().catch(
-    () => [] as Awaited<ReturnType<typeof listPublicUsernames>>,
-  );
+  const [traders, listingIds] = await Promise.all([
+    listPublicUsernames().catch(
+      () => [] as Awaited<ReturnType<typeof listPublicUsernames>>,
+    ),
+    listPublicListingIds().catch(
+      () => [] as Awaited<ReturnType<typeof listPublicListingIds>>,
+    ),
+  ]);
   const now = new Date();
 
   return [
@@ -60,6 +65,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: t.updatedAt,
       changeFrequency: "daily" as const,
       priority: 0.7,
+    })),
+    ...listingIds.map((l) => ({
+      url: `${origin}/l/${l.id}`,
+      lastModified: l.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
     })),
   ];
 }
