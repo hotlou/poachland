@@ -284,7 +284,7 @@ export default function LandingPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
               <Link
-                href="/app/browse"
+                href="/browse"
                 className={cn(pillSecondary, "px-6 py-3")}
               >
                 Browse the crate
@@ -430,7 +430,7 @@ export default function LandingPage() {
             <div className="flex flex-col items-center gap-3">
               <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
               <Link
-                href="/app"
+                href="/browse"
                 className="text-xs text-muted-foreground hover:text-accent underline underline-offset-4 transition-colors"
               >
                 Browse the crate first
@@ -441,7 +441,9 @@ export default function LandingPage() {
 
         {/* Footer */}
         <footer className="px-5 pb-10 text-center text-xs text-muted-foreground">
-          <div className="flex items-center justify-center gap-4 mb-2">
+          <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap mb-2">
+            <Link href="/browse" className="hover:text-accent transition-colors">Browse</Link>
+            <Link href="/wanted" className="hover:text-accent transition-colors">Wanted</Link>
             <Link href="/haul" className="hover:text-accent transition-colors">The Haul</Link>
             <Link href="/traders" className="hover:text-accent transition-colors">Traders</Link>
             <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>

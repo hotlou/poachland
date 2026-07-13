@@ -35,7 +35,9 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/app/browse` — search + filters + sort
 - `/app/listings/[id]` — listing detail (state-aware CTAs: propose / buy / offer / claim / message / share)
 - `/l/[id]` — public, crawlable listing page (SEO + OG card)
-- `/terms`, `/privacy` — legal pages
+- `/browse`, `/wanted` — public, signed-out browse + wanted board (lurk before you join)
+- `/app/badges`, `/app/invite` — badge showcase, invite/referral
+- `/terms`, `/privacy`, `/accessibility` — legal + a11y pages
 - `/app/listings/[id]/edit` — edit listing
 - `/app/create` — create listing
 - `/app/wanted`, `/app/wanted/create` — wanted board (ISO)
