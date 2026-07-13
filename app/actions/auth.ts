@@ -31,6 +31,13 @@ async function resolveOrigin(): Promise<string> {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }
 
+/** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
+async function resolveIp(): Promise<string | undefined> {
+  const h = await headers();
+  const fwd = h.get("x-forwarded-for");
+  return fwd?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
+}
+
 /**
  * Emails a magic sign-in link (or, in dev without RESEND_API_KEY, returns it
  * as `devLink` so the login UI can show it inline).
@@ -39,8 +46,8 @@ export async function sendMagicLink(
   email: string,
 ): Promise<RequestMagicLinkResult> {
   try {
-    const origin = await resolveOrigin();
-    return await requestMagicLink(email, origin);
+    const [origin, ip] = await Promise.all([resolveOrigin(), resolveIp()]);
+    return await requestMagicLink(email, origin, ip);
   } catch (error) {
     console.error("[auth] sendMagicLink failed:", error);
     return { ok: false, error: "Something went wrong. Please try again." };

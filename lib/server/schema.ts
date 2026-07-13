@@ -559,8 +559,22 @@ export const haulComments = pgTable(
   (t) => [index("haul_comments_haul_idx").on(t.haulId)],
 );
 
+// ─── Rate limiting (abuse control) ───────────────────────────────────────────
+
+/**
+ * Fixed-window counters keyed by an opaque bucket string
+ * (`u:<userId>:<action>` or `ip:<ip>:<action>`). A single upsert per limited
+ * action increments the count and resets the window atomically.
+ */
+export const rateLimits = pgTable("rate_limits", {
+  bucket: text("bucket").primaryKey(),
+  count: integer("count").notNull().default(0),
+  resetAt: timestamp("reset_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 // ─── Inferred row types ──────────────────────────────────────────────────────
 
+export type RateLimitRow = typeof rateLimits.$inferSelect;
 export type HaulPostRow = typeof haulPosts.$inferSelect;
 export type HaulReactionRow = typeof haulReactions.$inferSelect;
 export type HaulCommentRow = typeof haulComments.$inferSelect;

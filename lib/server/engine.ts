@@ -29,6 +29,7 @@ import type {
 import { uid, type SessionUser } from "./auth";
 import { getDb, type Db } from "./db";
 import { insertNotifications, notify } from "./notify";
+import { underRateLimit } from "./rate-limit";
 import {
   activity,
   blocks,
@@ -44,6 +45,7 @@ import {
   notifications,
   offers,
   paymentMethods,
+  rateLimits,
   ratings,
   reports,
   saves,
@@ -588,6 +590,8 @@ async function openDeal(
 ): Promise<Res> {
   return db.transaction(async (tx) => {
     if (!isClientId(ids.dealId) || !isClientId(ids.threadId)) return err("Invalid id");
+    if (!(await underRateLimit(tx, `u:${user.id}:deal`, 40, 3600)))
+      return err("You're starting a lot of deals — take a breather and try again shortly.");
     const [dupDeal] = await tx
       .select({ id: deals.id })
       .from(deals)
@@ -823,6 +827,8 @@ const handlers: Handlers = {
         .where(eq(listings.id, id))
         .limit(1);
       if (dup) return err("Duplicate id");
+      if (!(await underRateLimit(tx, `u:${user.id}:listing`, 30, 3600)))
+        return err("You're posting listings too fast — take a breather and try again shortly.");
       if (!String(input.title ?? "").trim()) return err("Title is required");
       if (!String(input.team ?? "").trim()) return err("Team is required");
       if (!Array.isArray(input.photos) || input.photos.length === 0)
@@ -1038,6 +1044,8 @@ const handlers: Handlers = {
         .where(eq(isoPosts.id, id))
         .limit(1);
       if (dup) return err("Duplicate id");
+      if (!(await underRateLimit(tx, `u:${user.id}:iso`, 20, 3600)))
+        return err("You're posting wanted ads too fast — try again shortly.");
       const description = String(input.description ?? "").trim();
       if (description.length < 10)
         return err("Describe what you're hunting (at least 10 characters)");
@@ -1670,6 +1678,8 @@ const handlers: Handlers = {
       if (!trimmed) return err("Message is empty");
       const other = thread.participantIds.find((p) => p !== user.id)!;
       if (await isBlockedPair(tx, user.id, other)) return err("You can't message this user");
+      if (!(await underRateLimit(tx, `u:${user.id}:msg`, 45, 60)))
+        return err("You're sending messages too fast — slow down a moment.");
       await appendMessage(tx, threadId, user.id, "text", trimmed.slice(0, 2000), { id });
       // Collapse per-thread message notifications so they don't stack up.
       await tx
@@ -2046,6 +2056,8 @@ const handlers: Handlers = {
       const trimmed = String(body ?? "").trim();
       if (!trimmed) return err("Say something");
       if (trimmed.length > 500) return err("Comment is too long (500 characters max)");
+      if (!(await underRateLimit(tx, `u:${user.id}:haulcomment`, 25, 600)))
+        return err("You're commenting too fast — take a breather and try again shortly.");
       const [post] = await tx
         .select()
         .from(haulPosts)
