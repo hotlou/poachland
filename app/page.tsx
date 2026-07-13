@@ -260,7 +260,7 @@ export default function LandingPage() {
         </header>
 
         {/* Hero */}
-        <section className="px-5 pt-12 pb-10 md:pt-16">
+        <section id="main-content" className="px-5 pt-12 pb-10 md:pt-16">
           <div className="max-w-2xl mx-auto text-center">
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="badge-stamp text-accent border-accent">
@@ -446,6 +446,7 @@ export default function LandingPage() {
             <Link href="/traders" className="hover:text-accent transition-colors">Traders</Link>
             <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+            <Link href="/accessibility" className="hover:text-accent transition-colors">Accessibility</Link>
           </div>
           Poachland — built by players, for players.
         </footer>

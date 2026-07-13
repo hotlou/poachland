@@ -36,7 +36,7 @@ export function AccountGate({ children }: { children: React.ReactNode }) {
         </span>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-5 pb-16">
+      <main id="main-content" className="flex-1 flex items-center justify-center px-5 pb-16">
         <div
           className={
             banned

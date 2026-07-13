@@ -451,7 +451,7 @@ export function PublicProfile({ username }: { username: string }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
+      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
         {!hydrated ? (
           <ProfileSkeleton />
         ) : user ? (

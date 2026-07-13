@@ -28,7 +28,7 @@ export function LegalShell({
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-5 py-10">
+      <main id="main-content" className="mx-auto max-w-2xl px-5 py-10">
         <h1 className="font-display font-black text-3xl md:text-4xl tracking-tight mb-1">{title}</h1>
         <p className="text-xs text-muted-foreground mb-8">Last updated {lastUpdated}</p>
         <div className="legal-prose flex flex-col gap-5 text-sm leading-relaxed text-foreground/90">
@@ -38,6 +38,7 @@ export function LegalShell({
         <footer className="mt-12 pt-6 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
           <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
           <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+          <Link href="/accessibility" className="hover:text-accent transition-colors">Accessibility</Link>
           <Link href="/" className="hover:text-accent transition-colors">Home</Link>
         </footer>
       </main>

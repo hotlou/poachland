@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const CONTACT = "hello@poachland.com";
+const CONTACT = "broker@poachland.com";
 
 export default function PrivacyPage() {
   return (
