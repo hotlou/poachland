@@ -46,6 +46,8 @@ import type {
   MessageKind,
   NotificationType,
   OfferStatus,
+  PartnerCategory,
+  PartnerKind,
   PaymentKind,
   ReportStatus,
   ReportTargetType,
@@ -564,6 +566,30 @@ export const haulComments = pgTable(
   (t) => [index("haul_comments_haul_idx").on(t.haulId)],
 );
 
+// ─── Sponsors & vendors (partners) ───────────────────────────────────────────
+
+export const partners = pgTable(
+  "partners",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<PartnerKind>().notNull(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    tagline: text("tagline").notNull().default(""),
+    description: text("description").notNull().default(""),
+    logo: text("logo").notNull().default(""),
+    url: text("url").notNull().default(""),
+    category: text("category").$type<PartnerCategory>().notNull().default("other"),
+    featured: boolean("featured").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("partners_kind_active_idx").on(t.kind, t.active)],
+);
+
 // ─── Rate limiting (abuse control) ───────────────────────────────────────────
 
 /**
@@ -579,6 +605,7 @@ export const rateLimits = pgTable("rate_limits", {
 
 // ─── Inferred row types ──────────────────────────────────────────────────────
 
+export type PartnerRow = typeof partners.$inferSelect;
 export type RateLimitRow = typeof rateLimits.$inferSelect;
 export type HaulPostRow = typeof haulPosts.$inferSelect;
 export type HaulReactionRow = typeof haulReactions.$inferSelect;

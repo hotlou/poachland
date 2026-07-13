@@ -45,6 +45,7 @@ import {
   messages,
   notifications,
   offers,
+  partners,
   paymentMethods,
   rateLimits,
   ratings,
@@ -117,6 +118,15 @@ function capPhotos(raw: unknown): string[] | null {
 
 function sanitizeUsername(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+}
+
+function sanitizeSlug(raw: string): string {
+  return String(raw)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
 }
 
 function otherParty(deal: { proposerId: string; ownerId: string }, userId: string): string {
@@ -2486,6 +2496,57 @@ const handlers: Handlers = {
           "/app/profile",
         );
       }
+      return ok(null);
+    });
+  },
+
+  // ── Sponsors & vendors (partners) ──────────────────────────────────────────
+
+  async adminUpsertPartner(db, user, input) {
+    return db.transaction(async (tx) => {
+      if (!isClientId(input.id)) return err("Invalid id");
+      const name = String(input.name ?? "").trim();
+      if (!name) return err("Name is required");
+      const slug = sanitizeSlug(input.slug || name);
+      if (slug.length < 2) return err("Give it a longer name or slug");
+      const [clash] = await tx
+        .select({ id: partners.id })
+        .from(partners)
+        .where(and(eq(partners.slug, slug), ne(partners.id, input.id)))
+        .limit(1);
+      if (clash) return err("That slug is already taken");
+      const logo = String(input.logo ?? "");
+      if (logo.length > MAX_PHOTO_DATAURL) return err("Logo image is too large");
+      const values = {
+        kind: input.kind,
+        name: name.slice(0, 80),
+        slug,
+        tagline: String(input.tagline ?? "").trim().slice(0, 140),
+        description: String(input.description ?? "").trim().slice(0, 2000),
+        logo,
+        url: String(input.url ?? "").trim().slice(0, 400),
+        category: input.category ?? ("other" as const),
+        featured: !!input.featured,
+        active: input.active ?? true,
+        sortOrder: Number(input.sortOrder ?? 0) | 0,
+      };
+      const [existing] = await tx
+        .select({ id: partners.id })
+        .from(partners)
+        .where(eq(partners.id, input.id))
+        .limit(1);
+      if (existing) {
+        await tx.update(partners).set(values).where(eq(partners.id, input.id));
+      } else {
+        await tx.insert(partners).values({ id: input.id, ...values, createdAt: new Date() });
+      }
+      return ok(input.id);
+    });
+  },
+
+  async adminRemovePartner(db, user, { id }) {
+    return db.transaction(async (tx) => {
+      await tx.delete(partners).where(eq(partners.id, id));
       return ok(null);
     });
   },

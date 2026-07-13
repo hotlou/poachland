@@ -488,6 +488,44 @@ export interface HaulPost extends HaulPostRecord {
   commentCount: number;
 }
 
+// ─── Sponsors & vendors (partners) ───────────────────────────────────────────
+
+/**
+ * A commercial partner. `sponsor` = a brand backing the community (e.g. a
+ * snack or apparel brand) shown in support strips; `vendor` = a real gear
+ * seller (jersey / disc / glove companies) listed in the shop directory. Both
+ * link out to the partner's own site; Poachland doesn't process their sales.
+ */
+export type PartnerKind = "sponsor" | "vendor";
+
+export type PartnerCategory =
+  | "jerseys"
+  | "discs"
+  | "apparel"
+  | "cleats"
+  | "accessories"
+  | "media"
+  | "other";
+
+export interface Partner {
+  id: string;
+  kind: PartnerKind;
+  name: string;
+  /** URL-safe unique handle for /vendors/[slug]. */
+  slug: string;
+  tagline: string;
+  description: string;
+  /** Logo image (data URL or hosted URL). */
+  logo: string;
+  /** External link to the partner's own site. */
+  url: string;
+  category: PartnerCategory;
+  /** Featured partners surface first / in support strips. */
+  featured: boolean;
+  active: boolean;
+  createdAt: string;
+}
+
 // ─── Persisted DB shape ──────────────────────────────────────────────────────
 
 export interface DBState {
@@ -514,4 +552,6 @@ export interface DBState {
   paymentMethods?: PaymentMethod[];
   /** The Haul — public wall of shared completed trades. */
   haulPosts?: HaulPost[];
+  /** Active sponsors & vendors (public). */
+  partners?: Partner[];
 }

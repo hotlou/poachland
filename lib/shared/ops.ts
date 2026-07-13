@@ -26,6 +26,9 @@ import type {
   ItemType,
   Level,
   ListingType,
+  Partner,
+  PartnerCategory,
+  PartnerKind,
   PaymentKind,
   ReportTargetType,
   SaveTargetType,
@@ -81,6 +84,8 @@ export interface AdminData {
   reports: DBState["reports"];
   disputedDeals: DBState["deals"];
   identityQueue: IdentityRecord[];
+  /** All partners (active + inactive) for management. */
+  partners: Partner[];
   users: (UserRecord & {
     email: string;
     status: UserStatus;
@@ -253,6 +258,21 @@ export interface OpMap {
   adminSetListingFeatured: { id: string; featured: boolean };
   adminRemoveListing: { id: string; reason?: string };
   adminReviewIdentity: { identityId: string; status: "verified" | "rejected" | "pending"; note?: string };
+  adminUpsertPartner: {
+    id: string;
+    kind: PartnerKind;
+    name: string;
+    slug?: string;
+    tagline?: string;
+    description?: string;
+    logo?: string;
+    url?: string;
+    category?: PartnerCategory;
+    featured?: boolean;
+    active?: boolean;
+    sortOrder?: number;
+  };
+  adminRemovePartner: { id: string };
 }
 
 export type OpName = keyof OpMap;

@@ -26,7 +26,8 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Settle up, privately** — traders save payment handles (Venmo / PayPal / Cash App / Zelle / crypto); they are never public and are revealed only to the counterparty of an **accepted** deal.
 - **Deal proof** — both parties can attach proof photos (packed item, receipt, label) alongside tracking numbers; proof surfaces in the deal room and as evidence in disputes.
 - **The Haul** — a community wall of completed trades. Either party can "show off" a finished deal; the trade sides show as thumbnails with a deliberately *vague, rounded* cash figure (we celebrate the swap, not the receipt). Additive-only reactions (🔥 Heat · 👏 Clean · 🤝 Fair · 😮 Whoa · 🏴‍☠️ Heist — a heist badge is honor, never shame) and comments let the community cheer surprising or lopsided deals without punching down. Weekly leaderboards crown the Heist of the week and the Cleanest deal. Consent-first: the *other* trader can hide any post or turn its comments off at any time; re-sharing brings a hidden post back. There's a public, crawlable `/haul` wall (with its own OG card) so great trades are shareable off-platform.
-- **Roadmap** — middleman/escrow for high-value deals; public listing pages; native app wrappers. Deliberately not built yet: trust features ship first, bloat waits for demand.
+- **Sponsors & vendors** — a first-class partners system: community **sponsors** (brands backing the sport) surface in a tasteful "supported by" rail; **vendors** (jersey / disc / apparel / cleats / accessories companies) get a public shop directory at `/shop` and individual pages at `/vendors/[slug]` (crawlable, in the sitemap). Both link out — Poachland doesn't process their sales. Moderators manage them from a Partners panel in the admin dashboard.
+- **Roadmap** — middleman/escrow for high-value deals; object-storage image offload; native app wrappers. Deliberately not built yet: trust features ship first, bloat waits for demand.
 
 **Routes:**
 - `/` — Landing page
@@ -36,6 +37,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/app/listings/[id]` — listing detail (state-aware CTAs: propose / buy / offer / claim / message / share)
 - `/l/[id]` — public, crawlable listing page (SEO + OG card)
 - `/browse`, `/wanted` — public, signed-out browse + wanted board (lurk before you join)
+- `/shop`, `/vendors/[slug]` — public sponsor/vendor directory + vendor pages
 - `/app/badges`, `/app/invite` — badge showcase, invite/referral
 - `/terms`, `/privacy`, `/accessibility` — legal + a11y pages
 - `/app/listings/[id]/edit` — edit listing

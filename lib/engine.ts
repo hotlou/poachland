@@ -47,6 +47,8 @@ import type {
   Notification,
   NotificationType,
   Offer,
+  Partner,
+  PartnerCategory,
   Rating,
   RatingSummary,
   Report,
@@ -101,6 +103,7 @@ export function emptyDBState(): DBState {
     activity: [],
     identities: [],
     haulPosts: [],
+    partners: [],
   };
 }
 
@@ -2326,6 +2329,90 @@ export class PoachStore {
     if (!canRemove) return err("You can't remove that comment");
     post.comments = post.comments.filter((c) => c.id !== commentId);
     post.commentCount = post.comments.length;
+    this.commit();
+    return ok(null);
+  }
+
+  // ── Sponsors & vendors (partners) ──────────────────────────────────────────
+
+  listPartners(): Partner[] {
+    return [...(this.state.partners ?? [])];
+  }
+
+  listSponsors(): Partner[] {
+    return (this.state.partners ?? []).filter((p) => p.kind === "sponsor" && p.active);
+  }
+
+  listVendors(category?: PartnerCategory): Partner[] {
+    return (this.state.partners ?? []).filter(
+      (p) => p.kind === "vendor" && p.active && (!category || p.category === category),
+    );
+  }
+
+  featuredPartners(): Partner[] {
+    return (this.state.partners ?? []).filter((p) => p.featured && p.active);
+  }
+
+  getPartnerBySlug(slug: string): Partner | null {
+    const s = slug.toLowerCase();
+    return (this.state.partners ?? []).find((p) => p.slug === s) ?? null;
+  }
+
+  private partnerSlug(raw: string): string {
+    return raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48);
+  }
+
+  upsertPartner(input: {
+    id?: string;
+    kind: Partner["kind"];
+    name: string;
+    slug?: string;
+    tagline?: string;
+    description?: string;
+    logo?: string;
+    url?: string;
+    category?: PartnerCategory;
+    featured?: boolean;
+    active?: boolean;
+    sortOrder?: number;
+  }): Res<Partner> {
+    const name = input.name.trim();
+    if (!name) return err("Name is required");
+    const slug = this.partnerSlug(input.slug || name);
+    if (slug.length < 2) return err("Give it a longer name or slug");
+    if (!this.state.partners) this.state.partners = [];
+    const id = input.id ?? uid("partner");
+    const existing = this.state.partners.find((p) => p.id === id);
+    if (this.state.partners.some((p) => p.slug === slug && p.id !== id))
+      return err("That slug is already taken");
+    const partner: Partner = {
+      id,
+      kind: input.kind,
+      name: name.slice(0, 80),
+      slug,
+      tagline: (input.tagline ?? "").trim().slice(0, 140),
+      description: (input.description ?? "").trim().slice(0, 2000),
+      logo: input.logo ?? existing?.logo ?? "",
+      url: (input.url ?? "").trim().slice(0, 400),
+      category: input.category ?? "other",
+      featured: !!input.featured,
+      active: input.active ?? true,
+      createdAt: existing?.createdAt ?? this.now(),
+    };
+    if (existing) Object.assign(existing, partner);
+    else this.state.partners.push(partner);
+    this.commit();
+    return ok(partner);
+  }
+
+  removePartner(id: string): Res {
+    if (!this.state.partners) return ok(null);
+    this.state.partners = this.state.partners.filter((p) => p.id !== id);
     this.commit();
     return ok(null);
   }

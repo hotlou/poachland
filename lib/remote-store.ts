@@ -45,6 +45,8 @@ import type {
   ISOStatus,
   Listing,
   Message,
+  Partner,
+  PartnerCategory,
   Rating,
   ReportTargetType,
   SaveTargetType,
@@ -118,6 +120,7 @@ export class RemotePoachStore extends PoachStore {
       identities: snap.identities ?? [],
       paymentMethods: snap.paymentMethods ?? [],
       haulPosts: snap.haulPosts ?? [],
+      partners: snap.partners ?? [],
     };
     this.sessionMe = me;
     this.ready = true;
@@ -572,6 +575,48 @@ export class RemotePoachStore extends PoachStore {
   override deleteHaulComment(commentId: string, opts: { byAdmin?: boolean } = {}): Res {
     const res = super.deleteHaulComment(commentId, opts);
     if (res.ok) this.send("deleteHaulComment", { commentId });
+    return res;
+  }
+
+  // ── Sponsors & vendors (admin) ──────────────────────────────────────────────
+
+  override upsertPartner(input: {
+    id?: string;
+    kind: Partner["kind"];
+    name: string;
+    slug?: string;
+    tagline?: string;
+    description?: string;
+    logo?: string;
+    url?: string;
+    category?: PartnerCategory;
+    featured?: boolean;
+    active?: boolean;
+    sortOrder?: number;
+  }): Res<Partner> {
+    const res = super.upsertPartner(input);
+    if (res.ok) {
+      this.send("adminUpsertPartner", {
+        id: res.value.id,
+        kind: res.value.kind,
+        name: res.value.name,
+        slug: res.value.slug,
+        tagline: res.value.tagline,
+        description: res.value.description,
+        logo: res.value.logo,
+        url: res.value.url,
+        category: res.value.category,
+        featured: res.value.featured,
+        active: res.value.active,
+        sortOrder: input.sortOrder,
+      });
+    }
+    return res;
+  }
+
+  override removePartner(id: string): Res {
+    const res = super.removePartner(id);
+    if (res.ok) this.send("adminRemovePartner", { id });
     return res;
   }
 }

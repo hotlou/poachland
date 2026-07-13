@@ -22,11 +22,13 @@ import type {
   Level,
   ListingStatus,
   ListingType,
+  Partner,
+  PartnerKind,
   ShippingPreference,
   User,
 } from "../types";
 import { getDb } from "./db";
-import { haulComments, haulPosts, haulReactions, listings, users } from "./schema";
+import { haulComments, haulPosts, haulReactions, listings, partners, users } from "./schema";
 
 export interface PublicProfile {
   id: string;
@@ -394,4 +396,47 @@ export async function listPublicListingIds(
     .orderBy(desc(listings.createdAt))
     .limit(limit);
   return rows;
+}
+
+// ─── Sponsors & vendors ──────────────────────────────────────────────────────
+
+function toPublicPartner(row: typeof partners.$inferSelect): Partner {
+  return {
+    id: row.id,
+    kind: row.kind,
+    name: row.name,
+    slug: row.slug,
+    tagline: row.tagline,
+    description: row.description,
+    logo: row.logo,
+    url: row.url,
+    category: row.category,
+    featured: row.featured,
+    active: row.active,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/** Active partners (optionally filtered by kind), featured first. Public. */
+export async function getPublicPartners(kind?: PartnerKind): Promise<Partner[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(partners)
+    .where(kind ? and(eq(partners.active, true), eq(partners.kind, kind)) : eq(partners.active, true))
+    .orderBy(desc(partners.featured), asc(partners.sortOrder), asc(partners.createdAt));
+  return rows.map(toPublicPartner);
+}
+
+/** A single active partner by slug, for /vendors/[slug]. Null when unknown. */
+export async function getPublicPartner(slug: string): Promise<Partner | null> {
+  const s = slug.trim().toLowerCase();
+  if (!s) return null;
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(partners)
+    .where(and(eq(partners.slug, s), eq(partners.active, true)))
+    .limit(1);
+  return row ? toPublicPartner(row) : null;
 }
