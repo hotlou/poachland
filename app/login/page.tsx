@@ -89,7 +89,7 @@ function LoginCard() {
         </Link>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-5 pb-16">
+      <main id="main-content" className="flex-1 flex items-center justify-center px-5 pb-16">
         <div className="w-full max-w-md">
           <div className="bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-2 mb-5">

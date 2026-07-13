@@ -200,7 +200,7 @@ export default function OnboardingPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-6 pb-10">
+      <main id="main-content" className="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-6 pb-10">
         {/* Step 1 — Welcome */}
         {step === 0 && (
           <div className="flex-1 flex flex-col">

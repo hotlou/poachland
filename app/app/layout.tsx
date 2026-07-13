@@ -36,7 +36,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <ImpersonationBanner />
       <AccountGate>
         <TopNav />
-        <main className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl">
+        <main
+          id="main-content"
+          className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl"
+        >
           {children}
         </main>
         <div className="md:hidden">

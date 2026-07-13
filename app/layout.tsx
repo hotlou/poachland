@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { StoreProvider } from "@/lib/store-context";
+import { CookieNotice } from "@/components/cookie-notice";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -47,6 +48,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geist.variable} font-sans antialiased bg-background text-foreground`}>
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -54,6 +58,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <StoreProvider>{children}</StoreProvider>
+          <CookieNotice />
           <Toaster position="top-center" richColors />
         </ThemeProvider>
         <Analytics />

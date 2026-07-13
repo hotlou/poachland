@@ -135,7 +135,7 @@ export function PublicHaul() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6">
+      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6">
         <Hero />
         {!hydrated ? (
           <HaulSkeleton />

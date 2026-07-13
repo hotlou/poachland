@@ -181,7 +181,7 @@ export function TradersDirectory() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-5 pt-7 pb-12">
+      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-5 pt-7 pb-12">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
           The community
         </p>
