@@ -19,6 +19,7 @@ import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { HaulCard } from "@/components/haul-card";
 import { ListingCard } from "@/components/listing-card";
+import { PartnersRail } from "@/components/partners-rail";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import type { Deal } from "@/lib/types";
 
@@ -541,6 +542,7 @@ export default function HomeFeedPage() {
         <TheHaul />
         <FreshDrops />
         <ActivityTimeline />
+        <PartnersRail className="px-4 md:px-6 mt-6" />
         <WantedPreview />
         <TraderSpotlight />
       </Hydrated>

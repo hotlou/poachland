@@ -445,6 +445,7 @@ export default function LandingPage() {
             <Link href="/browse" className="hover:text-accent transition-colors">Browse</Link>
             <Link href="/wanted" className="hover:text-accent transition-colors">Wanted</Link>
             <Link href="/haul" className="hover:text-accent transition-colors">The Haul</Link>
+            <Link href="/shop" className="hover:text-accent transition-colors">Shop</Link>
             <Link href="/traders" className="hover:text-accent transition-colors">Traders</Link>
             <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>

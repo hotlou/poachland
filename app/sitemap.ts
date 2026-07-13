@@ -4,7 +4,11 @@
  */
 
 import type { MetadataRoute } from "next";
-import { listPublicListingIds, listPublicUsernames } from "@/lib/server/public";
+import {
+  getPublicPartners,
+  listPublicListingIds,
+  listPublicUsernames,
+} from "@/lib/server/public";
 
 export const revalidate = 3600;
 
@@ -13,12 +17,15 @@ const origin = (
 ).replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [traders, listingIds] = await Promise.all([
+  const [traders, listingIds, vendors] = await Promise.all([
     listPublicUsernames().catch(
       () => [] as Awaited<ReturnType<typeof listPublicUsernames>>,
     ),
     listPublicListingIds().catch(
       () => [] as Awaited<ReturnType<typeof listPublicListingIds>>,
+    ),
+    getPublicPartners("vendor").catch(
+      () => [] as Awaited<ReturnType<typeof getPublicPartners>>,
     ),
   ]);
   const now = new Date();
@@ -55,6 +62,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     },
     {
+      url: `${origin}/shop`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    },
+    {
       url: `${origin}/login`,
       lastModified: now,
       changeFrequency: "monthly",
@@ -89,6 +102,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: l.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.6,
+    })),
+    ...vendors.map((v) => ({
+      url: `${origin}/vendors/${encodeURIComponent(v.slug)}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
     })),
   ];
 }

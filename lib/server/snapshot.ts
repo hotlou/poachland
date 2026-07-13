@@ -28,6 +28,7 @@ import type {
   MessageRecord,
   Notification,
   Offer,
+  Partner,
   Rating,
   Report,
   Save,
@@ -49,6 +50,7 @@ import {
   messages,
   notifications,
   offers,
+  partners,
   paymentMethods,
   ratings,
   reports,
@@ -66,6 +68,7 @@ import {
   type MessageRow,
   type NotificationRow,
   type OfferRow,
+  type PartnerRow,
   type PaymentMethodRow,
   type RatingRow,
   type ReportRow,
@@ -294,6 +297,23 @@ function toIdentityRecord(row: IdentityRow): IdentityRecord {
   };
 }
 
+function toPartner(row: PartnerRow): Partner {
+  return {
+    id: row.id,
+    kind: row.kind,
+    name: row.name,
+    slug: row.slug,
+    tagline: row.tagline,
+    description: row.description,
+    logo: row.logo,
+    url: row.url,
+    category: row.category,
+    featured: row.featured,
+    active: row.active,
+    createdAt: iso(row.createdAt),
+  };
+}
+
 function toHaulPostRecord(row: HaulPostRow): HaulPostRecord {
   return {
     id: row.id,
@@ -349,8 +369,16 @@ export async function buildSnapshot(
   }
 
   // Public collections.
-  const [userRows, listingRows, isoRows, ratingRows, activityRows, identityRows, haulPostRows] =
-    await Promise.all([
+  const [
+    userRows,
+    listingRows,
+    isoRows,
+    ratingRows,
+    activityRows,
+    identityRows,
+    haulPostRows,
+    partnerRows,
+  ] = await Promise.all([
       db.select().from(users).orderBy(asc(users.memberSince), asc(users.id)),
       viewerId
         ? db
@@ -372,6 +400,11 @@ export async function buildSnapshot(
         .limit(ACTIVITY_LIMIT),
       db.select().from(identities).orderBy(asc(identities.submittedAt), asc(identities.id)),
       db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)),
+      db
+        .select()
+        .from(partners)
+        .where(eq(partners.active, true))
+        .orderBy(desc(partners.featured), asc(partners.sortOrder), asc(partners.createdAt)),
     ]);
 
   // Private collections (viewer-scoped). Signed-out viewers get empty ones.
@@ -621,6 +654,7 @@ export async function buildSnapshot(
     identities: identityRows.map(toIdentityRecord),
     paymentMethods: paymentRows.map(toPaymentMethod),
     haulPosts: hydratedHaul,
+    partners: partnerRows.map(toPartner),
   };
 }
 
@@ -669,6 +703,11 @@ export async function buildAdminData(): Promise<AdminData> {
     db.select({ n: sql<number>`count(*)::int` }).from(messages),
   ]);
 
+  const partnerRows = await db
+    .select()
+    .from(partners)
+    .orderBy(desc(partners.featured), asc(partners.sortOrder), asc(partners.createdAt));
+
   const disputedOffers =
     disputedRows.length > 0
       ? await db
@@ -694,6 +733,7 @@ export async function buildAdminData(): Promise<AdminData> {
     reports: reportRows.map(toReport),
     disputedDeals: disputedRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
     identityQueue: identityQueue.map(toIdentityRecord),
+    partners: partnerRows.map(toPartner),
     users: userRows.map((u) => ({
       ...toUserRecord(u),
       email: u.email,
