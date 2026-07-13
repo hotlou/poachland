@@ -404,6 +404,73 @@ export interface IdentityRecord {
   reviewerNote?: string;
 }
 
+// ─── The Haul: community wall of completed trades ────────────────────────────
+
+/** Celebratory reaction set — additive only, no downvotes. */
+export type HaulReactionEmoji = "🔥" | "👏" | "🤝" | "😮" | "🏴‍☠️";
+
+export const HAUL_REACTIONS: { emoji: HaulReactionEmoji; label: string }[] = [
+  { emoji: "🔥", label: "Heat" },
+  { emoji: "👏", label: "Clean" },
+  { emoji: "🤝", label: "Fair" },
+  { emoji: "😮", label: "Whoa" },
+  { emoji: "🏴‍☠️", label: "Heist" },
+];
+
+export interface HaulSideItem {
+  listingId?: string;
+  title: string;
+  photo?: string;
+}
+
+/** One side of a shared trade, denormalized at share time (stays public-safe). */
+export interface HaulSide {
+  items: HaulSideItem[];
+  cash: number;
+}
+
+export interface HaulCommentRecord {
+  id: string;
+  haulId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+  hidden: boolean;
+}
+
+export interface HaulComment extends HaulCommentRecord {
+  user: User;
+}
+
+export interface HaulPostRecord {
+  id: string;
+  dealId: string;
+  kind: DealKind;
+  proposerId: string;
+  ownerId: string;
+  /** Who tapped "Show off this trade". */
+  sharedBy: string;
+  proposerSide: HaulSide;
+  ownerSide: HaulSide;
+  note?: string;
+  commentsEnabled: boolean;
+  hidden: boolean;
+  hiddenBy?: string;
+  createdAt: string;
+}
+
+/** Hydrated Haul card — everything the feed needs, reaction counts folded in. */
+export interface HaulPost extends HaulPostRecord {
+  proposer: User;
+  owner: User;
+  reactionCounts: Partial<Record<HaulReactionEmoji, number>>;
+  totalReactions: number;
+  /** The current viewer's reaction, if any. */
+  myReaction?: HaulReactionEmoji;
+  comments: HaulComment[];
+  commentCount: number;
+}
+
 // ─── Persisted DB shape ──────────────────────────────────────────────────────
 
 export interface DBState {
@@ -428,4 +495,6 @@ export interface DBState {
    * plus those of counterparties in the viewer's ACCEPTED deals.
    */
   paymentMethods?: PaymentMethod[];
+  /** The Haul — public wall of shared completed trades. */
+  haulPosts?: HaulPost[];
 }

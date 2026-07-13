@@ -9,10 +9,10 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
-import type { Badge, HistoryEntry } from "../types";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import type { Badge, HaulComment, HaulPost, HaulReactionEmoji, HistoryEntry, User } from "../types";
 import { getDb } from "./db";
-import { users } from "./schema";
+import { haulComments, haulPosts, haulReactions, users } from "./schema";
 
 export interface PublicProfile {
   id: string;
@@ -124,4 +124,144 @@ export async function listPublicUsernames(
       username: r.username,
       updatedAt: r.onboardedAt ?? r.memberSince,
     }));
+}
+
+// ─── The Haul (public wall) ──────────────────────────────────────────────────
+
+const publicUserColumns = {
+  id: users.id,
+  username: users.username,
+  displayName: users.displayName,
+  avatar: users.avatar,
+  bio: users.bio,
+  location: users.location,
+  favoriteTeams: users.favoriteTeams,
+  history: users.history,
+  gallery: users.gallery,
+  memberSince: users.memberSince,
+  isVerified: users.isVerified,
+  badges: users.badges,
+  baselineTrades: users.baselineTrades,
+  baselineRatingCount: users.baselineRatingCount,
+  baselineRatingSum: users.baselineRatingSum,
+  trustScore: users.trustScore,
+  ratingsCount: users.ratingsCount,
+  tradesCompleted: users.tradesCompleted,
+  status: users.status,
+};
+
+/**
+ * The public wall of shared completed trades, newest first — safe for
+ * signed-out visitors and crawlers. Hidden posts and posts involving a
+ * moderated (non-active) trader are dropped; so are comments from moderated
+ * authors. No viewer context, so `myReaction` is always undefined.
+ */
+export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
+  const db = await getDb();
+  const postRows = await db
+    .select()
+    .from(haulPosts)
+    .where(eq(haulPosts.hidden, false))
+    .orderBy(desc(haulPosts.createdAt), desc(haulPosts.id))
+    .limit(limit);
+  if (postRows.length === 0) return [];
+
+  const ids = postRows.map((p) => p.id);
+  const [reactionRows, commentRows] = await Promise.all([
+    db.select().from(haulReactions).where(inArray(haulReactions.haulId, ids)),
+    db
+      .select()
+      .from(haulComments)
+      .where(and(inArray(haulComments.haulId, ids), eq(haulComments.hidden, false)))
+      .orderBy(asc(haulComments.createdAt), asc(haulComments.id)),
+  ]);
+
+  const userIds = new Set<string>();
+  for (const p of postRows) {
+    userIds.add(p.proposerId);
+    userIds.add(p.ownerId);
+  }
+  for (const c of commentRows) userIds.add(c.userId);
+
+  const userRows = userIds.size
+    ? await db.select(publicUserColumns).from(users).where(inArray(users.id, [...userIds]))
+    : [];
+  const activeUsers = new Map<string, User>();
+  for (const u of userRows) {
+    if (u.status !== "active" || !u.username) continue;
+    activeUsers.set(u.id, {
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      avatar: u.avatar,
+      bio: u.bio,
+      location: u.location,
+      favoriteTeams: u.favoriteTeams,
+      history: u.history,
+      gallery: u.gallery,
+      memberSince: u.memberSince.toISOString(),
+      isVerified: u.isVerified,
+      badges: u.badges,
+      baselineTrades: u.baselineTrades,
+      baselineRatingCount: u.baselineRatingCount,
+      baselineRatingSum: u.baselineRatingSum,
+      trustScore: u.trustScore,
+      ratingsCount: u.ratingsCount,
+      tradesCompleted: u.tradesCompleted,
+    });
+  }
+
+  const countsByHaul = new Map<string, Partial<Record<HaulReactionEmoji, number>>>();
+  for (const r of reactionRows) {
+    const c = countsByHaul.get(r.haulId) ?? {};
+    c[r.emoji] = (c[r.emoji] ?? 0) + 1;
+    countsByHaul.set(r.haulId, c);
+  }
+
+  const commentsByHaul = new Map<string, HaulComment[]>();
+  for (const c of commentRows) {
+    const author = activeUsers.get(c.userId);
+    if (!author) continue;
+    const list = commentsByHaul.get(c.haulId) ?? [];
+    list.push({
+      id: c.id,
+      haulId: c.haulId,
+      userId: c.userId,
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      hidden: false,
+      user: author,
+    });
+    commentsByHaul.set(c.haulId, list);
+  }
+
+  return postRows
+    .filter((p) => activeUsers.has(p.proposerId) && activeUsers.has(p.ownerId))
+    .map((p) => {
+      const counts = countsByHaul.get(p.id) ?? {};
+      const total = Object.values(counts).reduce((s, n) => s + (n ?? 0), 0);
+      const comments = commentsByHaul.get(p.id) ?? [];
+      return {
+        id: p.id,
+        dealId: p.dealId,
+        kind: p.kind,
+        proposerId: p.proposerId,
+        ownerId: p.ownerId,
+        sharedBy: p.sharedBy,
+        proposerSide: p.proposerSide,
+        ownerSide: p.ownerSide,
+        note: p.note ?? undefined,
+        commentsEnabled: p.commentsEnabled,
+        hidden: false,
+        hiddenBy: p.hiddenBy ?? undefined,
+        createdAt: p.createdAt.toISOString(),
+        proposer: activeUsers.get(p.proposerId)!,
+        owner: activeUsers.get(p.ownerId)!,
+        reactionCounts: counts,
+        totalReactions: total,
+        myReaction: undefined,
+        comments,
+        commentCount: comments.length,
+      };
+    });
 }

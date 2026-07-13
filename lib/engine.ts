@@ -22,6 +22,12 @@ import type {
   DealRecord,
   DealStatus,
   FulfillmentState,
+  HaulComment,
+  HaulCommentRecord,
+  HaulPost,
+  HaulReactionEmoji,
+  HaulSide,
+  HaulSideItem,
   HydratedRating,
   EmailPrefs,
   IdentityProvider,
@@ -93,6 +99,7 @@ export function emptyDBState(): DBState {
     blocks: [],
     activity: [],
     identities: [],
+    haulPosts: [],
   };
 }
 
@@ -2079,6 +2086,234 @@ export class PoachStore {
       "system",
       `${me.username} added ${photos.length} proof photo${photos.length > 1 ? "s" : ""} to the deal.`,
     );
+    this.commit();
+    return ok(null);
+  }
+
+  // ── The Haul (community wall of completed trades) ──────────────────────────
+
+  private hydrateHaulComment(record: HaulCommentRecord): HaulComment {
+    return { ...record, user: this.getUser(record.userId)! };
+  }
+
+  /** Refresh a post's user/comment refs from current state (usernames change). */
+  private hydrateHaul(post: HaulPost): HaulPost {
+    return {
+      ...post,
+      proposer: this.getUser(post.proposerId) ?? post.proposer,
+      owner: this.getUser(post.ownerId) ?? post.owner,
+      comments: post.comments.map((c) => ({ ...c, user: this.getUser(c.userId) ?? c.user })),
+    };
+  }
+
+  private buildHaulSide(ids: string[], cash: number): HaulSide {
+    const items: HaulSideItem[] = ids.map((id) => {
+      const l = this.rawListing(id);
+      return { listingId: id, title: l?.title ?? "an item", photo: l?.photos[0] };
+    });
+    return { items, cash: Math.max(0, Math.round(cash)) };
+  }
+
+  /** Visible (non-hidden) Haul posts, newest first, blocks respected. */
+  listHaul(limit?: number): HaulPost[] {
+    const me = this.currentUser();
+    const posts = (this.state.haulPosts ?? [])
+      .filter((p) => !p.hidden)
+      .filter(
+        (p) =>
+          !me ||
+          (!this.isBlockedPair(me.id, p.proposerId) && !this.isBlockedPair(me.id, p.ownerId)),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((p) => this.hydrateHaul(p));
+    return limit ? posts.slice(0, limit) : posts;
+  }
+
+  getHaul(haulId: string): HaulPost | null {
+    const post = (this.state.haulPosts ?? []).find((p) => p.id === haulId);
+    return post ? this.hydrateHaul(post) : null;
+  }
+
+  /** The Haul post for a deal, if one exists (incl. hidden — for its parties). */
+  haulForDeal(dealId: string): HaulPost | null {
+    const post = (this.state.haulPosts ?? []).find((p) => p.dealId === dealId);
+    return post ? this.hydrateHaul(post) : null;
+  }
+
+  /** Weekly leaderboards: the biggest heist and the cleanest deal (last 7 days). */
+  haulLeaderboards(): { heist: HaulPost | null; cleanest: HaulPost | null } {
+    const weekAgo = new Date(Date.now() - 7 * DAY_MS).toISOString();
+    const recent = this.listHaul().filter((p) => p.createdAt >= weekAgo);
+    const top = (emoji: HaulReactionEmoji): HaulPost | null =>
+      recent
+        .filter((p) => (p.reactionCounts[emoji] ?? 0) > 0)
+        .sort((a, b) => (b.reactionCounts[emoji] ?? 0) - (a.reactionCounts[emoji] ?? 0))[0] ?? null;
+    return { heist: top("🏴‍☠️"), cleanest: top("👏") };
+  }
+
+  shareHaul(input: { dealId: string; note?: string; id?: string }): Res<HaulPost> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const deal = this.state.deals.find((d) => d.id === input.dealId);
+    if (!deal) return err("Deal not found");
+    if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    if (deal.status !== "completed") return err("Only completed deals can go on the Haul");
+    if (!this.state.haulPosts) this.state.haulPosts = [];
+    const existing = this.state.haulPosts.find((p) => p.dealId === input.dealId);
+    if (existing) {
+      // Re-share of a hidden post un-hides it (keeps reactions/comments).
+      if (existing.hidden) {
+        existing.hidden = false;
+        existing.hiddenBy = undefined;
+        this.commit();
+        return ok(this.hydrateHaul(existing));
+      }
+      return err("This trade is already on the Haul");
+    }
+    const offer = this.latestOffer(deal);
+    const post: HaulPost = {
+      id: input.id ?? uid("haul"),
+      dealId: deal.id,
+      kind: deal.kind,
+      proposerId: deal.proposerId,
+      ownerId: deal.ownerId,
+      sharedBy: me.id,
+      proposerSide: this.buildHaulSide(offer.proposerListingIds, offer.cashFromProposer),
+      ownerSide: this.buildHaulSide(offer.ownerListingIds, offer.cashFromOwner),
+      note: input.note?.trim().slice(0, 240) || undefined,
+      commentsEnabled: true,
+      hidden: false,
+      createdAt: this.now(),
+      proposer: this.getUser(deal.proposerId)!,
+      owner: this.getUser(deal.ownerId)!,
+      reactionCounts: {},
+      totalReactions: 0,
+      myReaction: undefined,
+      comments: [],
+      commentCount: 0,
+    };
+    this.state.haulPosts.push(post);
+    const other = this.otherParty(deal, me.id);
+    this.notify(
+      other,
+      "system",
+      "Your trade hit the Haul 🎉",
+      `${me.username} shared your completed trade to the community wall. You can hide it anytime.`,
+      "/app/haul",
+    );
+    this.pushActivity(
+      "deal_completed",
+      me.id,
+      post.id,
+      `${me.username} shared a trade to the Haul`,
+      "/app/haul",
+    );
+    this.commit();
+    return ok(this.hydrateHaul(post));
+  }
+
+  hideHaul(haulId: string, opts: { byAdmin?: boolean } = {}): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const post = (this.state.haulPosts ?? []).find((p) => p.id === haulId);
+    if (!post) return err("Haul post not found");
+    const isParty = post.proposerId === me.id || post.ownerId === me.id;
+    if (!isParty && !opts.byAdmin) return err("Only the traders (or a mod) can hide this");
+    post.hidden = true;
+    post.hiddenBy = me.id;
+    this.commit();
+    return ok(null);
+  }
+
+  reactHaul(haulId: string, emoji: HaulReactionEmoji): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const post = (this.state.haulPosts ?? []).find((p) => p.id === haulId);
+    if (!post || post.hidden) return err("Haul post not found");
+    const counts = { ...post.reactionCounts };
+    const prev = post.myReaction;
+    const dec = (e: HaulReactionEmoji) => {
+      const n = (counts[e] ?? 1) - 1;
+      if (n > 0) counts[e] = n;
+      else delete counts[e];
+    };
+    if (prev === emoji) {
+      dec(emoji); // tapping the same reaction clears it
+      post.myReaction = undefined;
+    } else {
+      if (prev) dec(prev);
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+      post.myReaction = emoji;
+    }
+    post.reactionCounts = counts;
+    post.totalReactions = Object.values(counts).reduce((s, n) => s + (n ?? 0), 0);
+    this.commit();
+    return ok(null);
+  }
+
+  commentHaul(input: { haulId: string; body: string; id?: string }): Res<HaulComment> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const post = (this.state.haulPosts ?? []).find((p) => p.id === input.haulId);
+    if (!post || post.hidden) return err("Haul post not found");
+    if (!post.commentsEnabled) return err("Comments are turned off for this trade");
+    if (this.isBlockedPair(me.id, post.proposerId) || this.isBlockedPair(me.id, post.ownerId))
+      return err("You can't comment on this trade");
+    const trimmed = input.body.trim();
+    if (!trimmed) return err("Say something");
+    if (trimmed.length > 500) return err("Comment is too long (500 characters max)");
+    const record: HaulCommentRecord = {
+      id: input.id ?? uid("hc"),
+      haulId: post.id,
+      userId: me.id,
+      body: trimmed,
+      createdAt: this.now(),
+      hidden: false,
+    };
+    post.comments = [...post.comments, this.hydrateHaulComment(record)];
+    post.commentCount = post.comments.length;
+    for (const party of [post.proposerId, post.ownerId]) {
+      if (party === me.id) continue;
+      this.notify(
+        party,
+        "system",
+        "New comment on your Haul",
+        `${me.username}: "${trimmed.length > 80 ? trimmed.slice(0, 80) + "…" : trimmed}"`,
+        "/app/haul",
+      );
+    }
+    this.commit();
+    return ok(this.hydrateHaulComment(record));
+  }
+
+  setHaulComments(haulId: string, enabled: boolean): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const post = (this.state.haulPosts ?? []).find((p) => p.id === haulId);
+    if (!post) return err("Haul post not found");
+    if (post.proposerId !== me.id && post.ownerId !== me.id)
+      return err("Only the traders can change this");
+    post.commentsEnabled = enabled;
+    this.commit();
+    return ok(null);
+  }
+
+  deleteHaulComment(commentId: string, opts: { byAdmin?: boolean } = {}): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const post = (this.state.haulPosts ?? []).find((p) =>
+      p.comments.some((c) => c.id === commentId),
+    );
+    if (!post) return err("Comment not found");
+    const comment = post.comments.find((c) => c.id === commentId)!;
+    const canRemove =
+      !!opts.byAdmin ||
+      comment.userId === me.id ||
+      post.proposerId === me.id ||
+      post.ownerId === me.id;
+    if (!canRemove) return err("You can't remove that comment");
+    post.comments = post.comments.filter((c) => c.id !== commentId);
+    post.commentCount = post.comments.length;
     this.commit();
     return ok(null);
   }

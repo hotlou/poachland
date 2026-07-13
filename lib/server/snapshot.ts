@@ -17,6 +17,11 @@ import type {
   ActivityEvent,
   Block,
   DealRecord,
+  HaulComment,
+  HaulCommentRecord,
+  HaulPost,
+  HaulPostRecord,
+  HaulReactionEmoji,
   IdentityRecord,
   ISOPostRecord,
   ListingRecord,
@@ -35,6 +40,9 @@ import {
   activity,
   blocks,
   deals,
+  haulComments,
+  haulPosts,
+  haulReactions,
   identities,
   isoPosts,
   listings,
@@ -49,6 +57,9 @@ import {
   type ActivityRow,
   type BlockRow,
   type DealRow,
+  type HaulCommentRow,
+  type HaulPostRow,
+  type HaulReactionRow,
   type IdentityRow,
   type IsoPostRow,
   type ListingRow,
@@ -283,6 +294,35 @@ function toIdentityRecord(row: IdentityRow): IdentityRecord {
   };
 }
 
+function toHaulPostRecord(row: HaulPostRow): HaulPostRecord {
+  return {
+    id: row.id,
+    dealId: row.dealId,
+    kind: row.kind,
+    proposerId: row.proposerId,
+    ownerId: row.ownerId,
+    sharedBy: row.sharedBy,
+    proposerSide: row.proposerSide,
+    ownerSide: row.ownerSide,
+    note: row.note ?? undefined,
+    commentsEnabled: row.commentsEnabled,
+    hidden: row.hidden,
+    hiddenBy: row.hiddenBy ?? undefined,
+    createdAt: iso(row.createdAt),
+  };
+}
+
+function toHaulCommentRecord(row: HaulCommentRow): HaulCommentRecord {
+  return {
+    id: row.id,
+    haulId: row.haulId,
+    userId: row.userId,
+    body: row.body,
+    createdAt: iso(row.createdAt),
+    hidden: row.hidden,
+  };
+}
+
 function groupOffersByDeal(rows: OfferRow[]): Map<string, OfferRow[]> {
   const map = new Map<string, OfferRow[]>();
   for (const row of rows) {
@@ -309,7 +349,7 @@ export async function buildSnapshot(
   }
 
   // Public collections.
-  const [userRows, listingRows, isoRows, ratingRows, activityRows, identityRows] =
+  const [userRows, listingRows, isoRows, ratingRows, activityRows, identityRows, haulPostRows] =
     await Promise.all([
       db.select().from(users).orderBy(asc(users.memberSince), asc(users.id)),
       viewerId
@@ -331,6 +371,7 @@ export async function buildSnapshot(
         .orderBy(desc(activity.createdAt), desc(activity.id))
         .limit(ACTIVITY_LIMIT),
       db.select().from(identities).orderBy(asc(identities.submittedAt), asc(identities.id)),
+      db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)),
     ]);
 
   // Private collections (viewer-scoped). Signed-out viewers get empty ones.
@@ -472,6 +513,75 @@ export async function buildSnapshot(
   }
   const userVisible = (id: string) => !hidden.has(id) || related.has(id);
 
+  // ── The Haul: hydrate the public wall ──────────────────────────────────────
+  // A post is public when it isn't hidden, both traders are visible, and the
+  // viewer doesn't have a block with either trader. Parties always see their
+  // own posts (even hidden ones) so the deal room can reflect Haul state.
+  const blockedWith = new Set<string>();
+  if (viewerId) {
+    for (const b of blockRows) {
+      blockedWith.add(b.blockerId === viewerId ? b.blockedId : b.blockerId);
+    }
+  }
+  const isHaulParty = (p: HaulPostRow) =>
+    !!viewerId && (p.proposerId === viewerId || p.ownerId === viewerId);
+  const visibleHaul = haulPostRows.filter((p) => {
+    if (isHaulParty(p)) return true;
+    if (p.hidden) return false;
+    if (!userVisible(p.proposerId) || !userVisible(p.ownerId)) return false;
+    if (blockedWith.has(p.proposerId) || blockedWith.has(p.ownerId)) return false;
+    return true;
+  });
+
+  let reactionRows: HaulReactionRow[] = [];
+  let commentRows: HaulCommentRow[] = [];
+  if (visibleHaul.length) {
+    const ids = visibleHaul.map((p) => p.id);
+    [reactionRows, commentRows] = await Promise.all([
+      db.select().from(haulReactions).where(inArray(haulReactions.haulId, ids)),
+      db
+        .select()
+        .from(haulComments)
+        .where(and(inArray(haulComments.haulId, ids), eq(haulComments.hidden, false)))
+        .orderBy(asc(haulComments.createdAt), asc(haulComments.id)),
+    ]);
+  }
+
+  const userById = new Map(userRows.map((u) => [u.id, u]));
+  const countsByHaul = new Map<string, Partial<Record<HaulReactionEmoji, number>>>();
+  const myReactionByHaul = new Map<string, HaulReactionEmoji>();
+  for (const r of reactionRows) {
+    const c = countsByHaul.get(r.haulId) ?? {};
+    c[r.emoji] = (c[r.emoji] ?? 0) + 1;
+    countsByHaul.set(r.haulId, c);
+    if (r.userId === viewerId) myReactionByHaul.set(r.haulId, r.emoji);
+  }
+  const commentsByHaul = new Map<string, HaulComment[]>();
+  for (const c of commentRows) {
+    const author = userById.get(c.userId);
+    if (!author || !userVisible(c.userId)) continue; // drop shadowbanned authors
+    const list = commentsByHaul.get(c.haulId) ?? [];
+    list.push({ ...toHaulCommentRecord(c), user: toUserRecord(author) });
+    commentsByHaul.set(c.haulId, list);
+  }
+  const hydratedHaul: HaulPost[] = visibleHaul
+    .filter((p) => userById.has(p.proposerId) && userById.has(p.ownerId))
+    .map((p) => {
+      const counts = countsByHaul.get(p.id) ?? {};
+      const total = Object.values(counts).reduce((s, n) => s + (n ?? 0), 0);
+      const comments = commentsByHaul.get(p.id) ?? [];
+      return {
+        ...toHaulPostRecord(p),
+        proposer: toUserRecord(userById.get(p.proposerId)!),
+        owner: toUserRecord(userById.get(p.ownerId)!),
+        reactionCounts: counts,
+        totalReactions: total,
+        myReaction: myReactionByHaul.get(p.id),
+        comments,
+        commentCount: comments.length,
+      };
+    });
+
   return {
     v: 1,
     serverTime: new Date().toISOString(),
@@ -497,6 +607,7 @@ export async function buildSnapshot(
       .reverse(), // chronological
     identities: identityRows.map(toIdentityRecord),
     paymentMethods: paymentRows.map(toPaymentMethod),
+    haulPosts: hydratedHaul,
   };
 }
 
