@@ -19,6 +19,7 @@ import {
   Pencil,
   Repeat2,
   SearchX,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -136,8 +137,28 @@ function ListingDetail({ id }: { id: string }) {
               <ArrowLeft size={18} />
             </button>
           </div>
-          {!isOwner && (
-            <div className="absolute top-3 right-3 z-10">
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Share listing"
+              onClick={() => {
+                const url = `${window.location.origin}/l/${listing.id}`;
+                if (navigator.share) {
+                  navigator.share({ title: listing.title, url }).catch(() => {});
+                } else if (navigator.clipboard) {
+                  navigator.clipboard.writeText(url).then(
+                    () => toast.success("Link copied"),
+                    () => toast.error("Couldn't copy"),
+                  );
+                } else {
+                  toast.error("Couldn't copy — grab it from the address bar");
+                }
+              }}
+              className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
+            >
+              <Share2 size={16} />
+            </button>
+            {!isOwner && (
               <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
                 <SaveButton
                   targetType="listing"
@@ -146,8 +167,8 @@ function ListingDetail({ id }: { id: string }) {
                   className="text-white hover:text-accent"
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="px-4 pt-4 md:px-0 md:pt-5 lg:pt-0 lg:min-w-0">
