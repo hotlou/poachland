@@ -11,8 +11,9 @@
 
 import "server-only";
 
-import { and, asc, count, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { OFFER_EXPIRY_DAYS } from "../constants";
+import { BADGE_BY_TYPE, FOUNDER_LIMIT, qualifyingBadges, type BadgeStats } from "../badges";
 import { CLIENT_ID_PATTERN, type OpMap, type OpName, type OfferTerms } from "../shared/ops";
 import type {
   BadgeType,
@@ -285,39 +286,76 @@ async function recomputeReputation(tx: Db, userId: string): Promise<void> {
     .select({ n: count() })
     .from(deals)
     .where(and(eq(deals.status, "completed"), eq(deals.kind, "claim"), eq(deals.ownerId, userId)));
+  const [{ n: isoCount }] = await tx
+    .select({ n: count() })
+    .from(isoPosts)
+    .where(eq(isoPosts.userId, userId));
+
+  const shipRatings = userRatings.map((r) => r.shippingSpeed);
+  const stats: BadgeStats = {
+    tradesCompleted,
+    trustScore,
+    ratingsCount,
+    ratingsReceived: userRatings.length,
+    allFiveStar:
+      userRatings.length > 0 &&
+      userRatings.every((r) => r.communication === 5 && r.shippingSpeed === 5 && r.itemAccuracy === 5),
+    shippingAvg: shipRatings.length
+      ? shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length
+      : 0,
+    shippingCount: shipRatings.length,
+    listingCount: Number(listingCount),
+    givenAway: Number(givenAway),
+    isoCount: Number(isoCount),
+  };
 
   const badges = [...user.badges];
   const notifs: Parameters<typeof insertNotifications>[1] = [];
   const has = (t: BadgeType) => badges.some((b) => b.type === t);
-  const award = (type: BadgeType, label: string) => {
-    if (has(type)) return;
-    badges.push({ id: uid("b"), label, type });
+  for (const type of qualifyingBadges(stats)) {
+    if (has(type)) continue;
+    badges.push({ id: uid("b"), label: BADGE_BY_TYPE[type].label, type });
     notifs.push({
       userId,
       type: "badge_earned",
-      title: `Badge earned: ${label}`,
+      title: `Badge earned: ${BADGE_BY_TYPE[type].label}`,
       body: "It now shows on your profile. Wear it well.",
-      linkTo: "/app/profile",
+      linkTo: "/app/badges",
     });
-  };
-  if (tradesCompleted >= 1) award("first-trade", "First Trade");
-  if (tradesCompleted >= 25) award("veteran", "Veteran Trader");
-  if (tradesCompleted >= 10 && trustScore >= 4.5 && ratingsCount >= 5)
-    award("trusted", "Trusted Trader");
-  if (listingCount >= 8) award("collector", "Collector");
-  const shipRatings = userRatings.map((r) => r.shippingSpeed);
-  if (
-    shipRatings.length >= 5 &&
-    shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length >= 4.7
-  )
-    award("quick-shipper", "Quick Shipper");
-  if (givenAway >= 3) award("generous", "Community Giver");
+  }
 
   await tx
     .update(users)
     .set({ trustScore, ratingsCount, tradesCompleted, badges })
     .where(eq(users.id, userId));
   await insertNotifications(tx, notifs);
+}
+
+/**
+ * Grant an event badge (founding, verified, show-off, …) to a user if they
+ * don't already hold it. Event badges live outside the stat-based qualifier.
+ */
+async function awardEventBadge(tx: Db, userId: string, type: BadgeType): Promise<void> {
+  const [u] = await tx
+    .select({ badges: users.badges })
+    .from(users)
+    .where(eq(users.id, userId))
+    .for("update");
+  if (!u || u.badges.some((b) => b.type === type)) return;
+  const def = BADGE_BY_TYPE[type];
+  await tx
+    .update(users)
+    .set({ badges: [...u.badges, { id: uid("b"), label: def.label, type }] })
+    .where(eq(users.id, userId));
+  await insertNotifications(tx, [
+    {
+      userId,
+      type: "badge_earned",
+      title: `Badge earned: ${def.label}`,
+      body: def.description,
+      linkTo: "/app/badges",
+    },
+  ]);
 }
 
 // ─── Offers: build / describe / validate / expire / close ────────────────────
@@ -741,6 +779,14 @@ const handlers: Handlers = {
         "Post your first listing or ISO to start building your trade rep.",
         "/app/create",
       );
+      // Founding Member: one of the first FOUNDER_LIMIT onboarded traders.
+      const [{ n: onboarded }] = await tx
+        .select({ n: count() })
+        .from(users)
+        .where(isNotNull(users.onboardedAt));
+      if (Number(onboarded) <= FOUNDER_LIMIT) {
+        await awardEventBadge(tx, me.id, "founding");
+      }
       return ok(me.id);
     });
   },
@@ -1996,6 +2042,7 @@ const handlers: Handlers = {
         `${user.username} shared a trade to the Haul`,
         `/app/haul`,
       );
+      await awardEventBadge(tx, user.id, "show-off");
       return ok(id);
     });
   },
@@ -2019,7 +2066,12 @@ const handlers: Handlers = {
       const valid: HaulReactionEmoji[] = ["🔥", "👏", "🤝", "😮", "🏴‍☠️"];
       if (!valid.includes(emoji)) return err("Unknown reaction");
       const [post] = await tx
-        .select({ id: haulPosts.id, hidden: haulPosts.hidden })
+        .select({
+          id: haulPosts.id,
+          hidden: haulPosts.hidden,
+          proposerId: haulPosts.proposerId,
+          ownerId: haulPosts.ownerId,
+        })
         .from(haulPosts)
         .where(eq(haulPosts.id, haulId))
         .limit(1);
@@ -2045,6 +2097,19 @@ const handlers: Handlers = {
         await tx
           .insert(haulReactions)
           .values({ haulId, userId: user.id, emoji, createdAt: new Date() });
+      }
+      // Community badges for the traders whose deal is drawing a crowd.
+      const [{ total }] = await tx
+        .select({ total: count() })
+        .from(haulReactions)
+        .where(eq(haulReactions.haulId, haulId));
+      const [{ heist }] = await tx
+        .select({ heist: count() })
+        .from(haulReactions)
+        .where(and(eq(haulReactions.haulId, haulId), eq(haulReactions.emoji, "🏴‍☠️")));
+      for (const party of [post.proposerId, post.ownerId]) {
+        if (Number(total) >= 10) await awardEventBadge(tx, party, "crowd-pleaser");
+        if (Number(heist) >= 5) await awardEventBadge(tx, party, "heist-legend");
       }
       return ok(null);
     });
@@ -2382,6 +2447,7 @@ const handlers: Handlers = {
           `Your ${identity.provider} handle now shows verified on your profile.`,
           "/app/profile",
         );
+        await awardEventBadge(tx, identity.userId, "verified");
       } else if (status === "rejected") {
         await notify(
           tx,

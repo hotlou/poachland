@@ -1,46 +1,13 @@
-import { Star, ShieldCheck, Zap, Package, Trophy, Handshake, HeartHandshake } from "lucide-react";
+import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Badge } from "@/lib/types";
+import { BADGE_BY_TYPE, type BadgeTier } from "@/lib/badges";
 
-const BADGE_CONFIG: Record<
-  Badge["type"],
-  { icon: React.ElementType; color: string; bg: string }
-> = {
-  "first-trade": {
-    icon: Handshake,
-    color: "text-teal-700 border-teal-600 dark:text-teal-400 dark:border-teal-400",
-    bg: "bg-teal-600/10 dark:bg-teal-400/10",
-  },
-  generous: {
-    icon: HeartHandshake,
-    color: "text-pink-700 border-pink-600 dark:text-pink-400 dark:border-pink-400",
-    bg: "bg-pink-600/10 dark:bg-pink-400/10",
-  },
-  founding: {
-    icon: Trophy,
-    color: "text-amber-700 border-amber-600 dark:text-yellow-400 dark:border-yellow-400",
-    bg: "bg-amber-500/10 dark:bg-yellow-400/10",
-  },
-  trusted: {
-    icon: ShieldCheck,
-    color: "text-accent border-accent",
-    bg: "bg-accent/10",
-  },
-  veteran: {
-    icon: Star,
-    color: "text-sky-700 border-sky-600 dark:text-sky-400 dark:border-sky-400",
-    bg: "bg-sky-600/10 dark:bg-sky-400/10",
-  },
-  collector: {
-    icon: Package,
-    color: "text-purple-700 border-purple-600 dark:text-purple-400 dark:border-purple-400",
-    bg: "bg-purple-600/10 dark:bg-purple-400/10",
-  },
-  "quick-shipper": {
-    icon: Zap,
-    color: "text-orange-700 border-orange-600 dark:text-orange-400 dark:border-orange-400",
-    bg: "bg-orange-500/10 dark:bg-orange-400/10",
-  },
+export const BADGE_TIER_STYLE: Record<BadgeTier, string> = {
+  special: "text-accent border-accent bg-accent/10",
+  gold: "text-amber-700 border-amber-500 bg-amber-500/10 dark:text-yellow-300 dark:border-yellow-400/50 dark:bg-yellow-400/10",
+  silver: "text-slate-600 border-slate-400 bg-slate-400/10 dark:text-slate-300 dark:border-slate-500/60 dark:bg-slate-400/10",
+  bronze: "text-orange-800 border-orange-500/70 bg-orange-500/10 dark:text-orange-300 dark:border-orange-400/50 dark:bg-orange-400/10",
 };
 
 interface TrustBadgeProps {
@@ -49,20 +16,22 @@ interface TrustBadgeProps {
 }
 
 export function TrustBadge({ badge, size = "sm" }: TrustBadgeProps) {
-  const config = BADGE_CONFIG[badge.type];
-  const Icon = config.icon;
+  const def = BADGE_BY_TYPE[badge.type];
+  if (!def) return null;
 
   return (
     <span
+      title={def.description}
       className={cn(
         "inline-flex items-center gap-1 rounded-sm border font-display font-bold uppercase tracking-wider",
-        config.color,
-        config.bg,
+        BADGE_TIER_STYLE[def.tier],
         size === "sm" ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2 py-1",
       )}
     >
-      <Icon size={size === "sm" ? 9 : 11} strokeWidth={2.5} />
-      {badge.label}
+      <span aria-hidden className={size === "sm" ? "text-[11px] leading-none" : "text-sm leading-none"}>
+        {def.emoji}
+      </span>
+      {def.label}
     </span>
   );
 }
