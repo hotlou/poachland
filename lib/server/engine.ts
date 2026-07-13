@@ -101,6 +101,17 @@ export async function executeOp<K extends OpName>(
 const isClientId = (id: unknown): id is string =>
   typeof id === "string" && CLIENT_ID_PATTERN.test(id);
 
+/** Data-URL length cap per stored photo — keeps the DB and snapshots bounded. */
+const MAX_PHOTO_DATAURL = 600_000;
+const MAX_DESCRIPTION = 4000;
+
+/** Slice to 4 photos and reject any oversized one; null = a photo is too big. */
+function capPhotos(raw: unknown): string[] | null {
+  const photos = (Array.isArray(raw) ? raw : []).slice(0, 4).map(String);
+  if (photos.some((p) => p.length > MAX_PHOTO_DATAURL)) return null;
+  return photos;
+}
+
 function sanitizeUsername(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
 }
@@ -816,6 +827,8 @@ const handlers: Handlers = {
       if (!String(input.team ?? "").trim()) return err("Team is required");
       if (!Array.isArray(input.photos) || input.photos.length === 0)
         return err("Add at least one photo");
+      const photos = capPhotos(input.photos);
+      if (!photos) return err("A photo is too large — please use a smaller image");
       if (input.listingType === "sell" && !input.askingPrice)
         return err("Set an asking price for a sale listing");
       const now = new Date();
@@ -833,8 +846,8 @@ const handlers: Handlers = {
         listingType: input.listingType,
         askingPrice: input.listingType === "free" ? null : input.askingPrice ?? null,
         tradeFor: input.tradeFor?.trim() || null,
-        photos: input.photos.slice(0, 4).map(String),
-        description: String(input.description ?? "").trim(),
+        photos,
+        description: String(input.description ?? "").trim().slice(0, MAX_DESCRIPTION),
         views: 0,
         saves: 0,
         createdAt: now,
@@ -899,9 +912,13 @@ const handlers: Handlers = {
       if ("listingType" in p) set.listingType = patch.listingType ?? record.listingType;
       if ("askingPrice" in p) set.askingPrice = patch.askingPrice ?? null;
       if ("tradeFor" in p) set.tradeFor = patch.tradeFor ?? null;
-      if ("photos" in p && Array.isArray(patch.photos))
-        set.photos = patch.photos.slice(0, 4).map(String);
-      if ("description" in p) set.description = patch.description ?? record.description;
+      if ("photos" in p && Array.isArray(patch.photos)) {
+        const photos = capPhotos(patch.photos);
+        if (!photos) return err("A photo is too large — please use a smaller image");
+        set.photos = photos;
+      }
+      if ("description" in p)
+        set.description = String(patch.description ?? record.description).slice(0, MAX_DESCRIPTION);
       if ("shippingPreference" in p)
         set.shippingPreference = patch.shippingPreference ?? record.shippingPreference;
       if ("tags" in p && Array.isArray(patch.tags)) set.tags = patch.tags.map(String);

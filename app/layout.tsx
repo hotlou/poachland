@@ -56,6 +56,7 @@ export default function RootLayout({
           <StoreProvider>{children}</StoreProvider>
           <Toaster position="top-center" richColors />
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
