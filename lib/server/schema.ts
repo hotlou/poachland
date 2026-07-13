@@ -32,6 +32,8 @@ import type {
   DealKind,
   DealStatus,
   Division,
+  EmailCategory,
+  EmailPrefs,
   FulfillmentState,
   HistoryEntry,
   ISOStatus,
@@ -54,6 +56,10 @@ import type {
 
 export type IdentityProvider = "instagram" | "facebook" | "usau" | "other";
 export type IdentityStatus = "unverified" | "pending" | "verified" | "rejected";
+
+// EmailCategory / EmailPrefs are imported from ../types above and re-exported
+// so server modules (email.ts) can pull them from the schema barrel.
+export type { EmailCategory, EmailPrefs };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
@@ -89,6 +95,12 @@ export const users = pgTable("users", {
   status: text("status").$type<UserStatus>().notNull().default("active"),
   suspendedUntil: timestamp("suspended_until", { withTimezone: true, mode: "date" }),
   moderationNote: text("moderation_note"),
+  // Email notifications: per-category opt-in + a one-click unsubscribe token.
+  emailPrefs: jsonb("email_prefs")
+    .$type<EmailPrefs>()
+    .notNull()
+    .default({ deals: true, messages: true, community: true, account: true }),
+  emailUnsubToken: text("email_unsub_token"),
 });
 
 // ─── Listings ────────────────────────────────────────────────────────────────
@@ -452,8 +464,37 @@ export const paymentMethods = pgTable(
   (t) => [index("payment_methods_user_id_idx").on(t.userId)],
 );
 
+// ─── Email outbox (transactional email, decoupled from delivery) ─────────────
+
+export const emailOutbox = pgTable(
+  "email_outbox",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    category: text("category").$type<EmailCategory>().notNull(),
+    type: text("type").$type<NotificationType>().notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    linkTo: text("link_to"),
+    /** Non-null → unsent rows with the same (user, key) collapse to one email. */
+    dedupeKey: text("dedupe_key"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+    attempts: integer("attempts").notNull().default(0),
+  },
+  (t) => [
+    index("email_outbox_unsent_idx").on(t.sentAt),
+    index("email_outbox_user_dedupe_idx").on(t.userId, t.dedupeKey),
+  ],
+);
+
 // ─── Inferred row types ──────────────────────────────────────────────────────
 
+export type EmailOutboxRow = typeof emailOutbox.$inferSelect;
 export type PaymentMethodRow = typeof paymentMethods.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
 export type ListingRow = typeof listings.$inferSelect;

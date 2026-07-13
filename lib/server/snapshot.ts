@@ -434,6 +434,12 @@ export async function buildSnapshot(
             ? viewerRow.moderationNote ?? undefined
             : undefined,
         impersonatedByAdmin: impersonatorUsername,
+        emailPrefs: viewerRow.emailPrefs ?? {
+          deals: true,
+          messages: true,
+          community: true,
+          account: true,
+        },
       }
     : null;
 

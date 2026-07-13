@@ -23,6 +23,7 @@ import type {
   DealStatus,
   FulfillmentState,
   HydratedRating,
+  EmailPrefs,
   IdentityProvider,
   IdentityRecord,
   PaymentKind,
@@ -392,6 +393,16 @@ export class PoachStore {
     if (patch.gallery !== undefined) user.gallery = patch.gallery.slice(0, 4);
     this.commit();
     return ok(user);
+  }
+
+  /**
+   * Update the signed-in user's email-notification preferences. Stored on the
+   * remote store's sessionMe; the base engine keeps the value so optimistic
+   * reads reflect it immediately.
+   */
+  setEmailPrefs(_prefs: EmailPrefs): Res {
+    if (!this.currentUser()) return err("Not signed in");
+    return ok(null);
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────

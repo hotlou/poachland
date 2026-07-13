@@ -35,6 +35,7 @@ import type {
   Deal,
   IdentityProvider,
   IdentityRecord,
+  EmailPrefs,
   PaymentKind,
   PaymentMethod,
   ISOPost,
@@ -60,6 +61,7 @@ function toUserRecord(me: SessionMe): UserRecord {
     suspendedUntil: _suspendedUntil,
     moderationNote: _modNote,
     impersonatedByAdmin: _impersonatedBy,
+    emailPrefs: _emailPrefs,
     ...user
   } = me;
   return user;
@@ -502,6 +504,22 @@ export class RemotePoachStore extends PoachStore {
   override removePaymentMethod(id: string): Res {
     const res = super.removePaymentMethod(id);
     if (res.ok) this.send("removePaymentMethod", { id });
+    return res;
+  }
+
+  // ── Email preferences ───────────────────────────────────────────────────────
+
+  override setEmailPrefs(prefs: EmailPrefs): Res {
+    const res = super.setEmailPrefs(prefs);
+    if (res.ok) {
+      // Reflect on the session immediately so the toggles don't bounce back
+      // before the authoritative snapshot lands.
+      if (this.sessionMe) {
+        this.sessionMe = { ...this.sessionMe, emailPrefs: prefs };
+        this.commit();
+      }
+      this.send("setEmailPrefs", { prefs });
+    }
     return res;
   }
 
