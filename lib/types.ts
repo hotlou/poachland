@@ -367,6 +367,11 @@ export interface ActivityEvent {
   linkTo?: string;
 }
 
+// ─── Email notification preferences ──────────────────────────────────────────
+
+export type EmailCategory = "deals" | "messages" | "community" | "account";
+export type EmailPrefs = Record<EmailCategory, boolean>;
+
 // ─── Payment handles (PRIVATE — revealed only inside accepted deals) ─────────
 
 export type PaymentKind = "venmo" | "paypal" | "cashapp" | "zelle" | "crypto" | "other";

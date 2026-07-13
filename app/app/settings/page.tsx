@@ -21,6 +21,8 @@ import {
   UserCircle,
   Wallet,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import type { EmailCategory, EmailPrefs } from "@/lib/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { logOut, updatePassword } from "@/app/actions/auth";
@@ -240,6 +242,59 @@ function IdentitiesSection() {
           <Plus size={14} /> Link identity
         </button>
       </form>
+    </section>
+  );
+}
+
+/* ── Email notifications ───────────────────────────────────────────────────── */
+
+const EMAIL_CATEGORIES: { key: EmailCategory; label: string; blurb: string }[] = [
+  { key: "deals", label: "Deal activity", blurb: "Offers, counters, acceptances, shipping, completions." },
+  { key: "messages", label: "Messages", blurb: "When someone messages you (one email per thread until you read it)." },
+  { key: "community", label: "Community", blurb: "Wanted-post matches, new ratings, badges you earn." },
+  { key: "account", label: "Account & safety", blurb: "Moderation notices, dispute updates, key account changes." },
+];
+
+const DEFAULT_EMAIL_PREFS: EmailPrefs = {
+  deals: true,
+  messages: true,
+  community: true,
+  account: true,
+};
+
+function EmailNotificationsSection() {
+  const store = useStore();
+  const prefs = store.sessionMe?.emailPrefs ?? DEFAULT_EMAIL_PREFS;
+
+  const toggle = (key: EmailCategory, on: boolean) => {
+    const next = { ...prefs, [key]: on };
+    const res = store.setEmailPrefs(next);
+    if (!res.ok) toast.error(res.error);
+  };
+
+  return (
+    <section>
+      <SectionTitle icon={Mail}>Email notifications</SectionTitle>
+      <div className="bg-card border border-border rounded-xl divide-y divide-border">
+        {EMAIL_CATEGORIES.map((c) => (
+          <div key={c.key} className="flex items-center justify-between gap-4 p-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">{c.label}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{c.blurb}</p>
+            </div>
+            <Switch
+              checked={prefs[c.key] !== false}
+              onCheckedChange={(on) => toggle(c.key, on)}
+              aria-label={`${c.label} emails`}
+              className="flex-shrink-0 data-[state=checked]:bg-accent"
+            />
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+        We only email when something needs you. Every email has a one-tap
+        unsubscribe too.
+      </p>
     </section>
   );
 }
@@ -561,6 +616,9 @@ function SettingsContent() {
               <ThemeToggle withLabel className="flex-shrink-0" />
             </div>
           </section>
+
+          {/* Email notifications */}
+          <EmailNotificationsSection />
         </div>
 
         {/* Linked identities + payment handles */}

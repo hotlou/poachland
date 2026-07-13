@@ -785,6 +785,17 @@ const handlers: Handlers = {
     });
   },
 
+  async setEmailPrefs(db, user, { prefs }) {
+    const cats = ["deals", "messages", "community", "account"] as const;
+    const clean: Record<string, boolean> = {};
+    for (const c of cats) clean[c] = prefs?.[c] !== false; // default true
+    await db
+      .update(users)
+      .set({ emailPrefs: clean as typeof users.$inferInsert["emailPrefs"] })
+      .where(eq(users.id, user.id));
+    return ok(user.id);
+  },
+
   // ── Listings ───────────────────────────────────────────────────────────────
 
   async createListing(db, user, { id, input }) {

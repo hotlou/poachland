@@ -15,7 +15,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Trust & reputation** — ratings unlock only after both parties complete a deal: communication / shipping speed / item accuracy + "would trade again". Trust scores are computed from ratings; badges (First Trade, Trusted Trader, Veteran, Quick Shipper, Collector, Community Giver) are earned automatically.
 - **Wanted board (ISO)** — post what you're hunting; new listings auto-match against active ISO posts and notify the hunter; "I have this" starts a conversation.
 - **Messaging** — per-listing and per-deal threads, offer cards inline, unread counts, system messages for every deal event.
-- **Notifications** — every marketplace event lands in the feed with a deep link.
+- **Notifications** — every marketplace event lands in the in-app feed with a deep link, and the important ones also **email** you: all deal activity, messages (coalesced to one email per conversation until you read it), community events, and account/safety notices. Per-category toggles in Settings + one-click unsubscribe in every email. Delivered via Resend; queued to an outbox so email failures never touch the write path.
 - **Saves** — watchlist for listings and ISO posts.
 - **Moderation** — report listings/users/deals, block traders, admin dashboard with a report queue, dispute resolution, verification, and featuring. Moderator powers over any trader: **shadowban** (their content silently vanishes from everyone else; they see a normal app), **suspend** (time-boxed lockout that auto-lifts), **ban** (permanent gate), and **"use as"** — impersonate any non-admin to see the app exactly as they do (with an exit banner; admin powers drop while impersonating).
 - **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres.
@@ -114,6 +114,7 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `EMAIL_FROM` | e.g. `Poachland <login@yourdomain.com>` |
 | `AUTH_SECRET` | `openssl rand -base64 32` |
 | `ADMIN_EMAILS` | comma-separated moderator emails |
+| `NEXT_PUBLIC_APP_URL` | canonical site origin (used in emails, OG, sitemap) |
 
 Then run migrations once against the database:
 

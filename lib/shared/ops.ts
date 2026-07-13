@@ -18,6 +18,7 @@ import type {
   Condition,
   DBState,
   Division,
+  EmailPrefs,
   IdentityProvider,
   IdentityRecord,
   ISOStatus,
@@ -66,6 +67,8 @@ export interface SessionMe extends UserRecord {
   moderationNote?: string;
   /** Set when an admin is viewing the app "as" this user (support/debug). */
   impersonatedByAdmin?: string;
+  /** Per-category email notification opt-ins. */
+  emailPrefs: EmailPrefs;
 }
 
 /** Admin-only view fetched separately (fetchAdminData). */
@@ -168,6 +171,8 @@ export interface OpMap {
       >
     >;
   };
+  // email preferences
+  setEmailPrefs: { prefs: EmailPrefs };
   // payment handles (private)
   addPaymentMethod: { id: string; kind: PaymentKind; label?: string; value: string };
   removePaymentMethod: { id: string };
