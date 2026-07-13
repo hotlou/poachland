@@ -441,6 +441,12 @@ export default function LandingPage() {
 
         {/* Footer */}
         <footer className="px-5 pb-10 text-center text-xs text-muted-foreground">
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <Link href="/haul" className="hover:text-accent transition-colors">The Haul</Link>
+            <Link href="/traders" className="hover:text-accent transition-colors">Traders</Link>
+            <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+          </div>
           Poachland — built by players, for players.
         </footer>
       </div>
