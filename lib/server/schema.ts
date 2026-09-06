@@ -25,6 +25,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type {
   ActivityType,
   Badge,
@@ -153,6 +154,14 @@ export const listings = pgTable(
   (t) => [
     index("listings_status_idx").on(t.status),
     index("listings_seller_id_idx").on(t.sellerId),
+    index("listings_status_created_cursor_idx").on(t.status, t.createdAt, t.id),
+    index("listings_status_saves_cursor_idx").on(t.status, t.saves, t.id),
+    index("listings_status_views_cursor_idx").on(t.status, t.views, t.id),
+    index("listings_status_price_cursor_idx").on(t.status, t.askingPrice, t.id),
+    index("listings_search_idx").using(
+      "gin",
+      sql`to_tsvector('simple', coalesce(${t.title}, '') || ' ' || coalesce(${t.team}, '') || ' ' || coalesce(${t.description}, '') || ' ' || coalesce(${t.tags}::text, ''))`,
+    ),
   ],
 );
 
@@ -173,7 +182,10 @@ export const isoPosts = pgTable("iso_posts", {
     .defaultNow(),
   saves: integer("saves").notNull().default(0),
   status: text("status").$type<ISOStatus>().notNull().default("active"),
-});
+}, (t) => [
+  index("iso_posts_status_created_cursor_idx").on(t.status, t.createdAt, t.id),
+  index("iso_posts_status_saves_cursor_idx").on(t.status, t.saves, t.id),
+]);
 
 // ─── Deals & offers ──────────────────────────────────────────────────────────
 
@@ -212,6 +224,8 @@ export const deals = pgTable(
     index("deals_owner_id_idx").on(t.ownerId),
     index("deals_listing_id_idx").on(t.listingId),
     index("deals_status_idx").on(t.status),
+    index("deals_proposer_updated_cursor_idx").on(t.proposerId, t.updatedAt, t.id),
+    index("deals_owner_updated_cursor_idx").on(t.ownerId, t.updatedAt, t.id),
   ],
 );
 
@@ -261,7 +275,10 @@ export const threads = pgTable("threads", {
     .defaultNow(),
   /** userId -> ISO timestamp of the last time they viewed the thread. */
   lastRead: jsonb("last_read").$type<Record<string, string>>().notNull().default({}),
-});
+}, (t) => [
+  index("threads_updated_cursor_idx").on(t.updatedAt, t.id),
+  index("threads_participants_gin_idx").using("gin", t.participantIds),
+]);
 
 export const messages = pgTable(
   "messages",
@@ -278,7 +295,10 @@ export const messages = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("messages_thread_id_idx").on(t.threadId)],
+  (t) => [
+    index("messages_thread_id_idx").on(t.threadId),
+    index("messages_thread_created_cursor_idx").on(t.threadId, t.createdAt, t.id),
+  ],
 );
 
 // ─── Ratings ─────────────────────────────────────────────────────────────────
@@ -321,7 +341,10 @@ export const notifications = pgTable(
       .defaultNow(),
     linkTo: text("link_to"),
   },
-  (t) => [index("notifications_user_id_read_idx").on(t.userId, t.read)],
+  (t) => [
+    index("notifications_user_id_read_idx").on(t.userId, t.read),
+    index("notifications_user_created_cursor_idx").on(t.userId, t.createdAt, t.id),
+  ],
 );
 
 // ─── Saves, moderation, activity ─────────────────────────────────────────────
@@ -337,6 +360,26 @@ export const saves = pgTable(
       .defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.targetType, t.targetId] })],
+);
+
+export const savedSearches = pgTable(
+  "saved_searches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    query: text("query"),
+    itemType: text("item_type").$type<ItemType>(),
+    listingType: text("listing_type").$type<ListingType>(),
+    condition: text("condition").$type<Condition>(),
+    team: text("team"),
+    size: text("size"),
+    maxPrice: doublePrecision("max_price"),
+    notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lastMatchedAt: timestamp("last_matched_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("saved_searches_user_created_idx").on(t.userId, t.createdAt)],
 );
 
 export const reports = pgTable("reports", {
@@ -391,6 +434,25 @@ export const activity = pgTable("activity", {
   linkTo: text("link_to"),
 });
 
+// ─── Product analytics (first-party, append-only funnel events) ─────────────
+
+export const productEvents = pgTable(
+  "product_events",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    subjectType: text("subject_type"),
+    subjectId: text("subject_id"),
+    properties: jsonb("properties").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("product_events_name_created_idx").on(t.name, t.createdAt),
+    index("product_events_user_created_idx").on(t.userId, t.createdAt),
+  ],
+);
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const loginTokens = pgTable(
@@ -425,6 +487,23 @@ export const sessions = pgTable("sessions", {
     onDelete: "set null",
   }),
 });
+
+// ─── Immutable moderator audit trail ────────────────────────────────────────
+
+export const adminAuditEvents = pgTable(
+  "admin_audit_events",
+  {
+    id: text("id").primaryKey(),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorUsername: text("actor_username"),
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("admin_audit_actor_idx").on(t.actorUserId), index("admin_audit_created_idx").on(t.createdAt)],
+);
 
 // ─── Identity scaffolding (future real-life reputation binding) ──────────────
 
@@ -494,11 +573,36 @@ export const emailOutbox = pgTable(
       .defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
     attempts: integer("attempts").notNull().default(0),
+    availableAt: timestamp("available_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true, mode: "date" }),
+    lockToken: text("lock_token"),
+    lastError: text("last_error"),
+    deadLetteredAt: timestamp("dead_lettered_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
-    index("email_outbox_unsent_idx").on(t.sentAt),
+    index("email_outbox_ready_idx").on(t.sentAt, t.deadLetteredAt, t.availableAt),
     index("email_outbox_user_dedupe_idx").on(t.userId, t.dedupeKey),
   ],
+);
+
+// ─── Object-storage upload lifecycle ────────────────────────────────────────
+
+export const objectUploads = pgTable(
+  "object_uploads",
+  {
+    id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    objectKey: text("object_key").notNull().unique(),
+    publicUrl: text("public_url").notNull().unique(),
+    contentType: text("content_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "date" }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("object_uploads_cleanup_idx").on(t.claimedAt, t.deletedAt, t.createdAt)],
 );
 
 // ─── The Haul: community wall of shared completed trades ─────────────────────
@@ -527,7 +631,7 @@ export const haulPosts = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("haul_posts_hidden_created_idx").on(t.hidden, t.createdAt)],
+  (t) => [index("haul_posts_hidden_created_cursor_idx").on(t.hidden, t.createdAt, t.id)],
 );
 
 export const haulReactions = pgTable(
@@ -622,9 +726,11 @@ export type MessageRow = typeof messages.$inferSelect;
 export type RatingRow = typeof ratings.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type SaveRow = typeof saves.$inferSelect;
+export type SavedSearchRow = typeof savedSearches.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
 export type BlockRow = typeof blocks.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
+export type ProductEventRow = typeof productEvents.$inferSelect;
 export type ListingViewRow = typeof listingViews.$inferSelect;
 export type LoginTokenRow = typeof loginTokens.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;

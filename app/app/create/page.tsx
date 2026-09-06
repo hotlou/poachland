@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Disc3, Flame, Shirt, X } from "lucide-react";
 import { toast } from "sonner";
 import { PhotoPicker } from "@/components/photo-picker";
+import { TeamEventDatalist } from "@/components/team-event-datalist";
 import { Switch } from "@/components/ui/switch";
 import type { CreateListingInput } from "@/lib/engine";
 import { useStore } from "@/lib/store-context";
@@ -283,6 +284,7 @@ export default function CreateListingPage() {
               <FieldLabel htmlFor="listing-team">Team / Tournament</FieldLabel>
               <input
                 id="listing-team"
+                list="listing-team-options"
                 type="text"
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
@@ -292,6 +294,7 @@ export default function CreateListingPage() {
                   attempted && errors.team && "border-red-600 dark:border-red-400",
                 )}
               />
+              <TeamEventDatalist id="listing-team-options" />
               {attempted && <ErrorHint message={errors.team} />}
             </div>
 

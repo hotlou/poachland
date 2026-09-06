@@ -13,8 +13,12 @@ next.user-config.*
 
 # Common ignores
 node_modules/
+.pnpm-store/
 .next/
 .pglite/
 .pglite-smoke/
+coverage/
+playwright-report/
+test-results/
 .DS_Store*.tsbuildinfo
 tsconfig.tsbuildinfo

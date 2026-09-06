@@ -30,7 +30,13 @@ const { requestMagicLink, verifyMagicLink, getSessionUser } = await import(
   "../lib/server/auth.ts"
 );
 const { executeOp } = await import("../lib/server/engine.ts");
+const { flushEmailOutbox } = await import("../lib/server/email.ts");
 const { buildSnapshot, buildAdminData } = await import("../lib/server/snapshot.ts");
+const { queryMarketplaceListing, queryMarketplacePage } = await import("../lib/server/marketplace-query.ts");
+const { queryWantedPage } = await import("../lib/server/wanted-query.ts");
+const { queryHaulPage } = await import("../lib/server/public.ts");
+const { queryDealById, queryDealPage } = await import("../lib/server/deal-query.ts");
+const { queryNotificationPage, queryThreadById, queryThreadMessagePage, queryThreadPage } = await import("../lib/server/private-query.ts");
 const { eq } = await import("drizzle-orm");
 
 // ── Harness ──────────────────────────────────────────────────────────────────
@@ -107,6 +113,7 @@ const sM = await signup("admin@smoke.local");
 const A = (await getSessionUser(sA)).id;
 const B = (await getSessionUser(sB)).id;
 const C = (await getSessionUser(sC)).id;
+const M = (await getSessionUser(sM)).id;
 
 const L1 = cid("l"); // A: Sockeye jersey (trade)
 const L2 = cid("l"); // A: Truck Stop jersey (sell $40)
@@ -115,6 +122,7 @@ const FL1 = cid("l"); // A: free disc
 const BL1 = cid("l"); // B: disc
 const BL2 = cid("l"); // B: jersey
 const CL1 = cid("l"); // C: disc
+const SS1 = cid("ss"); // B: saved Sockeye search
 const d1 = cid("d"); // B → A trade on L1
 const t1 = cid("t");
 const d2 = cid("d"); // C → A buy on L1 (competing)
@@ -171,13 +179,17 @@ try {
   });
 
   await check("remaining users onboard; re-onboarding rejected", async () => {
-    expectOk(await op(sB, "completeOnboarding", { username: "bob", displayName: "Bob B", location: "Chicago" }));
+    expectOk(await op(sB, "completeOnboarding", { username: "bob", displayName: "Bob B", location: "Chicago", referrerUsername: "alice" }));
     expectOk(await op(sC, "completeOnboarding", { username: "carol", displayName: "Carol C", location: "Austin" }));
     expectOk(await op(sM, "completeOnboarding", { username: "mod", displayName: "The Mod", location: "" }));
     expectErr(
       await op(sA, "completeOnboarding", { username: "alice2", displayName: "Alice", location: "" }),
       "Already onboarded",
     );
+    const alice = await buildSnapshot(A);
+    assert.equal(alice.me.referralCount, 1, "a valid invite is attributed once");
+    assert.ok(alice.me.badges.some((badge) => badge.type === "connector"), "the referrer earns the non-monetary connector badge");
+    assert.ok(alice.notifications.some((notification) => notification.title === "Your invite landed 🎉"));
   });
 
   await check("createListing rejects bad/duplicate client ids and bad input", async () => {
@@ -197,8 +209,26 @@ try {
       "Duplicate id",
     );
     expectErr(
+      await op(sA, "createListing", {
+        id: cid("l"),
+        input: listingInput({ title: "  SOCKEYE  2019 GAME JERSEY ", team: "sockeye" }),
+      }),
+      "This looks like a duplicate of one of your active listings",
+    );
+    expectErr(
+      await op(sA, "createListing", {
+        id: cid("l"),
+        input: listingInput({ condition: "brand-new-ish" }),
+      }),
+      "Invalid condition",
+    );
+    expectErr(
       await op(sA, "createListing", { id: cid("l"), input: listingInput({ photos: [] }) }),
       "Add at least one photo",
+    );
+    expectErr(
+      await op(sA, "createListing", { id: cid("l"), input: listingInput({ photos: ["data:image/jpeg;base64,AAAA"] }) }),
+      "Photos must be secure object-storage or stock image URLs",
     );
   });
 
@@ -234,6 +264,36 @@ try {
     assert.deepEqual(byId(snap.listings, L1).tags, ["test"], "tags lowercased+trimmed");
   });
 
+  await check("listing edits preserve quality and duplicate invariants", async () => {
+    expectErr(
+      await op(sA, "updateListing", { id: L2, patch: { title: " SOCKEYE 2019 GAME JERSEY ", team: "sockeye" } }),
+      "This looks like a duplicate of one of your active listings",
+    );
+    expectErr(
+      await op(sA, "updateListing", { id: L2, patch: { listingType: "sell", askingPrice: -5 } }),
+      "Enter a valid asking price",
+    );
+    expectErr(
+      await op(sA, "updateListing", { id: L2, patch: { photos: [] } }),
+      "Add at least one photo",
+    );
+    const unchanged = await buildSnapshot(A);
+    assert.equal(byId(unchanged.listings, L2).title, "Truck Stop Jersey");
+    assert.equal(byId(unchanged.listings, L2).askingPrice, 40);
+  });
+
+  await check("marketplace search uses stable keyset pages and server filters", async () => {
+    const first = await queryMarketplacePage({ limit: 2, sort: "newest" });
+    assert.equal(first.items.length, 2);
+    assert.ok(first.nextCursor, "first page has a cursor");
+    const second = await queryMarketplacePage({ limit: 2, sort: "newest", cursor: first.nextCursor });
+    assert.equal(second.items.length, 2);
+    assert.equal(new Set([...first.items, ...second.items].map((item) => item.id)).size, 4, "pages do not overlap");
+    const searched = await queryMarketplacePage({ query: "Truck Stop", itemType: "jersey", limit: 10 });
+    assert.deepEqual(searched.items.map((item) => item.id), [L2]);
+    assert.equal((await queryMarketplaceListing(L2, B))?.id, L2, "deep link reads exact listing");
+  });
+
   await check("createISOPost notifies the poster about existing matches", async () => {
     expectErr(
       await op(sB, "createISOPost", { id: cid("iso"), input: { itemType: "jersey", description: "short" } }),
@@ -254,6 +314,38 @@ try {
     assert.ok(snap.activity.some((a) => a.type === "new_iso"), "new_iso activity");
   });
 
+  await check("wanted board uses stable viewer-aware cursor pages", async () => {
+    expectOk(await op(sA, "createISOPost", {
+      id: cid("iso"), input: { itemType: "disc", description: "Looking for a stable fairway driver" },
+    }));
+    expectOk(await op(sC, "createISOPost", {
+      id: cid("iso"), input: { itemType: "jersey", description: "Seeking a vintage club jersey" },
+    }));
+    const first = await queryWantedPage({ limit: 2, sort: "newest" }, B);
+    assert.equal(first.items.length, 2);
+    assert.ok(first.nextCursor, "first wanted page has a cursor");
+    const second = await queryWantedPage({ limit: 2, sort: "newest", cursor: first.nextCursor }, B);
+    assert.equal(new Set([...first.items, ...second.items].map((item) => item.id)).size, 3, "wanted pages do not overlap");
+    const discs = await queryWantedPage({ itemType: "disc", limit: 10 }, B);
+    assert.ok(discs.items.length > 0 && discs.items.every((item) => item.itemType === "disc"));
+  });
+
+  await check("saved searches are private, validated, and persistent", async () => {
+    expectErr(
+      await op(sB, "createSavedSearch", { id: cid("ss"), input: { name: "Empty", notificationsEnabled: true } }),
+      "Choose at least one search filter",
+    );
+    expectOk(
+      await op(sB, "createSavedSearch", {
+        id: SS1,
+        input: { name: "Sockeye jerseys", query: "sockeye", itemType: "jersey", notificationsEnabled: true },
+      }),
+    );
+    assert.equal((await buildSnapshot(B)).savedSearches.length, 1);
+    assert.equal((await buildSnapshot(C)).savedSearches.length, 0, "other user's search is private");
+    expectErr(await op(sC, "deleteSavedSearch", { id: SS1 }), "Saved search not found");
+  });
+
   await check("new listing notifies matching ISO poster (cross-user)", async () => {
     expectOk(
       await op(sA, "createListing", {
@@ -266,6 +358,9 @@ try {
     assert.ok(n, "iso_match notification");
     assert.ok(n.body.includes("Sockeye Throwback Jersey"), "body names the listing");
     assert.equal(n.linkTo, `/app/listings/${L3}`);
+    const savedMatch = snap.notifications.find((x) => x.title === "New match for Sockeye jerseys");
+    assert.ok(savedMatch, "saved-search match notification");
+    assert.ok(snap.savedSearches[0].lastMatchedAt, "saved search records last match time");
   });
 
   await check("proposeTrade rejects self-deals and empty offers", async () => {
@@ -394,16 +489,25 @@ try {
   });
 
   await check("markShipped records fulfillment and notifies", async () => {
-    expectOk(await op(sA, "markShipped", { dealId: d1, tracking: "TRK123" }));
+    expectErr(
+      await op(sA, "markShipped", { dealId: d1, carrier: "usps", tracking: "TRK123" }),
+      "That tracking number does not look valid for USPS",
+    );
+    expectOk(await op(sA, "markShipped", {
+      dealId: d1,
+      carrier: "usps",
+      tracking: "9400 1108 8422 5510 3391 07",
+    }));
     expectOk(await op(sB, "markShipped", { dealId: d1 }));
     const snap = await buildSnapshot(B);
     const deal = byId(snap.deals, d1);
     assert.ok(deal.fulfillment[A]?.shippedAt, "A shipped");
-    assert.equal(deal.fulfillment[A]?.tracking, "TRK123");
+    assert.equal(deal.fulfillment[A]?.tracking, "9400110884225510339107");
+    assert.equal(deal.fulfillment[A]?.carrier, "usps");
     assert.ok(deal.fulfillment[B]?.shippedAt, "B shipped");
     assert.ok(
       snap.notifications.some(
-        (n) => n.title === "Shipment on the way 📦" && n.body.includes("TRK123"),
+        (n) => n.title === "Shipment on the way 📦" && n.body.includes("9400110884225510339107"),
       ),
     );
   });
@@ -433,6 +537,7 @@ try {
       snap.notifications.some((n) => n.title === "Deal complete 🎉"),
       "deal_complete notification",
     );
+    expectOk(await op(sA, "shareHaul", { id: cid("haul"), dealId: d1, note: "Smooth trade" }));
     assert.ok(
       snap.activity.some(
         (a) => a.type === "deal_completed" && a.summary.includes("bob and alice completed a trade"),
@@ -504,6 +609,16 @@ try {
     assert.equal(byId(snap.deals, d3).status, "completed");
     assert.equal(byId(snap.listings, FL1).status, "claimed", "free listing claimed");
     assert.equal(userNamed(snap, "carol").tradesCompleted, 1);
+    expectOk(await op(sC, "shareHaul", { id: cid("haul"), dealId: d3, note: "Disc rescued" }));
+  });
+
+  await check("haul feed uses stable bounded cursor pages", async () => {
+    const first = await queryHaulPage({ limit: 1 }, B);
+    assert.equal(first.items.length, 1);
+    assert.ok(first.nextCursor, "first haul page has a cursor");
+    const second = await queryHaulPage({ limit: 1, cursor: first.nextCursor }, B);
+    assert.equal(second.items.length, 1);
+    assert.notEqual(first.items[0].id, second.items[0].id, "haul pages do not overlap");
   });
 
   await check("toggleSave rejects own content, maintains counters", async () => {
@@ -555,6 +670,38 @@ try {
     expectErr(await op(sB, "sendMessage", { id: cid("m"), threadId: t5, content: "  " }), "Message is empty");
   });
 
+  await check("private notification and message cursors are scoped and non-overlapping", async () => {
+    const notificationFirst = await queryNotificationPage(C, undefined, 2);
+    assert.equal(notificationFirst.items.length, 2);
+    assert.ok(notificationFirst.items.every((item) => item.userId === C));
+    assert.ok(notificationFirst.nextCursor);
+    const notificationSecond = await queryNotificationPage(C, notificationFirst.nextCursor, 2);
+    assert.equal(new Set([...notificationFirst.items, ...notificationSecond.items].map((item) => item.id)).size, notificationFirst.items.length + notificationSecond.items.length);
+
+    const messageFirst = await queryThreadMessagePage(C, t5, undefined, 1);
+    assert.equal(messageFirst.items.length, 1);
+    assert.ok(messageFirst.nextCursor);
+    const messageSecond = await queryThreadMessagePage(C, t5, messageFirst.nextCursor, 1);
+    assert.equal(new Set([...messageFirst.items, ...messageSecond.items].map((item) => item.id)).size, messageFirst.items.length + messageSecond.items.length);
+    assert.deepEqual(await queryThreadMessagePage(A, t5), { items: [] }, "non-participant cannot read thread");
+    const threadFirst = await queryThreadPage(C, undefined, 1);
+    assert.equal(threadFirst.items.length, 1);
+    assert.ok(threadFirst.nextCursor, "thread summaries expose a cursor");
+    const threadSecond = await queryThreadPage(C, threadFirst.nextCursor, 1);
+    assert.equal(threadSecond.items.length, 1);
+    assert.notEqual(threadFirst.items[0].id, threadSecond.items[0].id, "thread pages do not overlap");
+    assert.equal((await queryThreadById(C, t5))?.id, t5, "participant can revisit an exact thread");
+    assert.equal(await queryThreadById(A, t5), null, "non-participant cannot fetch an exact thread");
+    const dealFirst = await queryDealPage(C, undefined, undefined, 1);
+    assert.equal(dealFirst.items.length, 1);
+    assert.ok(dealFirst.nextCursor, "deal history exposes a cursor");
+    const dealSecond = await queryDealPage(C, undefined, dealFirst.nextCursor, 1);
+    assert.equal(dealSecond.items.length, 1);
+    assert.notEqual(dealFirst.items[0].id, dealSecond.items[0].id, "deal pages do not overlap");
+    assert.equal((await queryDealById(C, d3))?.id, d3, "participant can revisit an exact deal");
+    assert.equal(await queryDealById(B, d3), null, "non-participant cannot fetch an exact deal");
+  });
+
   await check("blockUser enforces trade + message bans in both directions", async () => {
     expectErr(await op(sC, "blockUser", { targetId: C }), "You can't block yourself");
     expectOk(await op(sC, "blockUser", { targetId: B }));
@@ -588,6 +735,10 @@ try {
       snap.blocks.some((b) => b.blockerId === C && b.blockedId === B),
       "block visible to blocker",
     );
+    const wanted = await queryWantedPage({ limit: 20 }, C);
+    assert.ok(wanted.items.every((post) => post.userId !== B), "blocked poster excluded from wanted board");
+    assert.equal(await queryMarketplaceListing(BL2, C), null, "blocked seller listing detail is private");
+    assert.ok((await queryThreadPage(C)).items.every((thread) => thread.otherUser.id !== B), "blocked conversations excluded from inbox");
   });
 
   await check("buildSnapshot sweeps the viewer's expired open deals", async () => {
@@ -661,7 +812,7 @@ try {
       await op(sA, "linkIdentity", {
         id: cid("idn"), provider: "instagram", handle: "@alice", url: "ftp://nope",
       }),
-      "Link must start with http:// or https://",
+      "Identity links must use HTTPS",
     );
     expectOk(
       await op(sA, "linkIdentity", {
@@ -674,16 +825,27 @@ try {
     );
     const snap = await buildSnapshot(A);
     const idn = byId(snap.identities, idn1);
+    assert.equal(idn?.handle, "alice");
+    assert.equal(idn?.url, "https://instagram.com/alice");
     assert.equal(idn?.status, "unverified");
     assert.equal(idn?.verifiedAt, undefined);
   });
 
   await check("adminReviewIdentity verifies and notifies the user", async () => {
-    expectOk(await op(sM, "adminReviewIdentity", { identityId: idn1, status: "verified" }));
+    expectErr(
+      await op(sM, "adminReviewIdentity", { identityId: idn1, status: "verified", note: "Too short" }),
+      "Describe the identity decision in at least 20 characters",
+    );
+    expectOk(await op(sM, "adminReviewIdentity", {
+      identityId: idn1,
+      status: "verified",
+      note: "Profile link and submitted handle were reviewed and matched.",
+    }));
     const snap = await buildSnapshot(A);
     const idn = byId(snap.identities, idn1);
     assert.equal(idn.status, "verified");
     assert.ok(idn.verifiedAt, "verifiedAt set");
+    assert.equal(idn.reviewerNote, "Profile link and submitted handle were reviewed and matched.");
     assert.ok(
       snap.notifications.some(
         (n) =>
@@ -692,6 +854,179 @@ try {
       ),
       "verification notification",
     );
+  });
+
+  await check("removing the last verified identity revokes its evidence-backed badge", async () => {
+    let snap = await buildSnapshot(A);
+    assert.ok(snap.me.badges.some((badge) => badge.type === "verified"), "verified badge awarded");
+    expectOk(await op(sA, "removeIdentity", { id: idn1 }));
+    snap = await buildSnapshot(A);
+    assert.ok(!snap.me.badges.some((badge) => badge.type === "verified"), "stale verified badge removed");
+    assert.ok(
+      snap.notifications.some((notification) => notification.title === "Identity badge removed"),
+      "badge removal explained",
+    );
+  });
+
+  const disputeListing = cid("l");
+  const disputeDeal = cid("d");
+  await check("admin dispute resolution closes its linked moderation report", async () => {
+    expectOk(await op(sA, "createListing", {
+      id: disputeListing,
+      input: listingInput({ title: "Dispute resolution disc", type: "disc", listingType: "sell", askingPrice: 35 }),
+    }));
+    expectOk(await op(sB, "makeBuyOffer", {
+      dealId: disputeDeal,
+      threadId: cid("t"),
+      listingId: disputeListing,
+      amount: 35,
+    }));
+    expectOk(await op(sA, "acceptOffer", { dealId: disputeDeal }));
+    expectOk(await op(sB, "openDispute", {
+      dealId: disputeDeal,
+      reason: "The received package was empty and the shipping label was damaged.",
+    }));
+    let admin = await buildAdminData();
+    assert.ok(admin.disputedDeals.some((deal) => deal.id === disputeDeal));
+    assert.ok(admin.reports.some((report) => report.targetId === disputeDeal && report.status === "pending"));
+
+    const rationale = "Carrier and message evidence support completing the recorded exchange.";
+    expectOk(await op(sM, "adminResolveDispute", {
+      dealId: disputeDeal,
+      outcome: "completed",
+      note: rationale,
+    }));
+    admin = await buildAdminData();
+    assert.ok(!admin.disputedDeals.some((deal) => deal.id === disputeDeal));
+    const linked = admin.reports.find((report) => report.targetId === disputeDeal);
+    assert.equal(linked?.status, "resolved");
+    assert.equal(linked?.resolution, `Deal completed: ${rationale}`);
+    assert.ok(linked?.resolvedAt, "resolution timestamp retained");
+  });
+
+  await check("content reports are validated, deduplicated, and resolved with rationale", async () => {
+    expectErr(
+      await op(sA, "reportTarget", { targetType: "user", targetId: A, reason: "Spam" }),
+      "You can't report yourself",
+    );
+    expectErr(
+      await op(sB, "reportTarget", { targetType: "listing", targetId: L2, reason: "Invented reason" }),
+      "Pick a valid report reason",
+    );
+    expectOk(await op(sB, "reportTarget", {
+      targetType: "listing",
+      targetId: L2,
+      reason: "Misleading listing",
+      details: "The description contradicts the photographed item and stated condition.",
+    }));
+    expectErr(
+      await op(sB, "reportTarget", { targetType: "listing", targetId: L2, reason: "Spam" }),
+      "You already have a pending report for this item",
+    );
+    const pending = (await buildAdminData()).reports.find(
+      (report) => report.targetType === "listing" && report.targetId === L2 && report.status === "pending",
+    );
+    assert.ok(pending, "validated report reached the queue");
+    expectErr(
+      await op(sM, "adminResolveReport", { reportId: pending.id, action: "dismiss", note: "Too short" }),
+      "Describe the resolution in at least 20 characters",
+    );
+    const rationale = "Reviewed the listing evidence; no policy violation was substantiated.";
+    expectOk(await op(sM, "adminResolveReport", {
+      reportId: pending.id,
+      action: "dismiss",
+      note: rationale,
+    }));
+    const handled = (await buildAdminData()).reports.find((report) => report.id === pending.id);
+    assert.equal(handled?.status, "dismissed");
+    assert.equal(handled?.resolution, rationale);
+    assert.ok(handled?.resolvedAt, "report resolution timestamp retained");
+  });
+
+  await check("account sanctions require exact duration and an auditable rationale", async () => {
+    expectErr(
+      await op(sM, "adminSetUserStatus", {
+        userId: C,
+        status: "suspended",
+        days: 7,
+        note: "Too short",
+      }),
+      "Describe the account status change in at least 20 characters",
+    );
+    expectErr(
+      await op(sM, "adminSetUserStatus", {
+        userId: C,
+        status: "suspended",
+        days: 366,
+        note: "Documented suspension rationale with supporting evidence.",
+      }),
+      "Suspension length must be a whole number from 1 to 365 days",
+    );
+
+    const suspensionReason = "Repeated listing manipulation documented by the moderation team.";
+    expectOk(await op(sM, "adminSetUserStatus", {
+      userId: C,
+      status: "suspended",
+      days: 3,
+      note: suspensionReason,
+    }));
+    let admin = await buildAdminData();
+    const suspended = admin.users.find((candidate) => candidate.id === C);
+    assert.equal(suspended?.status, "suspended");
+    assert.equal(suspended?.moderationNote, suspensionReason);
+    assert.ok(suspended?.suspendedUntil, "bounded suspension expiry retained");
+
+    const suspendedSnapshot = await buildSnapshot(C);
+    assert.ok(
+      suspendedSnapshot.notifications.some(
+        (notification) =>
+          notification.title === "Your account is suspended" &&
+          notification.body.includes(suspensionReason) &&
+          notification.body.includes("3 days"),
+      ),
+      "member receives rationale and exact duration",
+    );
+
+    const restorationReason = "Manual review confirmed the account can safely return to active use.";
+    expectOk(await op(sM, "adminSetUserStatus", {
+      userId: C,
+      status: "active",
+      note: restorationReason,
+    }));
+    admin = await buildAdminData();
+    const restored = admin.users.find((candidate) => candidate.id === C);
+    assert.equal(restored?.status, "active");
+    assert.equal(restored?.suspendedUntil, undefined);
+    assert.equal(restored?.moderationNote, restorationReason);
+    assert.ok(
+      (await buildSnapshot(C)).notifications.some(
+        (notification) =>
+          notification.title === "Your account is active again" &&
+          notification.body === restorationReason,
+      ),
+      "restoration rationale reaches the member",
+    );
+  });
+
+  await check("successful admin mutations append immutable audit events", async () => {
+    const db = await getDb();
+    const events = await db.select().from(schema.adminAuditEvents);
+    assert.ok(events.some((event) => event.action === "adminSetListingFeatured" && event.targetId === L2));
+    assert.ok(events.some((event) => event.action === "adminReviewIdentity" && event.targetId === idn1));
+    assert.ok(events.some((event) => event.action === "adminResolveDispute" && event.targetId === disputeDeal));
+    assert.ok(events.some((event) => event.action === "adminResolveReport"));
+    assert.ok(events.some((event) => event.action === "adminSetUserStatus" && event.targetId === C));
+    assert.ok(events.every((event) => event.actorUserId === M), "admin actor retained");
+  });
+
+  await check("concurrent email workers lease each row once", async () => {
+    const db = await getDb();
+    const before = await db.select().from(schema.emailOutbox);
+    assert.ok(before.length > 0, "marketplace events queued email");
+    const [a, b] = await Promise.all([flushEmailOutbox(100), flushEmailOutbox(100)]);
+    assert.equal(a.claimed + b.claimed, before.length, "workers claimed every row exactly once");
+    const after = await db.select().from(schema.emailOutbox);
+    assert.ok(after.every((row) => row.sentAt && !row.lockToken && !row.lockedAt));
   });
 
   await check("snapshot privacy: viewer sees only their own private rows, no emails", async () => {
@@ -735,14 +1070,27 @@ try {
     assert.equal(data.identityQueue.length, 0, "verified identity left the queue");
     assert.equal(data.stats.users, 4);
     assert.equal(data.stats.pendingIdentities, 0);
-    assert.equal(data.stats.dealsTotal, 5, "d1, d2, d3, d5, d6");
-    assert.equal(data.stats.dealsCompleted, 2);
+    assert.equal(data.stats.dealsTotal, 6, "five lifecycle deals plus the resolved dispute");
+    assert.equal(data.stats.dealsCompleted, 3);
     assert.equal(data.stats.dealsOpen, 0);
     assert.equal(data.stats.dealsDisputed, 0);
     assert.equal(data.disputedDeals.length, 0);
     assert.equal(data.stats.ratings, 2);
     assert.ok(data.stats.messages > 0);
     assert.equal(data.stats.pendingReports, 0);
+    assert.equal(data.stats.funnel.onboarded, 4);
+    assert.equal(data.stats.acquisition.directMembers, 3);
+    assert.equal(data.stats.acquisition.referredMembers, 1);
+    assert.ok(data.stats.funnel.activatedListers >= 3);
+    assert.equal(data.stats.retention.activeUsers7d, 4);
+    assert.equal(data.stats.retention.activeUsers30d, 4);
+    assert.ok(data.stats.funnel.listed >= 5);
+    assert.ok(data.stats.funnel.offered >= 5);
+    assert.equal(data.stats.funnel.accepted, 3);
+    assert.equal(data.stats.funnel.completed, 3);
+    assert.equal(data.stats.funnel.disputed, 1);
+    const events = await (await getDb()).select().from(schema.productEvents);
+    assert.ok(events.every((event) => event.id.startsWith("evt_")));
   });
 
   console.log(`\nENGINE SMOKE: ${passed} passed, ${failed} failed.`);

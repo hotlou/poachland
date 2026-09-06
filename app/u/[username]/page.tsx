@@ -74,5 +74,5 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const profile = await getPublicProfile(safeDecode(raw));
   if (!profile) notFound();
 
-  return <PublicProfile username={profile.username} />;
+  return <PublicProfile profile={profile} />;
 }

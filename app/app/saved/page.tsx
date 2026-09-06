@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Bookmark, Heart, ArrowUpRight } from "lucide-react";
+import { Bookmark, Heart, ArrowUpRight, BellRing, Trash2 } from "lucide-react";
 import { ListingCard } from "@/components/listing-card";
 import { SaveButton } from "@/components/save-button";
 import { Hydrated } from "@/components/hydrated";
@@ -11,7 +11,7 @@ import type { ISOPost } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Tab = "listings" | "wanted";
+type Tab = "listings" | "wanted" | "searches";
 
 function TabsSkeleton() {
   return (
@@ -125,6 +125,7 @@ export default function SavedPage() {
 
   const listings = store.savedListings();
   const isoPosts = store.savedISOPosts();
+  const searches = store.listSavedSearches();
 
   return (
     <div className="min-h-screen bg-background">
@@ -136,6 +137,7 @@ export default function SavedPage() {
             [
               { key: "listings", label: "Listings", icon: Heart, count: listings.length },
               { key: "wanted", label: "Wanted", icon: Bookmark, count: isoPosts.length },
+              { key: "searches", label: "Searches", icon: BellRing, count: searches.length },
             ] as const
           ).map(({ key, label, icon: Icon, count }) => (
             <button
@@ -193,7 +195,7 @@ export default function SavedPage() {
               </div>
             )}
           </div>
-        ) : (
+        ) : tab === "wanted" ? (
           <div className="px-4 md:px-6 py-5">
             {isoPosts.length === 0 ? (
               <div className="text-center py-16 px-6">
@@ -216,6 +218,43 @@ export default function SavedPage() {
                 {isoPosts.map((post, i) => (
                   <SavedISOCard key={post.id} post={post} index={i} />
                 ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="px-4 py-5 md:px-6">
+            {searches.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <BellRing size={28} className="mx-auto mb-3 text-muted-foreground" />
+                <p className="mb-1 font-display text-xl font-bold text-muted-foreground">No saved searches.</p>
+                <p className="mb-5 text-sm text-muted-foreground">Filter the market, save the search, and Poachland will flag new matches.</p>
+                <Link href="/app/browse" className="inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground shadow-sm">Build a search</Link>
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {searches.map((search) => {
+                  const params = new URLSearchParams();
+                  if (search.query) params.set("q", search.query);
+                  if (search.itemType) params.set("itemType", search.itemType);
+                  if (search.listingType) params.set("listingType", search.listingType);
+                  if (search.condition) params.set("condition", search.condition);
+                  if (search.team) params.set("team", search.team);
+                  if (search.size) params.set("size", search.size);
+                  if (search.maxPrice !== undefined) params.set("maxPrice", String(search.maxPrice));
+                  const criteria = [search.query, search.itemType, search.listingType, search.condition, search.team, search.size, search.maxPrice !== undefined ? `≤ $${search.maxPrice}` : null].filter(Boolean);
+                  return (
+                    <div key={search.id} className="rounded-xl border border-border bg-card p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <Link href={`/app/browse?${params}`} className="font-display font-bold hover:text-accent">{search.name}</Link>
+                          <p className="mt-1 text-xs text-muted-foreground">{criteria.join(" · ")}</p>
+                          <p className="mt-2 text-[11px] text-muted-foreground">Notifications on{search.lastMatchedAt ? ` · last match ${timeAgo(search.lastMatchedAt)}` : " · waiting for a match"}</p>
+                        </div>
+                        <button type="button" onClick={() => store.deleteSavedSearch(search.id)} aria-label={`Delete saved search ${search.name}`} className="rounded-full p-2 text-muted-foreground hover:bg-surface hover:text-destructive"><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

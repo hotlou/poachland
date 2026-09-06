@@ -4,8 +4,7 @@
  * Public trader profile — the SEO-facing, signed-out-friendly version of
  * /app/u/[username]. Standalone page chrome (no app shell): light header with
  * the wordmark + join CTA, the profile body, and a join-funnel card at the
- * bottom. Data comes from the public store snapshot (fetchBootstrap returns
- * public collections with me:null when signed out).
+ * bottom. The server supplies the exact public-safe profile record.
  */
 
 import Link from "next/link";
@@ -26,6 +25,7 @@ import { ListingCard } from "@/components/listing-card";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { formatMonthYear, timeAgo } from "@/lib/format";
 import type { HistoryEntry, User } from "@/lib/types";
+import type { PublicProfile as PublicProfileData } from "@/lib/server/public";
 
 const pillPrimary =
   "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
@@ -69,7 +69,7 @@ export function PublicSiteHeader() {
 
 /* ── Loading / missing states ────────────────────────────────────────────── */
 
-function ProfileSkeleton() {
+export function ProfileSkeleton() {
   return (
     <div className="px-5 pt-8 space-y-5 animate-pulse">
       <div className="flex items-center gap-4">
@@ -91,7 +91,7 @@ function ProfileSkeleton() {
   );
 }
 
-function NoSuchTrader({ username }: { username: string }) {
+export function NoSuchTrader({ username }: { username: string }) {
   return (
     <div className="px-5 py-24 text-center">
       <UserX size={28} className="mx-auto text-muted-foreground mb-3" />
@@ -443,22 +443,14 @@ function ProfileBody({ user }: { user: User }) {
 
 /* ── Entry ───────────────────────────────────────────────────────────────── */
 
-export function PublicProfile({ username }: { username: string }) {
-  const store = useStore();
-  const hydrated = useHydrated();
-  const user = store.getUserByUsername(username);
+export function PublicProfile({ profile }: { profile: PublicProfileData }) {
+  const user: User = profile;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
-        {!hydrated ? (
-          <ProfileSkeleton />
-        ) : user ? (
-          <ProfileBody user={user} />
-        ) : (
-          <NoSuchTrader username={username} />
-        )}
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
+        <ProfileBody user={user} />
       </main>
     </div>
   );

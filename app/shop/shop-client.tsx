@@ -315,6 +315,7 @@ export function PublicShop() {
       <PublicSiteHeader />
       <main
         id="main-content"
+        tabIndex={-1}
         className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6 pb-12"
       >
         <Hero />

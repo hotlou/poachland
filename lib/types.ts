@@ -14,6 +14,7 @@ export type ItemType = "jersey" | "disc";
 export type Level = "club" | "college" | "pro" | "national" | "tournament";
 export type Division = "open" | "women" | "mixed" | "masters";
 export type ShippingPreference = "seller-pays" | "buyer-pays" | "local-only";
+export type ShippingCarrier = "usps" | "ups" | "fedex" | "dhl" | "other";
 
 /**
  * Moderation status. `shadowbanned` is invisible to the user themselves —
@@ -201,6 +202,7 @@ export interface Offer {
 
 export interface FulfillmentState {
   shippedAt?: string;
+  carrier?: ShippingCarrier;
   tracking?: string;
   receivedAt?: string;
   /** Proof of shipment/handoff (packed item, receipt) — visible to both parties. */
@@ -343,6 +345,23 @@ export interface Save {
   targetType: SaveTargetType;
   targetId: string;
   createdAt: string;
+}
+
+/** Private reusable browse criteria. New matching listings can notify the owner. */
+export interface SavedSearch {
+  id: string;
+  userId: string;
+  name: string;
+  query?: string;
+  itemType?: ItemType;
+  listingType?: ListingType;
+  condition?: Condition;
+  team?: string;
+  size?: string;
+  maxPrice?: number;
+  notificationsEnabled: boolean;
+  createdAt: string;
+  lastMatchedAt?: string;
 }
 
 export type ReportTargetType = "listing" | "user" | "deal";
@@ -540,6 +559,7 @@ export interface DBState {
   ratings: Rating[];
   notifications: Notification[];
   saves: Save[];
+  savedSearches?: SavedSearch[];
   reports: Report[];
   blocks: Block[];
   activity: ActivityEvent[];

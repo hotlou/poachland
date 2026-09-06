@@ -8,6 +8,7 @@
 
 import { ImageResponse } from "next/og";
 import { getPublicProfile } from "@/lib/server/public";
+import { isAllowedImageReference } from "@/lib/image-reference";
 
 export const runtime = "nodejs";
 export const alt = "Poachland trader profile card";
@@ -30,10 +31,10 @@ const STAR_EMPTY = "#d9d3c2";
 async function loadAvatar(avatar: string): Promise<string | null> {
   try {
     if (!avatar) return null;
-    if (avatar.startsWith("data:image/")) return avatar;
+    if (!isAllowedImageReference(avatar, process.env.STORAGE_PUBLIC_URL)) return null;
     const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com";
     let url: string;
-    if (avatar.startsWith("https://") || avatar.startsWith("http://")) {
+    if (avatar.startsWith("https://")) {
       url = avatar;
     } else if (avatar.startsWith("/")) {
       url = new URL(avatar, origin).toString();
@@ -303,7 +304,6 @@ export default async function Image({
                 flexShrink: 0,
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={avatarSrc}
                 alt=""

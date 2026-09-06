@@ -35,12 +35,13 @@ import type {
   ThreadRecord,
   UserRecord,
 } from "../types";
-import { getDb, type Db } from "./db";
+import { getDb } from "./db";
 import { sweepExpiredDealsForViewer } from "./engine";
 import {
   activity,
   blocks,
   deals,
+  emailOutbox,
   haulComments,
   haulPosts,
   haulReactions,
@@ -52,9 +53,11 @@ import {
   offers,
   partners,
   paymentMethods,
+  productEvents,
   ratings,
   reports,
   saves,
+  savedSearches,
   threads,
   type ActivityRow,
   type BlockRow,
@@ -73,6 +76,7 @@ import {
   type RatingRow,
   type ReportRow,
   type SaveRow,
+  type SavedSearchRow,
   type ThreadRow,
   type UserRow,
 } from "./schema";
@@ -356,6 +360,14 @@ function groupOffersByDeal(rows: OfferRow[]): Map<string, OfferRow[]> {
 // ─── buildSnapshot ────────────────────────────────────────────────────────────
 
 const ACTIVITY_LIMIT = 50;
+const BOOTSTRAP_USER_LIMIT = 200;
+const BOOTSTRAP_LISTING_LIMIT = 120;
+const BOOTSTRAP_ISO_LIMIT = 60;
+const BOOTSTRAP_RATING_LIMIT = 200;
+const BOOTSTRAP_IDENTITY_LIMIT = 200;
+const BOOTSTRAP_HAUL_LIMIT = 20;
+const BOOTSTRAP_DEAL_LIMIT = 100;
+const BOOTSTRAP_THREAD_LIMIT = 100;
 
 export async function buildSnapshot(
   viewerId: string | null,
@@ -370,36 +382,38 @@ export async function buildSnapshot(
 
   // Public collections.
   const [
-    userRows,
-    listingRows,
-    isoRows,
-    ratingRows,
+    recentUserRows,
+    recentListingRows,
+    recentIsoRows,
+    recentRatingRows,
     activityRows,
-    identityRows,
-    haulPostRows,
+    recentIdentityRows,
+    recentHaulPostRows,
     partnerRows,
   ] = await Promise.all([
-      db.select().from(users).orderBy(asc(users.memberSince), asc(users.id)),
+      db.select().from(users).orderBy(desc(users.memberSince), desc(users.id)).limit(BOOTSTRAP_USER_LIMIT),
       viewerId
         ? db
             .select()
             .from(listings)
             .where(or(ne(listings.status, "removed"), eq(listings.sellerId, viewerId)))
-            .orderBy(asc(listings.createdAt), asc(listings.id))
+            .orderBy(desc(listings.createdAt), desc(listings.id))
+            .limit(BOOTSTRAP_LISTING_LIMIT)
         : db
             .select()
             .from(listings)
             .where(ne(listings.status, "removed"))
-            .orderBy(asc(listings.createdAt), asc(listings.id)),
-      db.select().from(isoPosts).orderBy(asc(isoPosts.createdAt), asc(isoPosts.id)),
-      db.select().from(ratings).orderBy(asc(ratings.createdAt), asc(ratings.id)),
+            .orderBy(desc(listings.createdAt), desc(listings.id))
+            .limit(BOOTSTRAP_LISTING_LIMIT),
+      db.select().from(isoPosts).orderBy(desc(isoPosts.createdAt), desc(isoPosts.id)).limit(BOOTSTRAP_ISO_LIMIT),
+      db.select().from(ratings).orderBy(desc(ratings.createdAt), desc(ratings.id)).limit(BOOTSTRAP_RATING_LIMIT),
       db
         .select()
         .from(activity)
         .orderBy(desc(activity.createdAt), desc(activity.id))
         .limit(ACTIVITY_LIMIT),
-      db.select().from(identities).orderBy(asc(identities.submittedAt), asc(identities.id)),
-      db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)),
+      db.select().from(identities).orderBy(desc(identities.submittedAt), desc(identities.id)).limit(BOOTSTRAP_IDENTITY_LIMIT),
+      db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)).limit(BOOTSTRAP_HAUL_LIMIT),
       db
         .select()
         .from(partners)
@@ -414,6 +428,7 @@ export async function buildSnapshot(
   let messageRows: MessageRow[] = [];
   let notificationRows: NotificationRow[] = [];
   let saveRows: SaveRow[] = [];
+  let savedSearchRows: SavedSearchRow[] = [];
   let reportRows: ReportRow[] = [];
   let blockRows: BlockRow[] = [];
   let paymentRows: PaymentMethodRow[] = [];
@@ -421,39 +436,26 @@ export async function buildSnapshot(
   if (viewerId) {
     const viewerDeals = or(eq(deals.proposerId, viewerId), eq(deals.ownerId, viewerId));
     const viewerThreads = sql`(${threads.participantIds}->>0 = ${viewerId} or ${threads.participantIds}->>1 = ${viewerId})`;
-    [dealRows, offerRows, threadRows, messageRows, notificationRows, saveRows, reportRows, blockRows] =
+    [dealRows, threadRows, notificationRows, saveRows, reportRows, blockRows] =
       await Promise.all([
-        db.select().from(deals).where(viewerDeals).orderBy(asc(deals.createdAt), asc(deals.id)),
         db
           .select()
-          .from(offers)
-          .where(
-            inArray(
-              offers.dealId,
-              db.select({ id: deals.id }).from(deals).where(viewerDeals),
-            ),
-          )
-          .orderBy(asc(offers.dealId), asc(offers.position)),
+          .from(deals)
+          .where(viewerDeals)
+          .orderBy(desc(deals.updatedAt), desc(deals.id))
+          .limit(BOOTSTRAP_DEAL_LIMIT),
         db
           .select()
           .from(threads)
           .where(viewerThreads)
-          .orderBy(asc(threads.createdAt), asc(threads.id)),
-        db
-          .select()
-          .from(messages)
-          .where(
-            inArray(
-              messages.threadId,
-              db.select({ id: threads.id }).from(threads).where(viewerThreads),
-            ),
-          )
-          .orderBy(asc(messages.createdAt), asc(messages.id)),
+          .orderBy(desc(threads.updatedAt), desc(threads.id))
+          .limit(BOOTSTRAP_THREAD_LIMIT),
         db
           .select()
           .from(notifications)
           .where(eq(notifications.userId, viewerId))
-          .orderBy(asc(notifications.createdAt), asc(notifications.id)),
+          .orderBy(desc(notifications.createdAt), desc(notifications.id))
+          .limit(50),
         db
           .select()
           .from(saves)
@@ -470,6 +472,22 @@ export async function buildSnapshot(
           .where(or(eq(blocks.blockerId, viewerId), eq(blocks.blockedId, viewerId)))
           .orderBy(asc(blocks.createdAt)),
       ]);
+    const dealIds = dealRows.map((row) => row.id);
+    const threadIds = threadRows.map((row) => row.id);
+    [offerRows, messageRows] = await Promise.all([
+      dealIds.length
+        ? db.select().from(offers).where(inArray(offers.dealId, dealIds)).orderBy(asc(offers.dealId), asc(offers.position))
+        : [],
+      threadIds.length
+        ? db.select().from(messages).where(inArray(messages.threadId, threadIds)).orderBy(desc(messages.createdAt), desc(messages.id)).limit(50)
+        : [],
+    ]);
+    // Bounded queries read newest-first for efficient indexes; the legacy
+    // snapshot contract remains chronological for the optimistic engine.
+    dealRows.reverse();
+    threadRows.reverse();
+    messageRows.reverse();
+    notificationRows.reverse();
 
     // Payment handles are PRIVATE: the viewer's own, plus those belonging to
     // counterparties in the viewer's ACCEPTED deals (settle-up reveal).
@@ -483,15 +501,95 @@ export async function buildSnapshot(
       .from(paymentMethods)
       .where(inArray(paymentMethods.userId, [viewerId, ...counterpartyIds]))
       .orderBy(asc(paymentMethods.createdAt), asc(paymentMethods.id));
+    savedSearchRows = await db
+      .select()
+      .from(savedSearches)
+      .where(eq(savedSearches.userId, viewerId))
+      .orderBy(asc(savedSearches.createdAt), asc(savedSearches.id));
   }
+
+  // Bootstrap carries a bounded discovery window plus every entity required
+  // to render the viewer's private relationships. Screen feeds fetch their
+  // own cursor pages; this payload is not a catalog export.
+  const relevantUserIds = new Set<string>();
+  if (viewerId) relevantUserIds.add(viewerId);
+  for (const row of recentListingRows) relevantUserIds.add(row.sellerId);
+  for (const row of recentIsoRows) relevantUserIds.add(row.userId);
+  for (const row of recentRatingRows) { relevantUserIds.add(row.fromUserId); relevantUserIds.add(row.toUserId); }
+  for (const row of recentIdentityRows) relevantUserIds.add(row.userId);
+  for (const row of recentHaulPostRows) { relevantUserIds.add(row.proposerId); relevantUserIds.add(row.ownerId); }
+  for (const row of activityRows) relevantUserIds.add(row.actorId);
+  for (const row of dealRows) { relevantUserIds.add(row.proposerId); relevantUserIds.add(row.ownerId); }
+  for (const row of threadRows) for (const id of row.participantIds) relevantUserIds.add(id);
+  for (const row of messageRows) relevantUserIds.add(row.senderId);
+
+  const knownUserIds = new Set(recentUserRows.map((row) => row.id));
+  const missingUserIds = [...relevantUserIds].filter((id) => !knownUserIds.has(id));
+  const relationshipUserRows = missingUserIds.length
+    ? await db.select().from(users).where(inArray(users.id, missingUserIds))
+    : [];
+  let userRows = [...recentUserRows, ...relationshipUserRows];
+
+  const relevantListingIds = new Set<string>();
+  for (const row of dealRows) relevantListingIds.add(row.listingId);
+  for (const row of offerRows) {
+    for (const id of row.proposerListingIds) relevantListingIds.add(id);
+    for (const id of row.ownerListingIds) relevantListingIds.add(id);
+  }
+  for (const row of saveRows) if (row.targetType === "listing") relevantListingIds.add(row.targetId);
+  const viewerListingRows = viewerId
+    ? await db.select().from(listings).where(eq(listings.sellerId, viewerId))
+        .orderBy(desc(listings.createdAt), desc(listings.id)).limit(200)
+    : [];
+  const baseListingRows = [...recentListingRows];
+  const baseListingIds = new Set(baseListingRows.map((row) => row.id));
+  for (const row of viewerListingRows) if (!baseListingIds.has(row.id)) { baseListingRows.push(row); baseListingIds.add(row.id); }
+  const knownListingIds = new Set(baseListingRows.map((row) => row.id));
+  const missingListingIds = [...relevantListingIds].filter((id) => !knownListingIds.has(id));
+  const relationshipListingRows = missingListingIds.length
+    ? await db.select().from(listings).where(inArray(listings.id, missingListingIds))
+    : [];
+  const listingRows = [...baseListingRows, ...relationshipListingRows];
+
+  const relevantIsoIds = saveRows.filter((row) => row.targetType === "iso").map((row) => row.targetId);
+  const viewerIsoRows = viewerId
+    ? await db.select().from(isoPosts).where(eq(isoPosts.userId, viewerId))
+        .orderBy(desc(isoPosts.createdAt), desc(isoPosts.id)).limit(100)
+    : [];
+  const baseIsoRows = [...recentIsoRows];
+  const baseIsoIds = new Set(baseIsoRows.map((row) => row.id));
+  for (const row of viewerIsoRows) if (!baseIsoIds.has(row.id)) { baseIsoRows.push(row); baseIsoIds.add(row.id); }
+  const knownIsoIds = new Set(baseIsoRows.map((row) => row.id));
+  const missingIsoIds = relevantIsoIds.filter((id) => !knownIsoIds.has(id));
+  const relationshipIsoRows = missingIsoIds.length
+    ? await db.select().from(isoPosts).where(inArray(isoPosts.id, missingIsoIds))
+    : [];
+  const isoRows = [...baseIsoRows, ...relationshipIsoRows];
+  const referencedOwnerIds = new Set([
+    ...relationshipListingRows.map((row) => row.sellerId),
+    ...relationshipIsoRows.map((row) => row.userId),
+  ]);
+  const hydratedUserIds = new Set(userRows.map((row) => row.id));
+  const missingOwnerIds = [...referencedOwnerIds].filter((id) => !hydratedUserIds.has(id));
+  if (missingOwnerIds.length) {
+    userRows = [...userRows, ...await db.select().from(users).where(inArray(users.id, missingOwnerIds))];
+  }
+  const ratingRows = [...recentRatingRows];
+  const identityRows = [...recentIdentityRows];
+  const haulPostRows = [...recentHaulPostRows];
 
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
   const viewerIsAdmin = !!viewerRow?.isAdmin;
-  const referralCount = viewerId ? userRows.filter((u) => u.referredBy === viewerId).length : 0;
+  const [referralResult] = viewerId
+    ? await db.select({ value: sql<number>`count(*)::int` }).from(users).where(eq(users.referredBy, viewerId))
+    : [{ value: 0 }];
+  const referralCount = Number(referralResult?.value ?? 0);
   const viewerOnboarded = viewerRow?.onboardedAt?.getTime();
-  const memberNumber = viewerOnboarded
-    ? userRows.filter((u) => u.onboardedAt && u.onboardedAt.getTime() <= viewerOnboarded).length
-    : 0;
+  const [memberResult] = viewerOnboarded
+    ? await db.select({ value: sql<number>`count(*)::int` }).from(users)
+        .where(sql`${users.onboardedAt} is not null and ${users.onboardedAt} <= ${new Date(viewerOnboarded)}`)
+    : [{ value: 0 }];
+  const memberNumber = Number(memberResult?.value ?? 0);
   const me: SessionMe | null = viewerRow
     ? {
         ...toUserRecord(viewerRow),
@@ -645,6 +743,21 @@ export async function buildSnapshot(
     ratings: ratingRows.map(toRating),
     notifications: notificationRows.map(toNotification),
     saves: saveRows.map(toSave),
+    savedSearches: savedSearchRows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      name: row.name,
+      query: row.query ?? undefined,
+      itemType: row.itemType ?? undefined,
+      listingType: row.listingType ?? undefined,
+      condition: row.condition ?? undefined,
+      team: row.team ?? undefined,
+      size: row.size ?? undefined,
+      maxPrice: row.maxPrice ?? undefined,
+      notificationsEnabled: row.notificationsEnabled,
+      createdAt: iso(row.createdAt),
+      lastMatchedAt: row.lastMatchedAt ? iso(row.lastMatchedAt) : undefined,
+    })),
     reports: reportRows.map(toReport),
     blocks: blockRows.map(toBlock),
     activity: activityRows
@@ -684,6 +797,9 @@ export async function buildAdminData(): Promise<AdminData> {
     [{ n: isoActive }],
     [{ n: ratingCount }],
     [{ n: messageCount }],
+    productEventCounts,
+    [productAudience],
+    [deliveryHealth],
   ] = await Promise.all([
     db.select().from(users).orderBy(asc(users.memberSince), asc(users.id)),
     db.select().from(reports).orderBy(desc(reports.createdAt), desc(reports.id)),
@@ -701,6 +817,20 @@ export async function buildAdminData(): Promise<AdminData> {
     db.select({ n: sql<number>`count(*)::int` }).from(isoPosts).where(eq(isoPosts.status, "active")),
     db.select({ n: sql<number>`count(*)::int` }).from(ratings),
     db.select({ n: sql<number>`count(*)::int` }).from(messages),
+    db
+      .select({ name: productEvents.name, n: sql<number>`count(*)::int` })
+      .from(productEvents)
+      .groupBy(productEvents.name),
+    db.select({
+      activatedListers: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.name} = 'listing_created')::int`,
+      activeUsers7d: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.createdAt} >= now() - interval '7 days')::int`,
+      activeUsers30d: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.createdAt} >= now() - interval '30 days')::int`,
+    }).from(productEvents),
+    db.select({
+      ready: sql<number>`count(*) filter (where ${emailOutbox.sentAt} is null and ${emailOutbox.deadLetteredAt} is null)::int`,
+      dead: sql<number>`count(*) filter (where ${emailOutbox.deadLetteredAt} is not null)::int`,
+      oldestReadyMinutes: sql<number>`coalesce(extract(epoch from (now() - min(${emailOutbox.createdAt}) filter (where ${emailOutbox.sentAt} is null and ${emailOutbox.deadLetteredAt} is null))) / 60, 0)::int`,
+    }).from(emailOutbox),
   ]);
 
   const partnerRows = await db
@@ -724,6 +854,8 @@ export async function buildAdminData(): Promise<AdminData> {
     listingStatusCounts.find((r) => r.status === status)?.n ?? 0;
   const dealsTotal = dealStatusCounts.reduce((s, r) => s + r.n, 0);
   const listingsTotal = listingStatusCounts.reduce((s, r) => s + r.n, 0);
+  const eventCount = (name: string) =>
+    productEventCounts.find((row) => row.name === name)?.n ?? 0;
 
   const identityQueue = identityRows.filter(
     (i) => i.status === "pending" || i.status === "unverified",
@@ -757,6 +889,35 @@ export async function buildAdminData(): Promise<AdminData> {
       pendingIdentities: identityQueue.length,
       ratings: ratingCount,
       messages: messageCount,
+      emailReady: deliveryHealth.ready,
+      emailDeadLetters: deliveryHealth.dead,
+      oldestReadyEmailMinutes: deliveryHealth.oldestReadyMinutes,
+      oldestPendingReportHours: Math.max(
+        0,
+        Math.floor(
+          (Date.now() - (reportRows
+            .filter((row) => row.status === "pending")
+            .reduce((oldest, row) => Math.min(oldest, row.createdAt.getTime()), Date.now()))) /
+            3_600_000,
+        ),
+      ),
+      acquisition: {
+        referredMembers: userRows.filter((user) => !!user.referredBy).length,
+        directMembers: userRows.filter((user) => !user.referredBy).length,
+      },
+      retention: {
+        activeUsers7d: Number(productAudience?.activeUsers7d ?? 0),
+        activeUsers30d: Number(productAudience?.activeUsers30d ?? 0),
+      },
+      funnel: {
+        onboarded: eventCount("onboarding_completed"),
+        activatedListers: Number(productAudience?.activatedListers ?? 0),
+        listed: eventCount("listing_created"),
+        offered: eventCount("offer_created"),
+        accepted: eventCount("offer_accepted"),
+        completed: eventCount("deal_completed"),
+        disputed: eventCount("deal_disputed"),
+      },
     },
   };
 }

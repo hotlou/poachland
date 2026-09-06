@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Radar } from "lucide-react";
 import { toast } from "sonner";
+import { TeamEventDatalist } from "@/components/team-event-datalist";
 import { useStore } from "@/lib/store-context";
 import { cn } from "@/lib/utils";
 import type { ItemType } from "@/lib/types";
@@ -152,12 +153,14 @@ export default function CreateISOPage() {
             </label>
             <input
               id="iso-team"
+              list="iso-team-options"
               type="text"
               value={team}
               onChange={(e) => setTeam(e.target.value)}
               placeholder="e.g. Brute Squad, WFDF Worlds"
               className="w-full bg-card border border-border rounded-xl px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
             />
+            <TeamEventDatalist id="iso-team-options" />
             <p className="text-[11px] text-muted-foreground mt-1.5">
               Naming a team sharpens the match alerts.
             </p>

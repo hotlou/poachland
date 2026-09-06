@@ -1,0 +1,2 @@
+CREATE INDEX "deals_proposer_updated_cursor_idx" ON "deals" USING btree ("proposer_id","updated_at","id");--> statement-breakpoint
+CREATE INDEX "deals_owner_updated_cursor_idx" ON "deals" USING btree ("owner_id","updated_at","id");

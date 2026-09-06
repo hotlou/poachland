@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -26,6 +26,7 @@ import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { formatMonthYear, timeAgo } from "@/lib/format";
 import { REPORT_REASONS } from "@/lib/constants";
 import type { HistoryEntry, User } from "@/lib/types";
+import { fetchPublicProfile } from "@/app/actions/query";
 import {
   Dialog,
   DialogContent,
@@ -131,14 +132,15 @@ function ReportUserDialog({ user }: { user: User }) {
         </div>
         <textarea
           value={details}
-          onChange={(e) => setDetails(e.target.value.slice(0, 500))}
+          onChange={(e) => setDetails(e.target.value)}
+          maxLength={2000}
           placeholder="Anything else the mods should know? (optional)"
           className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm min-h-16 resize-y placeholder:text-muted-foreground focus:outline-none focus:border-accent"
         />
         <button
           type="button"
           onClick={submit}
-          disabled={!reason}
+          disabled={!reason || (reason === "Other" && details.trim().length < 20)}
           className="w-full py-2.5 rounded-full bg-accent text-accent-foreground text-sm font-semibold disabled:opacity-50"
         >
           File report
@@ -603,8 +605,17 @@ function PublicProfileContent() {
   const store = useStore();
   const params = useParams<{ username: string }>();
   const username = decodeURIComponent(params.username ?? "");
-  const user = store.getUserByUsername(username);
+  const cached = store.getUserByUsername(username);
+  const [remoteUser, setRemoteUser] = useState<User | null | undefined>(cached ?? undefined);
+  const user = cached ?? remoteUser;
   const me = store.requireUser();
+
+  useEffect(() => {
+    if (cached) return;
+    void fetchPublicProfile(username).then(setRemoteUser).catch(() => setRemoteUser(null));
+  }, [cached, username]);
+
+  if (user === undefined) return <PageSkeleton />;
 
   if (!user) {
     return (

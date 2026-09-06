@@ -6,11 +6,11 @@
  * header, a warm hero, an item-type filter, and a board of "pinned note" ISO
  * cards. The posts are READ-ONLY here (no "I have this" for signed-out
  * visitors); a small affordance routes to /login (or /app/wanted when signed
- * in). Data comes from the public store snapshot; a join-funnel card closes
- * the page.
+ * in). Data comes from the indexed public cursor query; a join-funnel card
+ * closes the page.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { useHydrated, useStore } from "@/lib/store-context";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
 import { money, timeAgo } from "@/lib/format";
 import type { ISOPost, ItemType } from "@/lib/types";
+import { fetchWantedPage } from "@/app/actions/query";
 
 const pillPrimary =
   "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
@@ -203,8 +204,23 @@ function JoinCta() {
 /* ── Board ───────────────────────────────────────────────────────────────── */
 
 function Board({ itemType }: { itemType: "all" | ItemType }) {
-  const store = useStore();
-  const posts = store.listISOPosts({ itemType, sort: "newest" });
+  const [posts, setPosts] = useState<ISOPost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void fetchWantedPage({ itemType, sort: "newest", limit: 24 }).then((page) => {
+      if (!active) return;
+      setPosts(page.items);
+      setNextCursor(page.nextCursor);
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [itemType]);
+
+  if (loading) return <BoardSkeleton />;
 
   if (posts.length === 0) return <EmptyBoard />;
 
@@ -218,6 +234,22 @@ function Board({ itemType }: { itemType: "all" | ItemType }) {
           <NoteCard key={post.id} post={post} index={i} />
         ))}
       </div>
+      {nextCursor && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            setLoadingMore(true);
+            void fetchWantedPage({ itemType, sort: "newest", cursor: nextCursor, limit: 24 }).then((page) => {
+              setPosts((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+              setNextCursor(page.nextCursor);
+            }).finally(() => setLoadingMore(false));
+          }}
+          className="mx-auto mt-6 block rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
     </>
   );
 }
@@ -233,6 +265,7 @@ export function PublicWanted() {
       <PublicSiteHeader />
       <main
         id="main-content"
+        tabIndex={-1}
         className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6 pb-12"
       >
         <Hero />

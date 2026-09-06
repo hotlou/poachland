@@ -10,6 +10,7 @@
 import { ImageResponse } from "next/og";
 import { getPublicListing, type PublicListing } from "@/lib/server/public";
 import { LISTING_TYPE_LABELS } from "@/lib/constants";
+import { isAllowedImageReference } from "@/lib/image-reference";
 
 export const runtime = "nodejs";
 export const alt = "Poachland listing";
@@ -31,10 +32,10 @@ const MUTED = "#6f6a5c";
 async function loadPhoto(photo: string): Promise<string | null> {
   try {
     if (!photo) return null;
-    if (photo.startsWith("data:image/")) return photo;
+    if (!isAllowedImageReference(photo, process.env.STORAGE_PUBLIC_URL)) return null;
     const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com";
     let url: string;
-    if (photo.startsWith("https://") || photo.startsWith("http://")) {
+    if (photo.startsWith("https://")) {
       url = photo;
     } else if (photo.startsWith("/")) {
       url = new URL(photo, origin).toString();
@@ -251,7 +252,6 @@ export default async function Image({
                 flexShrink: 0,
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photoSrc}
                 alt=""

@@ -9,12 +9,15 @@
  * comment taps route to /login via the card's readOnly mode.
  */
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHydrated, useStore } from "@/lib/store-context";
 import { HaulCard } from "@/components/haul-card";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
+import type { HaulPost } from "@/lib/types";
+import { fetchHaulPage } from "@/app/actions/query";
 
 const pillPrimary =
   "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
@@ -109,7 +112,18 @@ function JoinCta() {
 
 function Wall() {
   const store = useStore();
-  const posts = store.listHaul();
+  const [posts, setPosts] = useState<HaulPost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  useEffect(() => {
+    void fetchHaulPage().then((page) => {
+      setPosts(page.items);
+      setNextCursor(page.nextCursor);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <HaulSkeleton />;
 
   if (posts.length === 0) return <EmptyWall />;
 
@@ -123,6 +137,22 @@ function Wall() {
           readOnly={!store.sessionMe}
         />
       ))}
+      {nextCursor && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            setLoadingMore(true);
+            void fetchHaulPage(nextCursor).then((page) => {
+              setPosts((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+              setNextCursor(page.nextCursor);
+            }).finally(() => setLoadingMore(false));
+          }}
+          className="self-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
     </div>
   );
 }
@@ -135,7 +165,7 @@ export function PublicHaul() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6">
         <Hero />
         {!hydrated ? (
           <HaulSkeleton />

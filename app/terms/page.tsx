@@ -75,6 +75,15 @@ export default function TermsPage() {
         suspend, or ban accounts that violate these Terms or harm other traders,
         with or without notice. You can report listings, users, and deals, and
         open a dispute on a deal for a moderator to review.
+        See our{" "}
+        <Link href="/community-guidelines" className="text-accent font-semibold hover:underline">
+          Community Guidelines
+        </Link>{" "}
+        and{" "}
+        <Link href="/buyer-protection" className="text-accent font-semibold hover:underline">
+          Deal Safety policy
+        </Link>{" "}
+        for current response targets, evidence guidance, and enforcement options.
       </p>
 
       <LegalHeading>Disclaimers &amp; liability</LegalHeading>

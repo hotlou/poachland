@@ -9,7 +9,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, lt, type SQL } from "drizzle-orm";
 import type {
   Badge,
   Condition,
@@ -28,7 +28,7 @@ import type {
   User,
 } from "../types";
 import { getDb } from "./db";
-import { haulComments, haulPosts, haulReactions, listings, partners, users } from "./schema";
+import { blocks, haulComments, haulPosts, haulReactions, listings, partners, users } from "./schema";
 
 export interface PublicProfile {
   id: string;
@@ -47,6 +47,9 @@ export interface PublicProfile {
   /** ISO timestamp. */
   memberSince: string;
   badges: Badge[];
+  baselineTrades: number;
+  baselineRatingCount: number;
+  baselineRatingSum: number;
 }
 
 /**
@@ -78,6 +81,9 @@ export async function getPublicProfile(
       isVerified: users.isVerified,
       memberSince: users.memberSince,
       badges: users.badges,
+      baselineTrades: users.baselineTrades,
+      baselineRatingCount: users.baselineRatingCount,
+      baselineRatingSum: users.baselineRatingSum,
       status: users.status,
       deletedAt: users.deletedAt,
     })
@@ -106,6 +112,9 @@ export async function getPublicProfile(
     isVerified: row.isVerified,
     memberSince: row.memberSince.toISOString(),
     badges: row.badges,
+    baselineTrades: row.baselineTrades,
+    baselineRatingCount: row.baselineRatingCount,
+    baselineRatingSum: row.baselineRatingSum,
   };
 }
 
@@ -175,28 +184,55 @@ const publicUserColumns = {
  * moderated (non-active) trader are dropped; so are comments from moderated
  * authors. No viewer context, so `myReaction` is always undefined.
  */
-export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
+type HaulCursor = { createdAt: string; id: string };
+export type HaulPage = { items: HaulPost[]; nextCursor?: string };
+
+function decodeHaulCursor(raw?: string): HaulCursor | undefined {
+  if (!raw || raw.length > 300) return undefined;
+  try {
+    const cursor = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as HaulCursor;
+    return typeof cursor.id === "string" && Number.isFinite(new Date(cursor.createdAt).getTime()) ? cursor : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function queryHaulPage(input: { cursor?: string; limit?: number } = {}, viewerId?: string): Promise<HaulPage> {
   const db = await getDb();
+  const limit = Math.max(1, Math.min(Math.trunc(input.limit ?? 20), 40));
+  const cursor = decodeHaulCursor(input.cursor);
+  const filters: SQL[] = [eq(haulPosts.hidden, false)];
+  if (cursor) filters.push(or(lt(haulPosts.createdAt, new Date(cursor.createdAt)), and(eq(haulPosts.createdAt, new Date(cursor.createdAt)), lt(haulPosts.id, cursor.id)))!);
+  if (viewerId) {
+    const blockRows = await db.select().from(blocks)
+      .where(or(eq(blocks.blockerId, viewerId), eq(blocks.blockedId, viewerId)));
+    const blockedIds = [...new Set(blockRows.map((row) => row.blockerId === viewerId ? row.blockedId : row.blockerId))];
+    if (blockedIds.length) {
+      filters.push(notInArray(haulPosts.proposerId, blockedIds), notInArray(haulPosts.ownerId, blockedIds));
+    }
+  }
   const postRows = await db
     .select()
     .from(haulPosts)
-    .where(eq(haulPosts.hidden, false))
+    .where(and(...filters))
     .orderBy(desc(haulPosts.createdAt), desc(haulPosts.id))
-    .limit(limit);
-  if (postRows.length === 0) return [];
+    .limit(limit + 1);
+  const pageRows = postRows.slice(0, limit);
+  if (pageRows.length === 0) return { items: [] };
 
-  const ids = postRows.map((p) => p.id);
+  const ids = pageRows.map((p) => p.id);
   const [reactionRows, commentRows] = await Promise.all([
     db.select().from(haulReactions).where(inArray(haulReactions.haulId, ids)),
     db
       .select()
       .from(haulComments)
       .where(and(inArray(haulComments.haulId, ids), eq(haulComments.hidden, false)))
-      .orderBy(asc(haulComments.createdAt), asc(haulComments.id)),
+      .orderBy(desc(haulComments.createdAt), desc(haulComments.id))
+      .limit(ids.length * 10),
   ]);
 
   const userIds = new Set<string>();
-  for (const p of postRows) {
+  for (const p of pageRows) {
     userIds.add(p.proposerId);
     userIds.add(p.ownerId);
   }
@@ -254,7 +290,7 @@ export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
     commentsByHaul.set(c.haulId, list);
   }
 
-  return postRows
+  const items = pageRows
     .filter((p) => activeUsers.has(p.proposerId) && activeUsers.has(p.ownerId))
     .map((p) => {
       const counts = countsByHaul.get(p.id) ?? {};
@@ -278,11 +314,20 @@ export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
         owner: activeUsers.get(p.ownerId)!,
         reactionCounts: counts,
         totalReactions: total,
-        myReaction: undefined,
-        comments,
+        myReaction: viewerId ? reactionRows.find((r) => r.haulId === p.id && r.userId === viewerId)?.emoji : undefined,
+        comments: comments.reverse(),
         commentCount: comments.length,
       };
     });
+  const last = pageRows.at(-1);
+  const nextCursor = postRows.length > limit && last
+    ? Buffer.from(JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id })).toString("base64url")
+    : undefined;
+  return { items, nextCursor };
+}
+
+export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
+  return (await queryHaulPage({ limit })).items;
 }
 
 // ─── Public listing pages ────────────────────────────────────────────────────

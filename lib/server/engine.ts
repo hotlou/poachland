@@ -11,6 +11,8 @@
 
 import "server-only";
 
+import { validateAccountModeration } from "../account-moderation";
+
 import { and, asc, count, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { OFFER_EXPIRY_DAYS } from "../constants";
 import { BADGE_BY_TYPE, FOUNDER_LIMIT, qualifyingBadges, type BadgeStats } from "../badges";
@@ -24,13 +26,34 @@ import type {
   HaulSide,
   ISOStatus,
   MessageKind,
-  RatingSummary,
   ReportTargetType,
 } from "../types";
 import { uid, type SessionUser } from "./auth";
-import { getDb, type Db } from "./db";
+import { recordProductEvent } from "./analytics";
+import type { Db } from "./db";
+import { routeOperation, type OperationHandlers, type OperationResult } from "./operation-router";
 import { insertNotifications, notify } from "./notify";
 import { underRateLimit } from "./rate-limit";
+import { claimImageUploads, validImageReference } from "./storage";
+import { isDuplicateListing, listingMatchesISO, listingMatchesSavedSearch } from "../listing-matching";
+import { ratingOverall, ratingSummaryFrom } from "../reputation";
+import { describeOfferTerms, normalizeOfferTerms, type NormalizedOfferTerms } from "../offer-rules";
+import { sanitizeSlug, sanitizeUsername } from "../identifiers";
+import { canonicalizeTeamOrEvent } from "../taxonomy";
+import { normalizeShipmentTracking } from "../shipping";
+import { normalizePaymentHandle, PAYMENT_KINDS } from "../payment-methods";
+import { validateAcceptedDealCancellation, validateDisputeReason, validateModerationResolution } from "../deal-safety";
+import { validateModerationReport } from "../moderation-rules";
+import { validateRatingInput } from "../rating-rules";
+import { validateIdentityClaim, validateIdentityReviewNote } from "../identity-rules";
+import {
+  CONDITIONS,
+  DIVISIONS,
+  ITEM_TYPES,
+  LEVELS,
+  LISTING_TYPES,
+  SHIPPING_PREFERENCES,
+} from "../constants";
 import {
   activity,
   blocks,
@@ -47,57 +70,34 @@ import {
   offers,
   partners,
   paymentMethods,
-  rateLimits,
   ratings,
   reports,
   saves,
+  savedSearches,
   sessions,
   threads,
   users,
   type DealRow,
-  type IdentityProvider,
   type ListingRow,
   type OfferRow,
-  type RatingRow,
   type UserRow,
 } from "./schema";
 
 const DAY_MS = 86_400_000;
 
-export type Res = { ok: true; value?: unknown } | { ok: false; error: string };
+export type Res = OperationResult;
 
 const ok = (value?: unknown): Res => ({ ok: true, value });
 const err = (error: string): Res => ({ ok: false, error });
 
 // ─── Dispatch ─────────────────────────────────────────────────────────────────
 
-type Handlers = {
-  [K in OpName]: (db: Db, user: SessionUser, input: OpMap[K]) => Promise<Res>;
-};
-
 export async function executeOp<K extends OpName>(
   user: SessionUser,
   op: K,
   input: OpMap[K],
 ): Promise<Res> {
-  const handler = handlers[op] as
-    | ((db: Db, user: SessionUser, input: OpMap[K]) => Promise<Res>)
-    | undefined;
-  if (!handler) return err("Unknown operation");
-  if (op.startsWith("admin") && !user.isAdmin) return err("Moderators only");
-  if (op !== "completeOnboarding" && !user.username)
-    return err("Complete onboarding first");
-  // Suspended/banned accounts can't write. (Shadowbanned accounts CAN — they
-  // must not notice; their content is hidden from others at the snapshot.)
-  if (user.status === "banned") return err("Your account has been banned.");
-  if (
-    user.status === "suspended" &&
-    (!user.suspendedUntil || user.suspendedUntil.getTime() > Date.now())
-  ) {
-    return err("Your account is suspended.");
-  }
-  const db = await getDb();
-  return handler(db, user, input);
+  return routeOperation(handlers, user, op, input);
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -105,28 +105,13 @@ export async function executeOp<K extends OpName>(
 const isClientId = (id: unknown): id is string =>
   typeof id === "string" && CLIENT_ID_PATTERN.test(id);
 
-/** Data-URL length cap per stored photo — keeps the DB and snapshots bounded. */
-const MAX_PHOTO_DATAURL = 600_000;
 const MAX_DESCRIPTION = 4000;
 
-/** Slice to 4 photos and reject any oversized one; null = a photo is too big. */
+/** Slice to 4 opaque object/stock URLs; uploaded binary data is never accepted. */
 function capPhotos(raw: unknown): string[] | null {
   const photos = (Array.isArray(raw) ? raw : []).slice(0, 4).map(String);
-  if (photos.some((p) => p.length > MAX_PHOTO_DATAURL)) return null;
+  if (photos.some((p) => !validImageReference(p))) return null;
   return photos;
-}
-
-function sanitizeUsername(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
-}
-
-function sanitizeSlug(raw: string): string {
-  return String(raw)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
 }
 
 function otherParty(deal: { proposerId: string; ownerId: string }, userId: string): string {
@@ -239,36 +224,6 @@ async function pushActivity(
 
 // ─── Reputation (exact port of ratingSummary / recomputeReputation / awardBadges)
 
-function ratingOverall(r: { communication: number; shippingSpeed: number; itemAccuracy: number }): number {
-  return (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
-}
-
-function ratingSummaryFrom(rows: RatingRow[], user: UserRow): RatingSummary {
-  const cnt = rows.length;
-  const baselineCount = user.baselineRatingCount;
-  const baselineSum = user.baselineRatingSum;
-  const totalCount = cnt + baselineCount;
-  // Baseline history only recorded overall scores, so each dimension is
-  // seeded with the baseline mean — keeps every figure on the same count.
-  const avg = (pick: (r: RatingRow) => number) =>
-    totalCount === 0
-      ? 0
-      : (rows.reduce((s, r) => s + pick(r), 0) + baselineSum) / totalCount;
-  const overall =
-    totalCount === 0
-      ? 0
-      : (rows.reduce((s, r) => s + ratingOverall(r), 0) + baselineSum) / totalCount;
-  return {
-    count: totalCount,
-    overall: Math.round(overall * 10) / 10,
-    communication: Math.round(avg((r) => r.communication) * 10) / 10,
-    shippingSpeed: Math.round(avg((r) => r.shippingSpeed) * 10) / 10,
-    itemAccuracy: Math.round(avg((r) => r.itemAccuracy) * 10) / 10,
-    wouldTradeAgainPct:
-      cnt === 0 ? 100 : Math.round((rows.filter((r) => r.wouldTradeAgain).length / cnt) * 100),
-  };
-}
-
 async function recomputeReputation(tx: Db, userId: string): Promise<void> {
   const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
   if (!user) return;
@@ -368,29 +323,36 @@ async function awardEventBadge(tx: Db, userId: string, type: BadgeType): Promise
   ]);
 }
 
+async function syncVerifiedIdentityBadge(tx: Db, userId: string): Promise<void> {
+  const [{ n }] = await tx
+    .select({ n: count() })
+    .from(identities)
+    .where(and(eq(identities.userId, userId), eq(identities.status, "verified")));
+  if (Number(n) > 0) {
+    await awardEventBadge(tx, userId, "verified");
+    return;
+  }
+  const [target] = await tx.select({ badges: users.badges }).from(users).where(eq(users.id, userId)).for("update");
+  if (!target?.badges.some((badge) => badge.type === "verified")) return;
+  await tx
+    .update(users)
+    .set({ badges: target.badges.filter((badge) => badge.type !== "verified") })
+    .where(eq(users.id, userId));
+  await notify(
+    tx,
+    userId,
+    "system",
+    "Identity badge removed",
+    "Your Verified badge was removed because no confirmed linked identity remains.",
+    "/app/profile",
+  );
+}
+
 // ─── Offers: build / describe / validate / expire / close ────────────────────
 
-type OfferTermsClean = {
-  proposerListingIds: string[];
-  ownerListingIds: string[];
-  cashFromProposer: number;
-  cashFromOwner: number;
-  note: string;
-};
+type OfferTermsClean = NormalizedOfferTerms;
 
-function cleanTerms(terms: OfferTerms): OfferTermsClean {
-  return {
-    proposerListingIds: Array.isArray(terms.proposerListingIds)
-      ? terms.proposerListingIds.map(String)
-      : [],
-    ownerListingIds: Array.isArray(terms.ownerListingIds)
-      ? terms.ownerListingIds.map(String)
-      : [],
-    cashFromProposer: Number(terms.cashFromProposer) || 0,
-    cashFromOwner: Number(terms.cashFromOwner) || 0,
-    note: typeof terms.note === "string" ? terms.note : "",
-  };
-}
+const cleanTerms = (terms: OfferTerms): OfferTermsClean => normalizeOfferTerms(terms);
 
 function makeOfferValues(byUserId: string, terms: OfferTermsClean, now: Date) {
   return {
@@ -398,9 +360,9 @@ function makeOfferValues(byUserId: string, terms: OfferTermsClean, now: Date) {
     byUserId,
     proposerListingIds: terms.proposerListingIds,
     ownerListingIds: terms.ownerListingIds,
-    cashFromProposer: Math.max(0, Math.round(terms.cashFromProposer)),
-    cashFromOwner: Math.max(0, Math.round(terms.cashFromOwner)),
-    note: terms.note.slice(0, 500),
+    cashFromProposer: terms.cashFromProposer,
+    cashFromOwner: terms.cashFromOwner,
+    note: terms.note,
     createdAt: now,
     expiresAt: new Date(now.getTime() + OFFER_EXPIRY_DAYS * DAY_MS),
     status: "pending" as const,
@@ -418,18 +380,7 @@ function describeOffer(
   },
   titles: Map<string, string>,
 ): string {
-  const names = (ids: string[]) =>
-    ids.map((id) => `"${titles.get(id) ?? "an item"}"`).join(" + ");
-  const proposerSide: string[] = [];
-  if (offer.proposerListingIds.length) proposerSide.push(names(offer.proposerListingIds));
-  if (offer.cashFromProposer > 0) proposerSide.push(`$${offer.cashFromProposer}`);
-  const ownerSide: string[] = [];
-  if (offer.ownerListingIds.length) ownerSide.push(names(offer.ownerListingIds));
-  if (offer.cashFromOwner > 0) ownerSide.push(`$${offer.cashFromOwner}`);
-  if (kind === "claim") return `wants to claim ${ownerSide.join(" + ") || "the item"}`;
-  if (kind === "buy")
-    return `offers $${offer.cashFromProposer} for ${ownerSide.join(" + ") || "the item"}`;
-  return `${proposerSide.join(" + ") || "nothing"} ⇄ ${ownerSide.join(" + ") || "nothing"}`;
+  return describeOfferTerms(kind, offer, (id) => titles.get(id));
 }
 
 /**
@@ -562,19 +513,6 @@ async function releaseDealListings(tx: Db, latest: OfferRow | undefined): Promis
     .update(listings)
     .set({ status: "active", updatedAt: new Date() })
     .where(and(inArray(listings.id, ids), eq(listings.status, "pending")));
-}
-
-// ─── ISO matching (port of listingMatchesISO / matchListingToISOs) ────────────
-
-function listingMatchesISO(
-  listing: { type: string; team: string },
-  iso: { itemType: string; team: string | null; description: string },
-): boolean {
-  if (listing.type !== iso.itemType) return false;
-  const team = listing.team.toLowerCase();
-  if (iso.team && (team.includes(iso.team.toLowerCase()) || iso.team.toLowerCase().includes(team)))
-    return true;
-  return iso.description.toLowerCase().includes(team) && team.length > 2;
 }
 
 // ─── Listing removal (shared by removeListing / admin ops) ────────────────────
@@ -735,13 +673,20 @@ async function openDeal(
       `${user.username} → "${listing.title}": ${summary}`,
       `/app/trades/${ids.dealId}`,
     );
+    await recordProductEvent(tx, {
+      name: "offer_created",
+      userId: user.id,
+      subjectType: "deal",
+      subjectId: ids.dealId,
+      properties: { kind },
+    });
     return ok(ids.dealId);
   });
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-const handlers: Handlers = {
+const handlers: OperationHandlers = {
   // ── Session / profile ──────────────────────────────────────────────────────
 
   async completeOnboarding(db, user, input) {
@@ -758,13 +703,15 @@ const handlers: Handlers = {
         .limit(1);
       if (taken) return err("That username is taken");
       if (!String(input.displayName ?? "").trim()) return err("Display name is required");
+      const avatar = input.avatar || "/placeholder-user.jpg";
+      if (!validImageReference(avatar)) return err("Invalid avatar image");
       const now = new Date();
       await tx
         .update(users)
         .set({
           username,
           displayName: String(input.displayName).trim(),
-          avatar: input.avatar || "/placeholder-user.jpg",
+          avatar,
           bio: input.bio?.trim() ?? "",
           location: String(input.location ?? "").trim(),
           favoriteTeams: Array.isArray(input.favoriteTeams)
@@ -773,6 +720,7 @@ const handlers: Handlers = {
           onboardedAt: now,
         })
         .where(eq(users.id, me.id));
+      await claimImageUploads(tx, user.id, [avatar]);
       await pushActivity(
         tx,
         "new_member",
@@ -800,6 +748,7 @@ const handlers: Handlers = {
 
       // Referral attribution: credit whoever's invite link brought them.
       const refName = sanitizeUsername(String(input.referrerUsername ?? ""));
+      let referralAttributed = false;
       if (refName && refName !== username) {
         const [referrer] = await tx
           .select({ id: users.id })
@@ -813,6 +762,7 @@ const handlers: Handlers = {
           )
           .limit(1);
         if (referrer && referrer.id !== me.id) {
+          referralAttributed = true;
           await tx.update(users).set({ referredBy: referrer.id }).where(eq(users.id, me.id));
           await awardEventBadge(tx, referrer.id, "connector");
           await notify(
@@ -825,6 +775,13 @@ const handlers: Handlers = {
           );
         }
       }
+      await recordProductEvent(tx, {
+        name: "onboarding_completed",
+        userId: me.id,
+        subjectType: "user",
+        subjectId: me.id,
+        properties: { referred: referralAttributed },
+      });
       return ok(me.id);
     });
   },
@@ -855,7 +812,10 @@ const handlers: Handlers = {
         set.favoriteTeams = Array.isArray(patch.favoriteTeams)
           ? patch.favoriteTeams.map(String)
           : [];
-      if (patch.avatar !== undefined && patch.avatar) set.avatar = String(patch.avatar);
+      if (patch.avatar !== undefined && patch.avatar) {
+        if (!validImageReference(patch.avatar)) return err("Invalid avatar image");
+        set.avatar = String(patch.avatar);
+      }
       if (patch.history !== undefined) {
         if (!Array.isArray(patch.history)) return err("Invalid history");
         if (patch.history.length > 12) return err("History is capped at 12 entries");
@@ -879,11 +839,12 @@ const handlers: Handlers = {
       if (patch.gallery !== undefined) {
         if (!Array.isArray(patch.gallery)) return err("Invalid gallery");
         const photos = patch.gallery.slice(0, 4).map(String);
-        if (photos.some((p) => p.length > 400_000)) return err("A gallery photo is too large");
+        if (photos.some((p) => !validImageReference(p))) return err("Invalid gallery image");
         set.gallery = photos;
       }
       if (Object.keys(set).length > 0) {
         await tx.update(users).set(set).where(eq(users.id, me.id));
+        await claimImageUploads(tx, user.id, [set.avatar, ...(set.gallery ?? [])].filter((value): value is string => typeof value === "string"));
       }
       return ok(me.id);
     });
@@ -913,21 +874,43 @@ const handlers: Handlers = {
       if (dup) return err("Duplicate id");
       if (!(await underRateLimit(tx, `u:${user.id}:listing`, 30, 3600)))
         return err("You're posting listings too fast — take a breather and try again shortly.");
-      if (!String(input.title ?? "").trim()) return err("Title is required");
-      if (!String(input.team ?? "").trim()) return err("Team is required");
+      const title = String(input.title ?? "").trim();
+      const team = canonicalizeTeamOrEvent(String(input.team ?? ""));
+      if (!title) return err("Title is required");
+      if (title.length > 100) return err("Title is capped at 100 characters");
+      if (!team) return err("Team is required");
+      if (team.length > 80) return err("Team or event is capped at 80 characters");
+      if (!ITEM_TYPES.includes(input.type)) return err("Invalid item type");
+      if (!LEVELS.includes(input.level)) return err("Invalid competition level");
+      if (input.division && !DIVISIONS.includes(input.division)) return err("Invalid division");
+      if (!CONDITIONS.includes(input.condition)) return err("Invalid condition");
+      if (!LISTING_TYPES.includes(input.listingType)) return err("Invalid listing type");
+      if (!SHIPPING_PREFERENCES.includes(input.shippingPreference))
+        return err("Invalid shipping preference");
       if (!Array.isArray(input.photos) || input.photos.length === 0)
         return err("Add at least one photo");
       const photos = capPhotos(input.photos);
-      if (!photos) return err("A photo is too large — please use a smaller image");
+      if (!photos) return err("Photos must be secure object-storage or stock image URLs");
       if (input.listingType === "sell" && !input.askingPrice)
         return err("Set an asking price for a sale listing");
+      if (input.askingPrice !== undefined && (!Number.isFinite(input.askingPrice) || input.askingPrice <= 0 || input.askingPrice > 100_000))
+        return err("Enter a valid asking price");
+      const activeBySeller = await tx
+        .select({ id: listings.id, type: listings.type, title: listings.title, team: listings.team, year: listings.year })
+        .from(listings)
+        .where(and(eq(listings.sellerId, user.id), inArray(listings.status, ["active", "pending"])));
+      const duplicate = activeBySeller.find((row) => isDuplicateListing(
+        { type: input.type, title, team, year: input.year },
+        row,
+      ));
+      if (duplicate) return err("This looks like a duplicate of one of your active listings");
       const now = new Date();
       const record = {
         id,
         sellerId: user.id,
         type: input.type,
-        title: String(input.title).trim(),
-        team: String(input.team).trim(),
+        title,
+        team,
         year: input.year?.trim() || null,
         division: input.division ?? null,
         level: input.level,
@@ -943,14 +926,15 @@ const handlers: Handlers = {
         createdAt: now,
         updatedAt: now,
         shippingPreference: input.shippingPreference,
-        tags: (Array.isArray(input.tags) ? input.tags : [])
+        tags: [...new Set((Array.isArray(input.tags) ? input.tags : [])
           .map((t) => String(t).trim().toLowerCase())
-          .filter(Boolean),
+          .filter(Boolean))].slice(0, 10),
         isRare: input.isRare ?? false,
         isFeatured: false,
         status: "active" as const,
       };
       await tx.insert(listings).values(record);
+      await claimImageUploads(tx, user.id, photos);
       await pushActivity(
         tx,
         "new_listing",
@@ -978,7 +962,31 @@ const handlers: Handlers = {
         }
       }
       await insertNotifications(tx, isoNotifs);
+      const searches = await tx
+        .select()
+        .from(savedSearches)
+        .where(and(eq(savedSearches.notificationsEnabled, true), ne(savedSearches.userId, user.id)));
+      for (const search of searches) {
+        if (await isBlockedPair(tx, search.userId, user.id)) continue;
+        if (!listingMatchesSavedSearch(record, search)) continue;
+        await notify(
+          tx,
+          search.userId,
+          "iso_match",
+          `New match for ${search.name}`,
+          `“${record.title}” matches your saved search.`,
+          `/app/listings/${record.id}`,
+        );
+        await tx.update(savedSearches).set({ lastMatchedAt: now }).where(eq(savedSearches.id, search.id));
+      }
       await recomputeReputation(tx, user.id); // collector badge
+      await recordProductEvent(tx, {
+        name: "listing_created",
+        userId: user.id,
+        subjectType: "listing",
+        subjectId: record.id,
+        properties: { itemType: record.type, listingType: record.listingType, photoCount: photos.length },
+      });
       return ok(record.id);
     });
   },
@@ -993,7 +1001,8 @@ const handlers: Handlers = {
       const p = patch as Record<string, unknown>;
       if ("type" in p) set.type = patch.type ?? record.type;
       if ("title" in p) set.title = patch.title?.trim() ?? record.title;
-      if ("team" in p) set.team = patch.team ?? record.team;
+      if ("team" in p)
+        set.team = patch.team === undefined ? record.team : canonicalizeTeamOrEvent(patch.team);
       if ("year" in p) set.year = patch.year ?? null;
       if ("division" in p) set.division = patch.division ?? null;
       if ("level" in p) set.level = patch.level ?? record.level;
@@ -1004,7 +1013,7 @@ const handlers: Handlers = {
       if ("tradeFor" in p) set.tradeFor = patch.tradeFor ?? null;
       if ("photos" in p && Array.isArray(patch.photos)) {
         const photos = capPhotos(patch.photos);
-        if (!photos) return err("A photo is too large — please use a smaller image");
+        if (!photos) return err("Photos must be secure object-storage or stock image URLs");
         set.photos = photos;
       }
       if ("description" in p)
@@ -1014,8 +1023,36 @@ const handlers: Handlers = {
       if ("tags" in p && Array.isArray(patch.tags)) set.tags = patch.tags.map(String);
       if ("isRare" in p) set.isRare = patch.isRare ?? false;
       const finalListingType = set.listingType ?? record.listingType;
+      const finalType = set.type ?? record.type;
+      const finalTitle = set.title ?? record.title;
+      const finalTeam = set.team ?? record.team;
+      const finalYear = set.year === undefined ? record.year : set.year;
+      if (!ITEM_TYPES.includes(finalType)) return err("Invalid item type");
+      if (!LEVELS.includes(set.level ?? record.level)) return err("Invalid competition level");
+      if (set.division && !DIVISIONS.includes(set.division)) return err("Invalid division");
+      if (!CONDITIONS.includes(set.condition ?? record.condition)) return err("Invalid condition");
+      if (!LISTING_TYPES.includes(finalListingType)) return err("Invalid listing type");
+      if (!SHIPPING_PREFERENCES.includes(set.shippingPreference ?? record.shippingPreference))
+        return err("Invalid shipping preference");
+      if (!finalTitle.trim()) return err("Title is required");
+      if (finalTitle.length > 100) return err("Title is capped at 100 characters");
+      if (!finalTeam.trim()) return err("Team is required");
+      if (set.photos && set.photos.length === 0) return err("Add at least one photo");
+      const finalPrice = set.askingPrice === undefined ? record.askingPrice : set.askingPrice;
+      if (finalListingType === "sell" && !finalPrice) return err("Set an asking price for a sale listing");
+      if (finalPrice !== null && (!Number.isFinite(finalPrice) || finalPrice <= 0 || finalPrice > 100_000))
+        return err("Enter a valid asking price");
+      const peers = await tx
+        .select({ type: listings.type, title: listings.title, team: listings.team, year: listings.year })
+        .from(listings)
+        .where(and(eq(listings.sellerId, user.id), ne(listings.id, id), inArray(listings.status, ["active", "pending"])));
+      if (peers.some((peer) => isDuplicateListing(
+        { type: finalType, title: finalTitle, team: finalTeam, year: finalYear },
+        peer,
+      ))) return err("This looks like a duplicate of one of your active listings");
       if (finalListingType === "free") set.askingPrice = null;
       await tx.update(listings).set(set).where(eq(listings.id, id));
+      if (set.photos) await claimImageUploads(tx, user.id, set.photos);
       return ok(id);
     });
   },
@@ -1117,6 +1154,40 @@ const handlers: Handlers = {
     });
   },
 
+  async createSavedSearch(db, user, { id, input }) {
+    if (!isClientId(id)) return err("Invalid id");
+    const name = String(input.name ?? "").trim();
+    if (!name) return err("Name your saved search");
+    if (name.length > 60) return err("Saved-search names are capped at 60 characters");
+    const meaningful = input.query?.trim() || input.itemType || input.listingType || input.condition || input.team?.trim() || input.size?.trim() || input.maxPrice;
+    if (!meaningful) return err("Choose at least one search filter");
+    const [{ n }] = await db.select({ n: count() }).from(savedSearches).where(eq(savedSearches.userId, user.id));
+    if (Number(n) >= 20) return err("Saved searches are capped at 20");
+    await db.insert(savedSearches).values({
+      id,
+      userId: user.id,
+      name,
+      query: input.query?.trim() || null,
+      itemType: input.itemType ?? null,
+      listingType: input.listingType ?? null,
+      condition: input.condition ?? null,
+      team: input.team?.trim() || null,
+      size: input.size?.trim() || null,
+      maxPrice: input.maxPrice ?? null,
+      notificationsEnabled: input.notificationsEnabled !== false,
+    });
+    return ok(id);
+  },
+
+  async deleteSavedSearch(db, user, { id }) {
+    const deleted = await db
+      .delete(savedSearches)
+      .where(and(eq(savedSearches.id, id), eq(savedSearches.userId, user.id)))
+      .returning({ id: savedSearches.id });
+    if (deleted.length === 0) return err("Saved search not found");
+    return ok(null);
+  },
+
   // ── Wanted board ───────────────────────────────────────────────────────────
 
   async createISOPost(db, user, { id, input }) {
@@ -1139,7 +1210,7 @@ const handlers: Handlers = {
         userId: user.id,
         itemType: input.itemType,
         description,
-        team: input.team?.trim() || null,
+        team: input.team ? canonicalizeTeamOrEvent(input.team) || null : null,
         size: input.size?.trim() || null,
         maxPrice: input.maxPrice ?? null,
         createdAt: now,
@@ -1393,6 +1464,13 @@ const handlers: Handlers = {
         `${user.username} accepted your offer. Time to ship.`,
         `/app/trades/${deal.id}`,
       );
+      await recordProductEvent(tx, {
+        name: "offer_accepted",
+        userId: user.id,
+        subjectType: "deal",
+        subjectId: deal.id,
+        properties: { kind: deal.kind },
+      });
       return ok(deal.id);
     });
   },
@@ -1465,38 +1543,45 @@ const handlers: Handlers = {
       if (!deal) return err("Deal not found");
       if (deal.status !== "accepted") return err("Only accepted deals can be cancelled");
       if (deal.proposerId !== user.id && deal.ownerId !== user.id) return err("Not your deal");
+      const cancellation = validateAcceptedDealCancellation(deal.fulfillment, reason);
+      if (!cancellation.ok) return err(cancellation.error);
       const offer = await latestOffer(tx, deal.id);
       await releaseDealListings(tx, offer);
-      await closeDeal(tx, deal, offer, "cancelled", reason);
+      await closeDeal(tx, deal, offer, "cancelled", cancellation.reason);
       await appendMessage(
         tx,
         deal.threadId,
         user.id,
         "system",
-        `${user.username} cancelled the deal.${reason ? ` "${reason}"` : ""}`,
+        `${user.username} cancelled the deal. "${cancellation.reason}"`,
       );
       await notify(
         tx,
         otherParty(deal, user.id),
         "deal_cancelled",
         "Deal cancelled",
-        `${user.username} backed out of your deal${reason ? `: "${reason}"` : "."}`,
+        `${user.username} backed out of your deal: "${cancellation.reason}"`,
         `/app/trades/${deal.id}`,
       );
       return ok(null);
     });
   },
 
-  async markShipped(db, user, { dealId, tracking }) {
+  async markShipped(db, user, { dealId, tracking, carrier }) {
     return db.transaction(async (tx) => {
       const deal = await getDealForUpdate(tx, dealId);
       if (!deal) return err("Deal not found");
       if (deal.status !== "accepted") return err("The deal isn't in the shipping stage");
       if (deal.proposerId !== user.id && deal.ownerId !== user.id) return err("Not your deal");
+      const shipment = normalizeShipmentTracking(tracking, carrier);
+      if (!shipment.ok) return err(shipment.error);
       const now = new Date();
       const f: FulfillmentState = { ...(deal.fulfillment[user.id] ?? {}) };
       f.shippedAt = now.toISOString();
-      if (tracking?.trim()) f.tracking = tracking.trim();
+      if (shipment.tracking) {
+        f.tracking = shipment.tracking;
+        f.carrier = shipment.carrier;
+      }
       const fulfillment = { ...deal.fulfillment, [user.id]: f };
       await tx.update(deals).set({ fulfillment, updatedAt: now }).where(eq(deals.id, deal.id));
       await appendMessage(
@@ -1504,16 +1589,23 @@ const handlers: Handlers = {
         deal.threadId,
         user.id,
         "system",
-        `${user.username} marked their end shipped${tracking ? ` — tracking ${tracking}` : ""}.`,
+        `${user.username} marked their end shipped${shipment.tracking ? ` — tracking ${shipment.tracking}` : ""}.`,
       );
       await notify(
         tx,
         otherParty(deal, user.id),
         "shipped",
         "Shipment on the way 📦",
-        `${user.username} shipped their end of the deal${tracking ? ` (tracking ${tracking})` : ""}.`,
+        `${user.username} shipped their end of the deal${shipment.tracking ? ` (tracking ${shipment.tracking})` : ""}.`,
         `/app/trades/${deal.id}`,
       );
+      await recordProductEvent(tx, {
+        name: "shipment_recorded",
+        userId: user.id,
+        subjectType: "deal",
+        subjectId: deal.id,
+        properties: { kind: deal.kind, tracked: Boolean(f.tracking), carrier: f.carrier ?? null },
+      });
       return ok(null);
     });
   },
@@ -1601,6 +1693,13 @@ const handlers: Handlers = {
         `${proposer?.username} and ${owner?.username} completed a ${deal.kind === "claim" ? "handoff" : deal.kind === "buy" ? "sale" : "trade"}: "${listing?.title ?? ""}"`,
         `/app/listings/${deal.listingId}`,
       );
+      await recordProductEvent(tx, {
+        name: "deal_completed",
+        userId: user.id,
+        subjectType: "deal",
+        subjectId: deal.id,
+        properties: { kind: deal.kind },
+      });
       return ok({ completed: true });
     });
   },
@@ -1611,8 +1710,9 @@ const handlers: Handlers = {
       if (!deal) return err("Deal not found");
       if (deal.status !== "accepted") return err("Only accepted deals can be disputed");
       if (deal.proposerId !== user.id && deal.ownerId !== user.id) return err("Not your deal");
-      if (!String(reason ?? "").trim()) return err("Describe the problem");
-      const trimmed = String(reason).trim();
+      const dispute = validateDisputeReason(reason);
+      if (!dispute.ok) return err(dispute.error);
+      const trimmed = dispute.reason;
       const now = new Date();
       await tx
         .update(deals)
@@ -1643,6 +1743,13 @@ const handlers: Handlers = {
         `${user.username} reported a problem with your deal. Moderators will review.`,
         `/app/trades/${deal.id}`,
       );
+      await recordProductEvent(tx, {
+        name: "deal_disputed",
+        userId: user.id,
+        subjectType: "deal",
+        subjectId: deal.id,
+        properties: { kind: deal.kind },
+      });
       return ok(null);
     });
   },
@@ -1660,18 +1767,19 @@ const handlers: Handlers = {
         .where(and(eq(ratings.dealId, dealId), eq(ratings.fromUserId, user.id)))
         .limit(1);
       if (already) return err("You already rated this deal");
-      const clamp = (n: number) => Math.min(5, Math.max(1, Math.round(Number(n) || 0)));
+      const validated = validateRatingInput(input);
+      if (!validated.ok) return err(validated.error);
       const now = new Date();
       const rating = {
         id: uid("rt"),
         dealId,
         fromUserId: user.id,
         toUserId: otherParty(deal, user.id),
-        communication: clamp(input.communication),
-        shippingSpeed: clamp(input.shippingSpeed),
-        itemAccuracy: clamp(input.itemAccuracy),
-        wouldTradeAgain: !!input.wouldTradeAgain,
-        comment: input.comment?.trim() || null,
+        communication: validated.rating.communication,
+        shippingSpeed: validated.rating.shippingSpeed,
+        itemAccuracy: validated.rating.itemAccuracy,
+        wouldTradeAgain: validated.rating.wouldTradeAgain,
+        comment: validated.rating.comment ?? null,
         createdAt: now,
       };
       await tx.insert(ratings).values(rating);
@@ -1840,18 +1948,36 @@ const handlers: Handlers = {
   async reportTarget(db, user, { targetType, targetId, reason, details }) {
     const valid: ReportTargetType[] = ["listing", "user", "deal"];
     if (!valid.includes(targetType)) return err("Invalid target");
-    if (!String(reason ?? "").trim()) return err("Pick a reason");
-    await db.insert(reports).values({
-      id: uid("r"),
-      reporterId: user.id,
-      targetType,
-      targetId: String(targetId),
-      reason: String(reason).trim(),
-      details: details?.trim() || null,
-      status: "pending",
-      createdAt: new Date(),
+    const normalized = validateModerationReport(reason, details);
+    if (!normalized.ok) return err(normalized.error);
+    return db.transaction(async (tx) => {
+      if (!(await underRateLimit(tx, `u:${user.id}:report`, 20, 86_400)))
+        return err("You've submitted too many reports today");
+      if (targetType === "listing") {
+        const target = await getListingRow(tx, targetId);
+        if (!target) return err("Listing not found");
+        if (target.sellerId === user.id) return err("You can't report your own listing");
+      } else if (targetType === "user") {
+        const target = await getUserRow(tx, targetId);
+        if (!target) return err("User not found");
+        if (target.id === user.id) return err("You can't report yourself");
+      } else {
+        const target = await getDealForUpdate(tx, targetId);
+        if (!target) return err("Deal not found");
+        if (target.proposerId !== user.id && target.ownerId !== user.id) return err("Not your deal");
+      }
+      const [pending] = await tx.select({ id: reports.id }).from(reports).where(and(
+        eq(reports.reporterId, user.id), eq(reports.targetType, targetType),
+        eq(reports.targetId, targetId), eq(reports.status, "pending"),
+      )).limit(1);
+      if (pending) return err("You already have a pending report for this item");
+      await tx.insert(reports).values({
+        id: uid("r"), reporterId: user.id, targetType, targetId,
+        reason: normalized.reason, details: normalized.details ?? null,
+        status: "pending", createdAt: new Date(),
+      });
+      return ok(null);
     });
-    return ok(null);
   },
 
   async blockUser(db, user, { targetId }) {
@@ -1892,22 +2018,16 @@ const handlers: Handlers = {
         .where(eq(identities.id, id))
         .limit(1);
       if (dup) return err("Duplicate id");
-      const validProviders: IdentityProvider[] = ["instagram", "facebook", "usau", "other"];
-      if (!validProviders.includes(provider)) return err("Invalid provider");
-      const cleanHandle = String(handle ?? "").trim();
-      if (!cleanHandle) return err("Enter a handle");
-      if (cleanHandle.length > 80) return err("Handle is too long (80 characters max)");
-      let cleanUrl: string | null = null;
-      if (url !== undefined && String(url).trim()) {
-        cleanUrl = String(url).trim();
-        if (!/^https?:\/\//i.test(cleanUrl)) return err("Link must start with http:// or https://");
-      }
+      const claim = validateIdentityClaim(provider, handle, url);
+      if (!claim.ok) return err(claim.error);
+      const cleanHandle = claim.handle;
+      const cleanUrl = claim.url ?? null;
       const mine = await tx
         .select({ id: identities.id, provider: identities.provider, handle: identities.handle })
         .from(identities)
         .where(eq(identities.userId, user.id));
       if (mine.length >= 5) return err("You can link up to 5 identities");
-      if (mine.some((i) => i.provider === provider && i.handle === cleanHandle))
+      if (mine.some((i) => i.provider === provider && i.handle.toLowerCase() === cleanHandle.toLowerCase()))
         return err("You already linked that handle");
       await tx.insert(identities).values({
         id,
@@ -1923,12 +2043,15 @@ const handlers: Handlers = {
   },
 
   async removeIdentity(db, user, { id }) {
-    const deleted = await db
-      .delete(identities)
-      .where(and(eq(identities.id, id), eq(identities.userId, user.id)))
-      .returning({ id: identities.id });
-    if (deleted.length === 0) return err("Identity not found");
-    return ok(null);
+    return db.transaction(async (tx) => {
+      const deleted = await tx
+        .delete(identities)
+        .where(and(eq(identities.id, id), eq(identities.userId, user.id)))
+        .returning({ id: identities.id });
+      if (deleted.length === 0) return err("Identity not found");
+      await syncVerifiedIdentityBadge(tx, user.id);
+      return ok(null);
+    });
   },
 
   // ── Payment handles (private) ──────────────────────────────────────────────
@@ -1936,14 +2059,11 @@ const handlers: Handlers = {
   async addPaymentMethod(db, user, { id, kind, label, value }) {
     return db.transaction(async (tx) => {
       if (!isClientId(id)) return err("Invalid id");
-      const validKinds = ["venmo", "paypal", "cashapp", "zelle", "crypto", "other"];
-      if (!validKinds.includes(kind)) return err("Invalid payment type");
-      const cleanValue = String(value ?? "").trim();
-      if (!cleanValue) return err("Enter the handle or address");
-      if (cleanValue.length > 120) return err("Handle is too long (120 characters max)");
-      const cleanLabel = label !== undefined && String(label).trim()
-        ? String(label).trim().slice(0, 40)
-        : null;
+      if (!PAYMENT_KINDS.includes(kind)) return err("Invalid payment type");
+      const normalized = normalizePaymentHandle(value, label);
+      if (!normalized.ok) return err(normalized.error);
+      const cleanValue = normalized.value;
+      const cleanLabel = normalized.label ?? null;
       const mine = await tx
         .select({ id: paymentMethods.id, kind: paymentMethods.kind, value: paymentMethods.value })
         .from(paymentMethods)
@@ -1982,7 +2102,7 @@ const handlers: Handlers = {
       if (deal.status !== "accepted" && deal.status !== "disputed")
         return err("Proof can be added while a deal is in progress");
       if (!Array.isArray(photos) || photos.length === 0) return err("Add at least one photo");
-      if (photos.some((p) => String(p).length > 400_000)) return err("A photo is too large");
+      if (photos.some((p) => !validImageReference(p))) return err("Invalid proof image");
       const f: FulfillmentState = { ...(deal.fulfillment[user.id] ?? {}) };
       const existing = f.proofPhotos ?? [];
       const merged = [...existing, ...photos.map(String)].slice(0, 4);
@@ -1991,6 +2111,7 @@ const handlers: Handlers = {
       const now = new Date();
       const fulfillment = { ...deal.fulfillment, [user.id]: f };
       await tx.update(deals).set({ fulfillment, updatedAt: now }).where(eq(deals.id, deal.id));
+      await claimImageUploads(tx, user.id, photos.map(String));
       await appendMessage(
         tx,
         deal.threadId,
@@ -2240,6 +2361,8 @@ const handlers: Handlers = {
 
   async adminResolveReport(db, user, { reportId, action, note }) {
     return db.transaction(async (tx) => {
+      const resolution = validateModerationResolution(note);
+      if (!resolution.ok) return err(resolution.error);
       const [report] = await tx.select().from(reports).where(eq(reports.id, reportId)).for("update");
       if (!report) return err("Report not found");
       if (report.status !== "pending") return err("Already handled");
@@ -2249,7 +2372,7 @@ const handlers: Handlers = {
           .update(reports)
           .set({
             status: "dismissed",
-            resolution: note ?? "Dismissed — no action needed",
+            resolution: resolution.reason,
             resolvedAt: now,
           })
           .where(eq(reports.id, reportId));
@@ -2259,12 +2382,12 @@ const handlers: Handlers = {
         if (report.targetType !== "listing") return err("Not a listing report");
         const res = await removeListingCore(tx, report.targetId, user, {
           byAdmin: true,
-          reason: note,
+          reason: resolution.reason,
         });
         if (!res.ok) return res;
         await tx
           .update(reports)
-          .set({ status: "resolved", resolution: note ?? "Listing removed", resolvedAt: now })
+          .set({ status: "resolved", resolution: resolution.reason, resolvedAt: now })
           .where(eq(reports.id, reportId));
         return ok(null);
       }
@@ -2281,11 +2404,11 @@ const handlers: Handlers = {
           targetUserId,
           "system",
           "Community guidelines warning",
-          note ?? "A moderator reviewed a report about your activity. Keep it clean out there.",
+          resolution.reason,
         );
         await tx
           .update(reports)
-          .set({ status: "resolved", resolution: note ?? "User warned", resolvedAt: now })
+          .set({ status: "resolved", resolution: resolution.reason, resolvedAt: now })
           .where(eq(reports.id, reportId));
         return ok(null);
       }
@@ -2296,6 +2419,8 @@ const handlers: Handlers = {
   async adminResolveDispute(db, user, { dealId, outcome, note }) {
     return db.transaction(async (tx) => {
       if (outcome !== "cancelled" && outcome !== "completed") return err("Unknown outcome");
+      const resolution = validateModerationResolution(note);
+      if (!resolution.ok) return err(resolution.error);
       const deal = await getDealForUpdate(tx, dealId);
       if (!deal) return err("Deal not found");
       if (deal.status !== "disputed") return err("Deal is not disputed");
@@ -2308,7 +2433,7 @@ const handlers: Handlers = {
           deal,
           offer,
           "cancelled",
-          note ?? "Cancelled by moderators after dispute review",
+          resolution.reason,
         );
       } else {
         const fulfillment: Record<string, FulfillmentState> = {
@@ -2349,7 +2474,7 @@ const handlers: Handlers = {
           userId,
           type: "system" as const,
           title: "Dispute resolved",
-          body: `Moderators resolved the dispute: deal ${outcome}.${note ? ` ${note}` : ""}`,
+          body: `Moderators resolved the dispute: deal ${outcome}. ${resolution.reason}`,
           linkTo: `/app/trades/${deal.id}`,
         })),
       );
@@ -2358,8 +2483,31 @@ const handlers: Handlers = {
         deal.threadId,
         deal.ownerId,
         "system",
-        `Moderators resolved the dispute — deal ${outcome}.`,
+        `Moderators resolved the dispute — deal ${outcome}. ${resolution.reason}`,
       );
+      await tx
+        .update(reports)
+        .set({
+          status: "resolved",
+          resolution: `Deal ${outcome}: ${resolution.reason}`,
+          resolvedAt: now,
+        })
+        .where(
+          and(
+            eq(reports.targetType, "deal"),
+            eq(reports.targetId, deal.id),
+            eq(reports.status, "pending"),
+          ),
+        );
+      if (outcome === "completed") {
+        await recordProductEvent(tx, {
+          name: "deal_completed",
+          userId: user.id,
+          subjectType: "deal",
+          subjectId: deal.id,
+          properties: { kind: deal.kind, moderated: true },
+        });
+      }
       return ok(null);
     });
   },
@@ -2384,26 +2532,26 @@ const handlers: Handlers = {
 
   async adminSetUserStatus(db, user, { userId, status, days, note }) {
     return db.transaction(async (tx) => {
-      const validStatuses = ["active", "shadowbanned", "suspended", "banned"];
-      if (!validStatuses.includes(status)) return err("Invalid status");
+      const validated = validateAccountModeration(status, days, note);
+      if (!validated.ok) return err(validated.error);
       const target = await getUserRow(tx, userId);
       if (!target) return err("User not found");
       if (target.isAdmin) return err("You can't moderate another moderator");
       if (userId === user.id) return err("You can't moderate your own account");
 
       const set: Partial<typeof users.$inferInsert> = {
-        status,
-        moderationNote: note?.trim() || null,
+        status: validated.status,
+        moderationNote: validated.note,
         suspendedUntil:
-          status === "suspended"
-            ? new Date(Date.now() + Math.max(1, Math.min(365, days ?? 7)) * 86_400_000)
+          validated.status === "suspended"
+            ? new Date(Date.now() + validated.days! * 86_400_000)
             : null,
       };
       await tx.update(users).set(set).where(eq(users.id, userId));
 
       // End any active "use as" sessions pointing at a now-banned/suspended
       // account so an admin isn't stranded impersonating a gated user.
-      if (status === "banned" || status === "suspended") {
+      if (validated.status === "banned" || validated.status === "suspended") {
         await tx
           .update(sessions)
           .set({ impersonatingUserId: null })
@@ -2411,31 +2559,29 @@ const handlers: Handlers = {
       }
 
       // Notify the user only for actions they're meant to see (never shadowban).
-      if (status === "suspended") {
+      if (validated.status === "suspended") {
         await notify(
           tx,
           userId,
           "system",
           "Your account is suspended",
-          note?.trim()
-            ? note.trim()
-            : "A moderator suspended your account. It will lift automatically.",
+          `${validated.note} Suspension length: ${validated.days} day${validated.days === 1 ? "" : "s"}.`,
         );
-      } else if (status === "banned") {
+      } else if (validated.status === "banned") {
         await notify(
           tx,
           userId,
           "system",
           "Your account has been banned",
-          note?.trim() ? note.trim() : "A moderator banned your account for violating community guidelines.",
+          validated.note,
         );
-      } else if (status === "active" && (target.status === "suspended" || target.status === "banned")) {
+      } else if (validated.status === "active" && target.status !== "active") {
         await notify(
           tx,
           userId,
           "system",
           "Your account is active again",
-          "A moderator restored your account. Trade clean out there.",
+          validated.note,
         );
       }
       return ok(null);
@@ -2461,6 +2607,8 @@ const handlers: Handlers = {
     return db.transaction(async (tx) => {
       if (status !== "verified" && status !== "rejected" && status !== "pending")
         return err("Invalid status");
+      const review = validateIdentityReviewNote(note);
+      if (!review.ok) return err(review.error);
       const [identity] = await tx
         .select()
         .from(identities)
@@ -2473,7 +2621,7 @@ const handlers: Handlers = {
         .set({
           status,
           verifiedAt: status === "verified" ? now : null,
-          reviewerNote: note?.trim() || null,
+          reviewerNote: review.note,
         })
         .where(eq(identities.id, identityId));
       if (status === "verified") {
@@ -2485,17 +2633,17 @@ const handlers: Handlers = {
           `Your ${identity.provider} handle now shows verified on your profile.`,
           "/app/profile",
         );
-        await awardEventBadge(tx, identity.userId, "verified");
       } else if (status === "rejected") {
         await notify(
           tx,
           identity.userId,
           "system",
           "Identity review update",
-          `Your ${identity.provider} handle could not be verified.${note?.trim() ? ` ${note.trim()}` : ""}`,
+          `Your ${identity.provider} handle could not be verified. ${review.note}`,
           "/app/profile",
         );
       }
+      await syncVerifiedIdentityBadge(tx, identity.userId);
       return ok(null);
     });
   },
@@ -2516,7 +2664,7 @@ const handlers: Handlers = {
         .limit(1);
       if (clash) return err("That slug is already taken");
       const logo = String(input.logo ?? "");
-      if (logo.length > MAX_PHOTO_DATAURL) return err("Logo image is too large");
+      if (logo && !validImageReference(logo)) return err("Invalid logo image");
       const values = {
         kind: input.kind,
         name: name.slice(0, 80),
@@ -2540,6 +2688,7 @@ const handlers: Handlers = {
       } else {
         await tx.insert(partners).values({ id: input.id, ...values, createdAt: new Date() });
       }
+      if (logo) await claimImageUploads(tx, user.id, [logo]);
       return ok(input.id);
     });
   },

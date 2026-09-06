@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowRightLeft, BadgeCheck, MessageSquare } from "lucide-react";
 import { DealStatusBadge } from "@/components/deal-status-badge";
@@ -8,12 +8,14 @@ import { Hydrated } from "@/components/hydrated";
 import { DEAL_KIND_LABELS } from "@/lib/constants";
 import { timeAgo } from "@/lib/format";
 import { useStore } from "@/lib/store-context";
-import type { Deal, Thread } from "@/lib/types";
+import type { Deal } from "@/lib/types";
+import type { ThreadSummary } from "@/lib/server/private-query";
+import { fetchThreadPage } from "@/app/actions/query";
 import { cn } from "@/lib/utils";
 
 type TabKey = "messages" | "deals";
 
-function preview(thread: Thread): React.ReactNode {
+function preview(thread: ThreadSummary): React.ReactNode {
   const m = thread.lastMessage;
   if (!m) return <span className="italic">No messages yet</span>;
   if (m.kind === "offer") {
@@ -27,7 +29,7 @@ function preview(thread: Thread): React.ReactNode {
   return m.content;
 }
 
-function ThreadRow({ thread }: { thread: Thread }) {
+function ThreadRow({ thread }: { thread: ThreadSummary }) {
   return (
     <Link
       href={`/app/inbox/${thread.id}`}
@@ -54,8 +56,8 @@ function ThreadRow({ thread }: { thread: Thread }) {
           {thread.otherUser.isVerified && (
             <BadgeCheck size={14} className="text-accent flex-shrink-0" />
           )}
-          {thread.deal && (
-            <DealStatusBadge status={thread.deal.status} className="flex-shrink-0 text-[9px]" />
+          {thread.dealStatus && (
+            <DealStatusBadge status={thread.dealStatus} className="flex-shrink-0 text-[9px]" />
           )}
         </div>
         <p
@@ -121,7 +123,7 @@ function DealRow({ deal, meId }: { deal: Deal; meId: string }) {
   );
 }
 
-function MessagesTab({ threads }: { threads: Thread[] }) {
+function MessagesTab({ threads, hasMore, loadingMore, onLoadMore }: { threads: ThreadSummary[]; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void }) {
   if (threads.length === 0) {
     return (
       <div className="px-6 py-20 text-center">
@@ -142,10 +144,15 @@ function MessagesTab({ threads }: { threads: Thread[] }) {
     );
   }
   return (
-    <div className="divide-y divide-border">
-      {threads.map((t) => (
-        <ThreadRow key={t.id} thread={t} />
-      ))}
+    <div>
+      <div className="divide-y divide-border">
+        {threads.map((t) => <ThreadRow key={t.id} thread={t} />)}
+      </div>
+      {hasMore && (
+        <button type="button" onClick={onLoadMore} disabled={loadingMore} className="mx-auto my-5 block rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50">
+          {loadingMore ? "Loading…" : "Load older conversations"}
+        </button>
+      )}
     </div>
   );
 }
@@ -209,9 +216,31 @@ function DealsTab({ yourMove, others, meId }: { yourMove: Deal[]; others: Deal[]
 function InboxContent() {
   const store = useStore();
   const [tab, setTab] = useState<TabKey>("messages");
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [threadCursor, setThreadCursor] = useState<string>();
+  const [threadsLoading, setThreadsLoading] = useState(true);
+  const [threadsLoadingMore, setThreadsLoadingMore] = useState(false);
   const me = store.requireUser();
 
-  const threads = store.listThreads();
+  const reloadThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    try {
+      const page = await fetchThreadPage();
+      setThreads(page.items);
+      setThreadCursor(page.nextCursor);
+    } finally {
+      setThreadsLoading(false);
+    }
+  }, []);
+  useEffect(() => { void reloadThreads(); }, [reloadThreads]);
+  useEffect(() => {
+    const onInvalidate = (event: Event) => {
+      const domains = (event as CustomEvent<{ domains?: string[] }>).detail?.domains;
+      if (domains?.includes("messages") || domains?.includes("moderation")) void reloadThreads();
+    };
+    window.addEventListener("poachland:invalidate", onInvalidate);
+    return () => window.removeEventListener("poachland:invalidate", onInvalidate);
+  }, [reloadThreads]);
   const yourMove = store.dealsAwaitingResponse(me.id);
   const yourMoveIds = new Set(yourMove.map((d) => d.id));
   const others = store
@@ -257,7 +286,19 @@ function InboxContent() {
         ))}
       </div>
       {tab === "messages" ? (
-        <MessagesTab threads={threads} />
+        threadsLoading ? <InboxSkeleton /> : <MessagesTab
+          threads={threads}
+          hasMore={!!threadCursor}
+          loadingMore={threadsLoadingMore}
+          onLoadMore={() => {
+            if (!threadCursor) return;
+            setThreadsLoadingMore(true);
+            void fetchThreadPage(threadCursor).then((page) => {
+              setThreads((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+              setThreadCursor(page.nextCursor);
+            }).finally(() => setThreadsLoadingMore(false));
+          }}
+        />
       ) : (
         <DealsTab yourMove={yourMove} others={others} meId={me.id} />
       )}

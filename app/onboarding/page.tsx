@@ -142,7 +142,7 @@ export default function OnboardingPage() {
   // ── Success state ───────────────────────────────────────────────────────────
   if (created) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-6 text-center">
+      <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-6 text-center">
         <div className="w-16 h-16 rounded-full bg-accent-dim border-2 border-accent flex items-center justify-center mb-6">
           <Check size={30} className="text-accent" strokeWidth={3} />
         </div>
@@ -158,13 +158,24 @@ export default function OnboardingPage() {
           You&apos;re signed in and ready to trade. Post your first listing or
           hit the wanted board — rep is earned one deal at a time.
         </p>
-        <button
-          onClick={() => router.push("/app")}
-          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold text-sm px-6 py-3 rounded-full shadow-sm hover:opacity-90 transition-opacity"
-        >
-          Enter Poachland <ArrowRight size={16} />
-        </button>
-      </div>
+        <div className="flex w-full max-w-xs flex-col gap-2">
+          <button
+            onClick={() => router.push("/app/create")}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground shadow-sm transition-opacity hover:opacity-90"
+          >
+            Post your first listing <ArrowRight size={16} />
+          </button>
+          <button
+            onClick={() => router.push("/app/wanted/create")}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:border-accent"
+          >
+            Post what you&apos;re hunting
+          </button>
+          <button onClick={() => router.push("/app")} className="py-2 text-sm font-semibold text-muted-foreground hover:text-foreground">
+            Explore first
+          </button>
+        </div>
+      </main>
     );
   }
 
@@ -204,7 +215,7 @@ export default function OnboardingPage() {
         </div>
       </header>
 
-      <main id="main-content" className="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-6 pb-10">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col w-full max-w-md mx-auto px-5 pt-6 pb-10">
         {/* Step 1 — Welcome */}
         {step === 0 && (
           <div className="flex-1 flex flex-col">

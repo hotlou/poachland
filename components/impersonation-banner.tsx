@@ -25,7 +25,7 @@ export function ImpersonationBanner() {
       await stopUsingAs();
     } finally {
       // Full navigation: re-bootstraps the store as the admin again.
-      window.location.assign("/admin");
+      window.location.replace(`${window.location.origin}/admin`);
     }
   };
 

@@ -4,8 +4,8 @@
  * Public listing page — the SEO-facing, signed-out-friendly version of
  * /app/listings/[id]. Standalone page chrome (no app shell): the shared
  * wordmark header with a join CTA, the listing body, and a context-aware
- * call-to-action. Data comes from the public store snapshot (the bootstrap
- * ships every non-removed listing by a visible seller, so signed-out works).
+ * call-to-action. The server passes the exact public-safe listing into this
+ * view, so deep links do not depend on a catalog-sized client bootstrap.
  */
 
 import Link from "next/link";
@@ -19,8 +19,9 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/lib/constants";
 import { money } from "@/lib/format";
-import { useHydrated, useStore } from "@/lib/store-context";
-import type { Listing, ShippingPreference } from "@/lib/types";
+import { useStore } from "@/lib/store-context";
+import type { ShippingPreference } from "@/lib/types";
+import type { PublicListing } from "@/lib/server/public";
 import { cn } from "@/lib/utils";
 
 const pillPrimary =
@@ -33,7 +34,7 @@ const SHIPPING_LABELS: Record<ShippingPreference, string> = {
 };
 
 /** Muted "no longer active" copy, or null for active listings. */
-function statusBanner(status: Listing["status"]): string | null {
+function statusBanner(status: PublicListing["status"]): string | null {
   if (status === "pending") return "Deal pending";
   if (status === "traded" || status === "sold" || status === "claimed") {
     return "This item is no longer available";
@@ -43,7 +44,7 @@ function statusBanner(status: Listing["status"]): string | null {
 
 /* ── Loading / unavailable states ────────────────────────────────────────── */
 
-function ListingSkeleton() {
+export function ListingSkeleton() {
   return (
     <div className="pt-6 space-y-5 animate-pulse">
       <div className="aspect-[4/3] bg-surface rounded-2xl" />
@@ -60,7 +61,7 @@ function ListingSkeleton() {
   );
 }
 
-function Unavailable() {
+export function Unavailable() {
   return (
     <div className="py-24 text-center">
       <PackageX size={28} className="mx-auto text-muted-foreground mb-3" />
@@ -87,7 +88,7 @@ function Unavailable() {
 
 /* ── Listing body ────────────────────────────────────────────────────────── */
 
-function ListingBody({ listing }: { listing: Listing }) {
+function ListingBody({ listing }: { listing: PublicListing }) {
   const store = useStore();
   const signedIn = !!store.sessionMe;
   const seller = listing.seller;
@@ -280,22 +281,12 @@ function ListingBody({ listing }: { listing: Listing }) {
 
 /* ── Entry ───────────────────────────────────────────────────────────────── */
 
-export function PublicListingView({ id }: { id: string }) {
-  const store = useStore();
-  const hydrated = useHydrated();
-  const listing = hydrated ? store.getListing(id) : null;
-
+export function PublicListingView({ listing }: { listing: PublicListing }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6 pb-12">
-        {!hydrated ? (
-          <ListingSkeleton />
-        ) : listing ? (
-          <ListingBody listing={listing} />
-        ) : (
-          <Unavailable />
-        )}
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6 pb-12">
+        <ListingBody listing={listing} />
       </main>
     </div>
   );

@@ -12,12 +12,21 @@
 import { OFFER_EXPIRY_DAYS } from "./constants";
 import { BADGE_BY_TYPE, qualifyingBadges, type BadgeStats } from "./badges";
 import { buildSeedState } from "./seed";
+import { ratingOverall, ratingSummaryFrom } from "./reputation";
+import { describeOfferTerms, normalizeOfferTerms } from "./offer-rules";
+import { isDuplicateListing, listingMatchesISO } from "./listing-matching";
+import { sanitizeSlug, sanitizeUsername } from "./identifiers";
+import { canonicalizeTeamOrEvent } from "./taxonomy";
+import { normalizeShipmentTracking } from "./shipping";
+import { normalizePaymentHandle, PAYMENT_KINDS } from "./payment-methods";
+import { validateAcceptedDealCancellation, validateDisputeReason } from "./deal-safety";
+import { validateModerationReport } from "./moderation-rules";
+import { validateRatingInput } from "./rating-rules";
+import { validateIdentityClaim } from "./identity-rules";
 import type {
   ActivityEvent,
   ActivityType,
-  Badge,
   BadgeType,
-  Block,
   DBState,
   Deal,
   DealRecord,
@@ -55,6 +64,7 @@ import type {
   ReportStatus,
   ReportTargetType,
   SaveTargetType,
+  SavedSearch,
   Thread,
   ThreadRecord,
   User,
@@ -98,6 +108,7 @@ export function emptyDBState(): DBState {
     ratings: [],
     notifications: [],
     saves: [],
+    savedSearches: [],
     reports: [],
     blocks: [],
     activity: [],
@@ -296,7 +307,7 @@ export class PoachStore {
     favoriteTeams?: string[];
     avatar?: string;
   }): Res<User> {
-    const username = input.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+    const username = sanitizeUsername(input.username);
     if (username.length < 3) return err("Username must be at least 3 characters");
     if (this.state.users.some((u) => u.username === username))
       return err("That username is taken");
@@ -351,7 +362,7 @@ export class PoachStore {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     const user = this.rawUser(me.id)!;
-    const username = input.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+    const username = sanitizeUsername(input.username);
     if (username.length < 3) return err("Username must be at least 3 characters");
     if (this.state.users.some((u) => u.username === username && u.id !== user.id))
       return err("That username is taken");
@@ -378,7 +389,7 @@ export class PoachStore {
     if (!me) return err("Not signed in");
     const user = this.rawUser(me.id)!;
     if (patch.username !== undefined) {
-      const username = patch.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+      const username = sanitizeUsername(patch.username);
       if (username.length < 3) return err("Username must be at least 3 characters");
       if (this.state.users.some((u) => u.username === username && u.id !== user.id))
         return err("That username is taken");
@@ -454,10 +465,6 @@ export class PoachStore {
 
   // ── Reputation ─────────────────────────────────────────────────────────────
 
-  private ratingOverall(r: Rating): number {
-    return (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
-  }
-
   ratingsFor(userId: string): HydratedRating[] {
     return this.state.ratings
       .filter((r) => r.toUserId === userId)
@@ -484,29 +491,10 @@ export class PoachStore {
   ratingSummary(userId: string): RatingSummary {
     const ratings = this.state.ratings.filter((r) => r.toUserId === userId);
     const user = this.rawUser(userId);
-    const count = ratings.length;
-    const baselineCount = user?.baselineRatingCount ?? 0;
-    const baselineSum = user?.baselineRatingSum ?? 0;
-    const totalCount = count + baselineCount;
-    // Baseline history only recorded overall scores, so each dimension is
-    // seeded with the baseline mean — keeps every figure on the same count.
-    const avg = (pick: (r: Rating) => number) =>
-      totalCount === 0
-        ? 0
-        : (ratings.reduce((s, r) => s + pick(r), 0) + baselineSum) / totalCount;
-    const overall =
-      totalCount === 0
-        ? 0
-        : (ratings.reduce((s, r) => s + this.ratingOverall(r), 0) + baselineSum) / totalCount;
-    return {
-      count: totalCount,
-      overall: Math.round(overall * 10) / 10,
-      communication: Math.round(avg((r) => r.communication) * 10) / 10,
-      shippingSpeed: Math.round(avg((r) => r.shippingSpeed) * 10) / 10,
-      itemAccuracy: Math.round(avg((r) => r.itemAccuracy) * 10) / 10,
-      wouldTradeAgainPct:
-        count === 0 ? 100 : Math.round((ratings.filter((r) => r.wouldTradeAgain).length / count) * 100),
-    };
+    return ratingSummaryFrom(ratings, {
+      baselineRatingCount: user?.baselineRatingCount ?? 0,
+      baselineRatingSum: user?.baselineRatingSum ?? 0,
+    });
   }
 
   private recomputeReputation(userId: string) {
@@ -634,12 +622,18 @@ export class PoachStore {
     if (input.photos.length === 0) return err("Add at least one photo");
     if (input.listingType === "sell" && !input.askingPrice)
       return err("Set an asking price for a sale listing");
+    const duplicate = this.state.listings.find((listing) =>
+      listing.sellerId === me.id &&
+      (listing.status === "active" || listing.status === "pending") &&
+      isDuplicateListing(input, listing),
+    );
+    if (duplicate) return err("This looks like a duplicate of one of your active listings");
     const record: ListingRecord = {
       id: input.id ?? uid("l"),
       sellerId: me.id,
       type: input.type,
       title: input.title.trim(),
-      team: input.team.trim(),
+      team: canonicalizeTeamOrEvent(input.team),
       year: input.year?.trim() || undefined,
       division: input.division,
       level: input.level,
@@ -679,9 +673,19 @@ export class PoachStore {
     if (!record) return err("Listing not found");
     if (!me || record.sellerId !== me.id) return err("Only the owner can edit a listing");
     if (record.status !== "active") return err("Only active listings can be edited");
+    const candidate = { ...record, ...patch };
+    if (!candidate.title.trim()) return err("Title is required");
+    if (!candidate.team.trim()) return err("Team is required");
+    if (this.state.listings.some((listing) =>
+      listing.id !== id &&
+      listing.sellerId === me.id &&
+      (listing.status === "active" || listing.status === "pending") &&
+      isDuplicateListing(candidate, listing),
+    )) return err("This looks like a duplicate of one of your active listings");
     Object.assign(record, {
       ...patch,
       title: patch.title?.trim() ?? record.title,
+      team: patch.team === undefined ? record.team : canonicalizeTeamOrEvent(patch.team),
       photos: patch.photos ? patch.photos.slice(0, 4) : record.photos,
       updatedAt: this.now(),
     });
@@ -790,7 +794,7 @@ export class PoachStore {
       userId: me.id,
       itemType: input.itemType,
       description: input.description.trim(),
-      team: input.team?.trim() || undefined,
+      team: input.team ? canonicalizeTeamOrEvent(input.team) || undefined : undefined,
       size: input.size?.trim() || undefined,
       maxPrice: input.maxPrice,
       createdAt: this.now(),
@@ -807,7 +811,7 @@ export class PoachStore {
     );
     // Tell the poster about existing listings that look like matches.
     const matches = this.state.listings.filter(
-      (l) => l.status === "active" && l.sellerId !== me.id && this.listingMatchesISO(l, record),
+      (l) => l.status === "active" && l.sellerId !== me.id && listingMatchesISO(l, record),
     );
     if (matches.length > 0) {
       this.notify(
@@ -832,19 +836,11 @@ export class PoachStore {
     return ok(null);
   }
 
-  private listingMatchesISO(listing: ListingRecord, iso: ISOPostRecord): boolean {
-    if (listing.type !== iso.itemType) return false;
-    const team = listing.team.toLowerCase();
-    if (iso.team && (team.includes(iso.team.toLowerCase()) || iso.team.toLowerCase().includes(team)))
-      return true;
-    return iso.description.toLowerCase().includes(team) && team.length > 2;
-  }
-
   private matchListingToISOs(listing: ListingRecord) {
     for (const iso of this.state.isoPosts) {
       if (iso.status !== "active" || iso.userId === listing.sellerId) continue;
       if (this.isBlockedPair(iso.userId, listing.sellerId)) continue;
-      if (this.listingMatchesISO(listing, iso)) {
+      if (listingMatchesISO(listing, iso)) {
         this.notify(
           iso.userId,
           "iso_match",
@@ -914,6 +910,52 @@ export class PoachStore {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((s) => this.getISOPost(s.targetId))
       .filter((p): p is ISOPost => !!p && !this.isBlockedPair(me.id, p.userId));
+  }
+
+  listSavedSearches(): SavedSearch[] {
+    const me = this.currentUser();
+    if (!me) return [];
+    return (this.state.savedSearches ?? [])
+      .filter((search) => search.userId === me.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  createSavedSearch(input: Omit<SavedSearch, "id" | "userId" | "createdAt" | "lastMatchedAt"> & { id?: string }): Res<SavedSearch> {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const name = input.name.trim();
+    if (!name) return err("Name your saved search");
+    if (this.listSavedSearches().length >= 20) return err("Saved searches are capped at 20");
+    const meaningful = input.query?.trim() || input.itemType || input.listingType || input.condition || input.team?.trim() || input.size?.trim() || input.maxPrice;
+    if (!meaningful) return err("Choose at least one search filter");
+    const record: SavedSearch = {
+      id: input.id ?? uid("ss"),
+      userId: me.id,
+      name: name.slice(0, 60),
+      query: input.query?.trim() || undefined,
+      itemType: input.itemType,
+      listingType: input.listingType,
+      condition: input.condition,
+      team: input.team?.trim() || undefined,
+      size: input.size?.trim() || undefined,
+      maxPrice: input.maxPrice,
+      notificationsEnabled: input.notificationsEnabled,
+      createdAt: this.now(),
+    };
+    if (!this.state.savedSearches) this.state.savedSearches = [];
+    this.state.savedSearches.push(record);
+    this.commit();
+    return ok(record);
+  }
+
+  deleteSavedSearch(id: string): Res {
+    const me = this.currentUser();
+    if (!me) return err("Not signed in");
+    const index = (this.state.savedSearches ?? []).findIndex((search) => search.id === id && search.userId === me.id);
+    if (index < 0) return err("Saved search not found");
+    this.state.savedSearches!.splice(index, 1);
+    this.commit();
+    return ok(null);
   }
 
   // ── Deals: propose / negotiate / close ─────────────────────────────────────
@@ -1012,14 +1054,15 @@ export class PoachStore {
     terms: OfferTermsInput,
     status: Offer["status"] = "pending",
   ): Offer {
+    const normalized = normalizeOfferTerms(terms);
     return {
       id: uid("of"),
       byUserId,
-      proposerListingIds: terms.proposerListingIds,
-      ownerListingIds: terms.ownerListingIds,
-      cashFromProposer: Math.max(0, Math.round(terms.cashFromProposer)),
-      cashFromOwner: Math.max(0, Math.round(terms.cashFromOwner)),
-      note: terms.note.slice(0, 500),
+      proposerListingIds: normalized.proposerListingIds,
+      ownerListingIds: normalized.ownerListingIds,
+      cashFromProposer: normalized.cashFromProposer,
+      cashFromOwner: normalized.cashFromOwner,
+      note: normalized.note,
       createdAt: this.now(),
       expiresAt: new Date(Date.now() + OFFER_EXPIRY_DAYS * DAY_MS).toISOString(),
       status,
@@ -1349,48 +1392,55 @@ export class PoachStore {
     if (!deal) return err("Deal not found");
     if (deal.status !== "accepted") return err("Only accepted deals can be cancelled");
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    const cancellation = validateAcceptedDealCancellation(deal.fulfillment, reason);
+    if (!cancellation.ok) return err(cancellation.error);
     this.releaseDealListings(deal);
-    this.closeDeal(deal, "cancelled", reason);
+    this.closeDeal(deal, "cancelled", cancellation.reason);
     this.appendMessage(
       deal.threadId,
       me.id,
       "system",
-      `${me.username} cancelled the deal.${reason ? ` "${reason}"` : ""}`,
+      `${me.username} cancelled the deal. "${cancellation.reason}"`,
     );
     this.notify(
       this.otherParty(deal, me.id),
       "deal_cancelled",
       "Deal cancelled",
-      `${me.username} backed out of your deal${reason ? `: "${reason}"` : "."}`,
+      `${me.username} backed out of your deal: "${cancellation.reason}"`,
       `/app/trades/${deal.id}`,
     );
     this.commit();
     return ok(null);
   }
 
-  markShipped(dealId: string, tracking?: string): Res {
+  markShipped(dealId: string, tracking?: string, carrier?: import("./types").ShippingCarrier): Res {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
     const deal = this.state.deals.find((d) => d.id === dealId);
     if (!deal) return err("Deal not found");
     if (deal.status !== "accepted") return err("The deal isn't in the shipping stage");
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
+    const shipment = normalizeShipmentTracking(tracking, carrier);
+    if (!shipment.ok) return err(shipment.error);
     const f: FulfillmentState = deal.fulfillment[me.id] ?? {};
     f.shippedAt = this.now();
-    if (tracking?.trim()) f.tracking = tracking.trim();
+    if (shipment.tracking) {
+      f.tracking = shipment.tracking;
+      f.carrier = shipment.carrier;
+    }
     deal.fulfillment[me.id] = f;
     deal.updatedAt = this.now();
     this.appendMessage(
       deal.threadId,
       me.id,
       "system",
-      `${me.username} marked their end shipped${tracking ? ` — tracking ${tracking}` : ""}.`,
+      `${me.username} marked their end shipped${shipment.tracking ? ` — tracking ${shipment.tracking}` : ""}.`,
     );
     this.notify(
       this.otherParty(deal, me.id),
       "shipped",
       "Shipment on the way 📦",
-      `${me.username} shipped their end of the deal${tracking ? ` (tracking ${tracking})` : ""}.`,
+      `${me.username} shipped their end of the deal${shipment.tracking ? ` (tracking ${shipment.tracking})` : ""}.`,
       `/app/trades/${deal.id}`,
     );
     this.commit();
@@ -1486,9 +1536,10 @@ export class PoachStore {
     if (!deal) return err("Deal not found");
     if (deal.status !== "accepted") return err("Only accepted deals can be disputed");
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
-    if (!reason.trim()) return err("Describe the problem");
+    const dispute = validateDisputeReason(reason);
+    if (!dispute.ok) return err(dispute.error);
     deal.status = "disputed";
-    deal.disputeReason = reason.trim();
+    deal.disputeReason = dispute.reason;
     deal.updatedAt = this.now();
     this.state.reports.push({
       id: uid("r"),
@@ -1496,7 +1547,7 @@ export class PoachStore {
       targetType: "deal",
       targetId: deal.id,
       reason: "Deal dispute",
-      details: reason.trim(),
+      details: dispute.reason,
       status: "pending",
       createdAt: this.now(),
     });
@@ -1504,7 +1555,7 @@ export class PoachStore {
       deal.threadId,
       me.id,
       "system",
-      `${me.username} opened a dispute: "${reason.trim()}". Moderators will review.`,
+      `${me.username} opened a dispute: "${dispute.reason}". Moderators will review.`,
     );
     this.notify(
       this.otherParty(deal, me.id),
@@ -1512,56 +1563,6 @@ export class PoachStore {
       "Dispute opened",
       `${me.username} reported a problem with your deal. Moderators will review.`,
       `/app/trades/${deal.id}`,
-    );
-    this.commit();
-    return ok(null);
-  }
-
-  /** Admin: settle a disputed deal by cancelling or force-completing it. */
-  resolveDispute(dealId: string, outcome: "cancelled" | "completed", note?: string): Res {
-    const deal = this.state.deals.find((d) => d.id === dealId);
-    if (!deal) return err("Deal not found");
-    if (deal.status !== "disputed") return err("Deal is not disputed");
-    if (outcome === "cancelled") {
-      this.releaseDealListings(deal);
-      this.closeDeal(deal, "cancelled", note ?? "Cancelled by moderators after dispute review");
-    } else {
-      deal.status = "accepted"; // restore so both confirmations complete it
-      deal.fulfillment[deal.proposerId] = {
-        ...deal.fulfillment[deal.proposerId],
-        receivedAt: this.now(),
-      };
-      // Trigger normal completion path via the owner side.
-      deal.fulfillment[deal.ownerId] = {
-        ...deal.fulfillment[deal.ownerId],
-        receivedAt: this.now(),
-      };
-      deal.status = "completed";
-      deal.completedAt = this.now();
-      const offer = this.latestOffer(deal);
-      for (const id of [...offer.proposerListingIds, ...offer.ownerListingIds]) {
-        const l = this.rawListing(id);
-        if (l && l.status === "pending") {
-          l.status = deal.kind === "buy" && offer.ownerListingIds.includes(id) ? "sold" : deal.kind === "claim" && offer.ownerListingIds.includes(id) ? "claimed" : "traded";
-        }
-      }
-      this.recomputeReputation(deal.proposerId);
-      this.recomputeReputation(deal.ownerId);
-    }
-    for (const userId of [deal.proposerId, deal.ownerId]) {
-      this.notify(
-        userId,
-        "system",
-        "Dispute resolved",
-        `Moderators resolved the dispute: deal ${outcome}.${note ? ` ${note}` : ""}`,
-        `/app/trades/${deal.id}`,
-      );
-    }
-    this.appendMessage(
-      deal.threadId,
-      deal.ownerId,
-      "system",
-      `Moderators resolved the dispute — deal ${outcome}.`,
     );
     this.commit();
     return ok(null);
@@ -1596,18 +1597,7 @@ export class PoachStore {
 
   /** Human-readable summary of an offer, used in messages and notifications. */
   describeOffer(deal: DealRecord | Deal, offer: Offer): string {
-    const names = (ids: string[]) =>
-      ids.map((id) => `"${this.rawListing(id)?.title ?? "an item"}"`).join(" + ");
-    const proposerSide: string[] = [];
-    if (offer.proposerListingIds.length) proposerSide.push(names(offer.proposerListingIds));
-    if (offer.cashFromProposer > 0) proposerSide.push(`$${offer.cashFromProposer}`);
-    const ownerSide: string[] = [];
-    if (offer.ownerListingIds.length) ownerSide.push(names(offer.ownerListingIds));
-    if (offer.cashFromOwner > 0) ownerSide.push(`$${offer.cashFromOwner}`);
-    if (deal.kind === "claim") return `wants to claim ${ownerSide.join(" + ") || "the item"}`;
-    if (deal.kind === "buy")
-      return `offers $${offer.cashFromProposer} for ${ownerSide.join(" + ") || "the item"}`;
-    return `${proposerSide.join(" + ") || "nothing"} ⇄ ${ownerSide.join(" + ") || "nothing"}`;
+    return describeOfferTerms(deal.kind, offer, (id) => this.rawListing(id)?.title);
   }
 
   sweepExpirations() {
@@ -1638,22 +1628,19 @@ export class PoachStore {
     if (deal.proposerId !== me.id && deal.ownerId !== me.id) return err("Not your deal");
     if (this.state.ratings.some((r) => r.dealId === dealId && r.fromUserId === me.id))
       return err("You already rated this deal");
-    const clamp = (n: number) => Math.min(5, Math.max(1, Math.round(n)));
+    const validated = validateRatingInput(input);
+    if (!validated.ok) return err(validated.error);
     const rating: Rating = {
       id: uid("rt"),
       dealId,
       fromUserId: me.id,
       toUserId: this.otherParty(deal, me.id),
-      communication: clamp(input.communication),
-      shippingSpeed: clamp(input.shippingSpeed),
-      itemAccuracy: clamp(input.itemAccuracy),
-      wouldTradeAgain: input.wouldTradeAgain,
-      comment: input.comment?.trim() || undefined,
+      ...validated.rating,
       createdAt: this.now(),
     };
     this.state.ratings.push(rating);
     this.recomputeReputation(rating.toUserId);
-    const overall = this.ratingOverall(rating);
+    const overall = ratingOverall(rating);
     this.notify(
       rating.toUserId,
       "new_rating",
@@ -1904,14 +1891,21 @@ export class PoachStore {
   reportTarget(targetType: ReportTargetType, targetId: string, reason: string, details?: string): Res {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
-    if (!reason.trim()) return err("Pick a reason");
+    const report = validateModerationReport(reason, details);
+    if (!report.ok) return err(report.error);
+    if (targetType === "user" && targetId === me.id) return err("You can't report yourself");
+    if (targetType === "listing" && this.rawListing(targetId)?.sellerId === me.id)
+      return err("You can't report your own listing");
+    if (this.state.reports.some((item) =>
+      item.reporterId === me.id && item.targetType === targetType && item.targetId === targetId && item.status === "pending"
+    )) return err("You already have a pending report for this item");
     this.state.reports.push({
       id: uid("r"),
       reporterId: me.id,
       targetType,
       targetId,
-      reason: reason.trim(),
-      details: details?.trim() || undefined,
+      reason: report.reason,
+      details: report.details,
       status: "pending",
       createdAt: this.now(),
     });
@@ -1978,9 +1972,9 @@ export class PoachStore {
   }): Res<IdentityRecord> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
-    const handle = input.handle.trim();
-    if (!handle) return err("Enter a handle");
-    if (handle.length > 80) return err("Handle is too long (80 characters max)");
+    const claim = validateIdentityClaim(input.provider, input.handle, input.url);
+    if (!claim.ok) return err(claim.error);
+    const { handle, url } = claim;
     const mine = this.listIdentities(me.id);
     if (mine.length >= 5) return err("You can link up to 5 identities");
     if (
@@ -1994,7 +1988,7 @@ export class PoachStore {
       userId: me.id,
       provider: input.provider,
       handle,
-      url: input.url?.trim() || undefined,
+      url,
       status: "unverified", // verification is a server-side review
       submittedAt: this.now(),
     };
@@ -2013,6 +2007,9 @@ export class PoachStore {
     if (list[idx].userId !== me.id)
       return err("You can only remove your own linked identities");
     list.splice(idx, 1);
+    if (!list.some((identity) => identity.userId === me.id && identity.status === "verified")) {
+      me.badges = me.badges.filter((badge) => badge.type !== "verified");
+    }
     this.commit();
     return ok(null);
   }
@@ -2044,9 +2041,10 @@ export class PoachStore {
   }): Res<PaymentMethod> {
     const me = this.currentUser();
     if (!me) return err("Not signed in");
-    const value = input.value.trim();
-    if (!value) return err("Enter the handle or address");
-    if (value.length > 120) return err("Handle is too long (120 characters max)");
+    if (!PAYMENT_KINDS.includes(input.kind)) return err("Invalid payment type");
+    const normalized = normalizePaymentHandle(input.value, input.label);
+    if (!normalized.ok) return err(normalized.error);
+    const { value, label } = normalized;
     const mine = this.myPaymentMethods();
     if (mine.length >= 6) return err("You can save up to 6 payment handles");
     if (mine.some((m) => m.kind === input.kind && m.value === value))
@@ -2055,7 +2053,7 @@ export class PoachStore {
       id: input.id ?? uid("pm"),
       userId: me.id,
       kind: input.kind,
-      label: input.label?.trim() || undefined,
+      label,
       value,
       createdAt: this.now(),
     };
@@ -2358,15 +2356,6 @@ export class PoachStore {
     return (this.state.partners ?? []).find((p) => p.slug === s) ?? null;
   }
 
-  private partnerSlug(raw: string): string {
-    return raw
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48);
-  }
-
   upsertPartner(input: {
     id?: string;
     kind: Partner["kind"];
@@ -2383,7 +2372,7 @@ export class PoachStore {
   }): Res<Partner> {
     const name = input.name.trim();
     if (!name) return err("Name is required");
-    const slug = this.partnerSlug(input.slug || name);
+    const slug = sanitizeSlug(input.slug || name);
     if (slug.length < 2) return err("Give it a longer name or slug");
     if (!this.state.partners) this.state.partners = [];
     const id = input.id ?? uid("partner");
@@ -2536,7 +2525,6 @@ export class PoachStore {
 // ─── Singleton wiring ─────────────────────────────────────────────────────────
 
 declare global {
-  // eslint-disable-next-line no-var
   var __poachStore: PoachStore | undefined;
 }
 

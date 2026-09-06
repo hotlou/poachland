@@ -11,7 +11,7 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
-import { and, asc, eq, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, lte, or } from "drizzle-orm";
 import type { NotificationType } from "../types";
 import { getDb, type Db } from "./db";
 import {
@@ -78,20 +78,44 @@ async function ensureUnsubToken(db: Db, userId: string, existing: string | null)
  * commits. Without RESEND_API_KEY (local dev) it logs and marks sent so the
  * outbox doesn't pile up.
  */
-export async function flushEmailOutbox(limit = 15): Promise<void> {
+export type EmailFlushResult = { claimed: number; sent: number; skipped: number; retried: number; deadLettered: number };
+
+export async function flushEmailOutbox(limit = 15): Promise<EmailFlushResult> {
   const db = await getDb();
   const now = new Date();
+  const lockToken = randomBytes(18).toString("base64url");
+  const expiredLease = new Date(now.getTime() - 5 * 60_000);
+  const stats: EmailFlushResult = { claimed: 0, sent: 0, skipped: 0, retried: 0, deadLettered: 0 };
 
-  // Claimable rows: never sent, under the attempt cap. Join the recipient.
-  const rows = await db
-    .select({ o: emailOutbox, u: users })
-    .from(emailOutbox)
-    .innerJoin(users, eq(emailOutbox.userId, users.id))
-    .where(and(isNull(emailOutbox.sentAt), lt(emailOutbox.attempts, 5)))
-    .orderBy(asc(emailOutbox.createdAt))
-    .limit(limit);
+  // Lease rows transactionally so concurrent workers never deliver the same email.
+  const rows = await db.transaction(async (tx) => {
+    const candidates = await tx
+      .select({ id: emailOutbox.id })
+      .from(emailOutbox)
+      .where(and(
+        isNull(emailOutbox.sentAt),
+        isNull(emailOutbox.deadLetteredAt),
+        lt(emailOutbox.attempts, 5),
+        lte(emailOutbox.availableAt, now),
+        or(isNull(emailOutbox.lockedAt), lt(emailOutbox.lockedAt, expiredLease)),
+      ))
+      .orderBy(asc(emailOutbox.createdAt))
+      .limit(Math.max(1, Math.min(limit, 100)))
+      .for("update", { skipLocked: true });
+    if (candidates.length === 0) return [];
+    const ids = candidates.map(({ id }) => id);
+    const { inArray } = await import("drizzle-orm");
+    await tx.update(emailOutbox).set({ lockedAt: now, lockToken }).where(inArray(emailOutbox.id, ids));
+    return tx
+      .select({ o: emailOutbox, u: users })
+      .from(emailOutbox)
+      .innerJoin(users, eq(emailOutbox.userId, users.id))
+      .where(eq(emailOutbox.lockToken, lockToken))
+      .orderBy(asc(emailOutbox.createdAt));
+  });
 
-  if (rows.length === 0) return;
+  stats.claimed = rows.length;
+  if (rows.length === 0) return stats;
 
   const { Resend } = process.env.RESEND_API_KEY
     ? await import("resend").catch(() => ({ Resend: null }))
@@ -106,7 +130,8 @@ export async function flushEmailOutbox(limit = 15): Promise<void> {
       u.status === "banned" ||
       (u.status === "suspended" && (!u.suspendedUntil || u.suspendedUntil > now));
     if (prefs[o.category] === false || suspended) {
-      await db.update(emailOutbox).set({ sentAt: now }).where(eq(emailOutbox.id, o.id));
+      await db.update(emailOutbox).set({ sentAt: now, lockedAt: null, lockToken: null }).where(and(eq(emailOutbox.id, o.id), eq(emailOutbox.lockToken, lockToken)));
+      stats.skipped += 1;
       continue;
     }
 
@@ -133,15 +158,28 @@ export async function flushEmailOutbox(limit = 15): Promise<void> {
       } else {
         console.log(`[email:dev] → ${u.email}: ${o.title}`);
       }
-      await db.update(emailOutbox).set({ sentAt: now }).where(eq(emailOutbox.id, o.id));
+      await db.update(emailOutbox).set({ sentAt: now, lockedAt: null, lockToken: null, lastError: null }).where(and(eq(emailOutbox.id, o.id), eq(emailOutbox.lockToken, lockToken)));
+      stats.sent += 1;
     } catch (err) {
       console.error(`[email] send failed for ${o.id}:`, err);
+      const attempts = o.attempts + 1;
+      const dead = attempts >= 5;
       await db
         .update(emailOutbox)
-        .set({ attempts: o.attempts + 1 })
-        .where(eq(emailOutbox.id, o.id));
+        .set({
+          attempts,
+          availableAt: new Date(now.getTime() + Math.min(2 ** attempts * 60_000, 24 * 60 * 60_000)),
+          lockedAt: null,
+          lockToken: null,
+          lastError: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
+          deadLetteredAt: dead ? now : null,
+        })
+        .where(and(eq(emailOutbox.id, o.id), eq(emailOutbox.lockToken, lockToken)));
+      if (dead) stats.deadLettered += 1;
+      else stats.retried += 1;
     }
   }
+  return stats;
 }
 
 function subjectFor(title: string): string {

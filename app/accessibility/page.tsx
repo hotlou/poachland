@@ -16,7 +16,7 @@ export default function AccessibilityPage() {
         Poachland is built by players, for players — all of them. We want the
         marketplace to be usable no matter how you browse: mouse, keyboard,
         touch, screen reader, or with motion turned down. We aim to meet the
-        spirit of WCAG 2.1 AA, and we treat accessibility as ongoing work, not a
+        WCAG 2.2 AA, and we treat accessibility as ongoing work, not a
         checkbox.
       </p>
 

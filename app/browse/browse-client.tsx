@@ -5,10 +5,10 @@
  * Standalone page chrome (no app shell): the shared public header, a warm
  * hero, a lightweight search + filter, and a grid of listing cards that link
  * to the PUBLIC /l/[id] page (not the auth-walled app listing). Data comes
- * from the public store snapshot; a join-funnel card closes the page.
+ * from the indexed public cursor query; a join-funnel card closes the page.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Package, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
 import { LISTING_TYPE_COLORS, LISTING_TYPE_LABELS } from "@/lib/constants";
 import { money } from "@/lib/format";
 import type { ItemType, Listing, ListingType } from "@/lib/types";
+import { searchMarketplace } from "@/app/actions/query";
 
 const pillPrimary =
   "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
@@ -225,13 +226,26 @@ function Results({
   itemType: "all" | ItemType;
   listingType: "all" | ListingType;
 }) {
-  const store = useStore();
-  const listings = store.listListings({
-    query: query.trim() || undefined,
-    itemType,
-    listingType,
-    sort: "newest",
-  });
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      void searchMarketplace({ query: query.trim() || undefined, itemType, listingType, sort: "newest", limit: 24 })
+        .then((page) => {
+          if (!active) return;
+          setListings(page.items);
+          setNextCursor(page.nextCursor);
+        })
+        .finally(() => { if (active) setLoading(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [query, itemType, listingType]);
+
+  if (loading) return <BrowseSkeleton />;
 
   if (listings.length === 0) return <EmptyResults />;
 
@@ -245,6 +259,24 @@ function Results({
           <ListingMiniCard key={l.id} listing={l} />
         ))}
       </div>
+      {nextCursor && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            setLoadingMore(true);
+            void searchMarketplace({ query: query.trim() || undefined, itemType, listingType, sort: "newest", cursor: nextCursor, limit: 24 })
+              .then((page) => {
+                setListings((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+                setNextCursor(page.nextCursor);
+              })
+              .finally(() => setLoadingMore(false));
+          }}
+          className="mx-auto mt-6 block rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
     </>
   );
 }
@@ -262,6 +294,7 @@ export function PublicBrowse() {
       <PublicSiteHeader />
       <main
         id="main-content"
+        tabIndex={-1}
         className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-4 md:px-6 pb-12"
       >
         <Hero />

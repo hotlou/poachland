@@ -1,15 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { BellPlus, Search, SlidersHorizontal, X } from "lucide-react";
+import { toast } from "sonner";
 import { ListingCard } from "@/components/listing-card";
 import { TrustScore } from "@/components/trust-badge";
 import { Hydrated } from "@/components/hydrated";
 import { useStore } from "@/lib/store-context";
-import type { ListingFilter } from "@/lib/engine";
 import type { Condition, ItemType, ListingType } from "@/lib/types";
+import type { Listing } from "@/lib/types";
+import { searchMarketplace } from "@/app/actions/query";
+import type { ListingSort } from "@/lib/server/marketplace-query";
 import { cn } from "@/lib/utils";
 
 const CONDITIONS: Condition[] = ["Mint", "Near Mint", "Good", "Fair", "Worn"];
@@ -26,7 +29,7 @@ const LISTING_TYPE_CHIPS: { value: "all" | ListingType; label: string }[] = [
   { value: "free", label: "Free" },
   { value: "trade+cash", label: "Trade + cash" },
 ];
-const SORT_OPTIONS: { value: NonNullable<ListingFilter["sort"]>; label: string }[] = [
+const SORT_OPTIONS: { value: ListingSort; label: string }[] = [
   { value: "newest", label: "Newest" },
   { value: "most-saved", label: "Most saved" },
   { value: "most-viewed", label: "Most viewed" },
@@ -88,17 +91,27 @@ function BrowseContent() {
   const store = useStore();
   const searchParams = useSearchParams();
   const qParam = searchParams.get("q") ?? "";
+  const itemTypeParam = searchParams.get("itemType");
+  const listingTypeParam = searchParams.get("listingType");
+  const conditionParam = searchParams.get("condition");
 
   const [query, setQuery] = useState(qParam);
-  const [itemType, setItemType] = useState<"all" | ItemType>("all");
-  const [listingType, setListingType] = useState<"all" | ListingType>("all");
-  const [conditions, setConditions] = useState<Condition[]>([]);
+  const [itemType, setItemType] = useState<"all" | ItemType>(itemTypeParam === "jersey" || itemTypeParam === "disc" ? itemTypeParam : "all");
+  const [listingType, setListingType] = useState<"all" | ListingType>(LISTING_TYPE_CHIPS.some((chip) => chip.value === listingTypeParam) ? listingTypeParam as ListingType : "all");
+  const [conditions, setConditions] = useState<Condition[]>(CONDITIONS.includes(conditionParam as Condition) ? [conditionParam as Condition] : []);
   const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [team, setTeam] = useState("");
-  const [size, setSize] = useState("");
-  const [sort, setSort] = useState<NonNullable<ListingFilter["sort"]>>("newest");
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") ?? "");
+  const [team, setTeam] = useState(searchParams.get("team") ?? "");
+  const [size, setSize] = useState(searchParams.get("size") ?? "");
+  const [sort, setSort] = useState<ListingSort>("newest");
   const [showFilters, setShowFilters] = useState(false);
+  const [showSaveSearch, setShowSaveSearch] = useState(false);
+  const [savedSearchName, setSavedSearchName] = useState("");
+  const [results, setResults] = useState<Listing[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const requestSequence = useRef(0);
 
   // Follow ?q= if a link navigates here while the page is already mounted.
   useEffect(() => {
@@ -135,17 +148,72 @@ function BrowseContent() {
     clearPanelFilters();
   };
 
-  const results = store.listListings({
-    query: query.trim() || undefined,
-    itemType,
-    listingType,
+  const queryInput = {
+    query: query.trim() || undefined, itemType, listingType,
     conditions: conditions.length ? conditions : undefined,
-    minPrice: parsePrice(minPrice),
-    maxPrice: parsePrice(maxPrice),
-    team: team.trim() || undefined,
-    size: size || undefined,
-    sort,
-  });
+    minPrice: parsePrice(minPrice), maxPrice: parsePrice(maxPrice),
+    team: team.trim() || undefined, size: size || undefined, sort,
+  };
+
+  const saveSearch = () => {
+    const res = store.createSavedSearch({
+      name: savedSearchName,
+      query: query.trim() || undefined,
+      itemType: itemType === "all" ? undefined : itemType,
+      listingType: listingType === "all" ? undefined : listingType,
+      condition: conditions[0],
+      team: team.trim() || undefined,
+      size: size || undefined,
+      maxPrice: parsePrice(maxPrice),
+      notificationsEnabled: true,
+    });
+    if (!res.ok) return toast.error(res.error);
+    toast.success("Saved — we'll notify you about new matches");
+    setSavedSearchName("");
+    setShowSaveSearch(false);
+  };
+
+  useEffect(() => {
+    const sequence = ++requestSequence.current;
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      void searchMarketplace({ ...queryInput, limit: 24 }).then((page) => {
+        if (sequence !== requestSequence.current) return;
+        setResults(page.items);
+        setNextCursor(page.nextCursor);
+        setLoading(false);
+      }).catch(() => {
+        if (sequence !== requestSequence.current) return;
+        setResults([]);
+        setNextCursor(undefined);
+        setLoading(false);
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  // Primitive/filter values deliberately define a fresh server query.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, itemType, listingType, conditions, minPrice, maxPrice, team, size, sort, refreshKey]);
+
+  useEffect(() => {
+    const refreshListings = (event: Event) => {
+      const domains = (event as CustomEvent<{ domains?: string[] }>).detail?.domains ?? [];
+      if (domains.includes("listings")) setRefreshKey((current) => current + 1);
+    };
+    window.addEventListener("poachland:invalidate", refreshListings);
+    return () => window.removeEventListener("poachland:invalidate", refreshListings);
+  }, []);
+
+  const loadMore = async () => {
+    if (!nextCursor || loading) return;
+    setLoading(true);
+    try {
+      const page = await searchMarketplace({ ...queryInput, cursor: nextCursor, limit: 24 });
+      setResults((current) => [...current, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const q = query.trim().toLowerCase();
   const traders =
@@ -220,7 +288,35 @@ function BrowseContent() {
               {c.label}
             </Chip>
           ))}
+          {hasAnyFilter && (
+            <button
+              type="button"
+              onClick={() => setShowSaveSearch((value) => !value)}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-accent px-3.5 py-1.5 text-[13px] font-semibold text-accent"
+              aria-expanded={showSaveSearch}
+            >
+              <BellPlus size={14} /> Save search
+            </button>
+          )}
         </div>
+        {showSaveSearch && (
+          <div className="mt-3 flex gap-2" role="group" aria-label="Save this search">
+            <label htmlFor="saved-search-name" className="sr-only">Saved search name</label>
+            <input
+              id="saved-search-name"
+              value={savedSearchName}
+              onChange={(event) => setSavedSearchName(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter") saveSearch(); }}
+              placeholder="Name this search"
+              maxLength={60}
+              className="min-w-0 flex-1 rounded-full border border-border bg-card px-4 py-2 text-sm outline-none focus:border-accent"
+              autoFocus
+            />
+            <button type="button" onClick={saveSearch} className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground">
+              Save & notify
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Collapsible filter panel */}
@@ -313,7 +409,7 @@ function BrowseContent() {
             <select
               id="browse-sort"
               value={sort}
-              onChange={(e) => setSort(e.target.value as NonNullable<ListingFilter["sort"]>)}
+              onChange={(e) => setSort(e.target.value as ListingSort)}
               className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
             >
               {SORT_OPTIONS.map((o) => (
@@ -383,7 +479,7 @@ function BrowseContent() {
             {query.trim() ? ` for "${query.trim()}"` : ""}
           </p>
 
-          {results.length === 0 ? (
+          {loading && results.length === 0 ? <ResultsSkeleton /> : results.length === 0 ? (
             <div className="text-center py-14 px-6">
               <p className="font-display font-bold text-xl text-muted-foreground mb-1">
                 Nothing here yet.
@@ -409,11 +505,20 @@ function BrowseContent() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {results.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                {results.map((listing) => (
+                  <ListingCard key={listing.id} listing={listing} />
+                ))}
+              </div>
+              {nextCursor && (
+                <div className="flex justify-center pt-6">
+                  <button type="button" onClick={() => void loadMore()} disabled={loading} className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+                    {loading ? "Loading…" : "Load more"}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </Hydrated>
       </div>

@@ -9,9 +9,9 @@
  * ID convention: entities whose ids appear in URLs (listings, deals, threads,
  * ISO posts, messages, identities) accept a CLIENT-GENERATED id (`uid()`
  * pattern `^[a-z]+_[a-z0-9]{5,32}$`) so optimistic navigation and the server
- * state converge. The server validates the format and uniqueness and rejects
- * collisions. Ids of purely internal rows (offers, notifications, activity)
- * are server-generated.
+ * state converge. Successful mutations return compact invalidation receipts;
+ * page-specific reads and bounded safety refreshes reconcile authoritative
+ * state. The server validates ID format and uniqueness and rejects collisions.
  */
 
 import type {
@@ -33,6 +33,7 @@ import type {
   ReportTargetType,
   SaveTargetType,
   ShippingPreference,
+  SavedSearch,
   UserRecord,
   UserStatus,
 } from "../types";
@@ -42,12 +43,12 @@ import type {
 /**
  * The viewer's world. Same shape the client engine already consumes (DBState)
  * plus session info. Privacy scoping is done server-side:
- *  - users: all public profiles (never emails)
- *  - listings: all non-removed, plus the viewer's own removed ones
- *  - isoPosts, ratings, activity (last 50), identities: public
+ *  - public collections: bounded recent discovery windows (never emails)
+ *  - relationship allowlist: viewer/counterparties and referenced items
+ *  - activity/messages/notifications: bounded recent windows
  *  - deals, threads, messages, notifications, saves, blocks, reports: only
  *    rows involving the viewer
- * Signed-out viewers get the public collections with `me: null` and empty
+ * Signed-out viewers get bounded public collections with `me: null` and empty
  * private collections.
  */
 export interface WorldSnapshot extends Omit<DBState, "currentUserId"> {
@@ -108,6 +109,27 @@ export interface AdminData {
     pendingIdentities: number;
     ratings: number;
     messages: number;
+    emailReady: number;
+    emailDeadLetters: number;
+    oldestReadyEmailMinutes: number;
+    oldestPendingReportHours: number;
+    acquisition: {
+      referredMembers: number;
+      directMembers: number;
+    };
+    retention: {
+      activeUsers7d: number;
+      activeUsers30d: number;
+    };
+    funnel: {
+      onboarded: number;
+      activatedListers: number;
+      listed: number;
+      offered: number;
+      accepted: number;
+      completed: number;
+      disputed: number;
+    };
   };
 }
 
@@ -156,6 +178,11 @@ export interface RatingInputPayload {
   comment?: string;
 }
 
+export type SavedSearchInput = Omit<
+  SavedSearch,
+  "id" | "userId" | "createdAt" | "lastMatchedAt"
+>;
+
 export interface OpMap {
   // session / profile
   completeOnboarding: {
@@ -203,6 +230,8 @@ export interface OpMap {
   removeListing: { id: string };
   markListingViewed: { id: string };
   toggleSave: { targetType: SaveTargetType; targetId: string };
+  createSavedSearch: { id: string; input: SavedSearchInput };
+  deleteSavedSearch: { id: string };
   // wanted board
   createISOPost: { id: string; input: ISOInput };
   updateISOStatus: { id: string; status: ISOStatus };
@@ -222,7 +251,7 @@ export interface OpMap {
   declineOffer: { dealId: string; reason?: string };
   withdrawOffer: { dealId: string };
   cancelDeal: { dealId: string; reason?: string };
-  markShipped: { dealId: string; tracking?: string };
+  markShipped: { dealId: string; carrier?: import("../types").ShippingCarrier; tracking?: string };
   confirmComplete: { dealId: string };
   openDispute: { dealId: string; reason: string };
   rateDeal: { dealId: string; input: RatingInputPayload };
@@ -245,19 +274,20 @@ export interface OpMap {
   linkIdentity: { id: string; provider: IdentityProvider; handle: string; url?: string };
   removeIdentity: { id: string };
   // admin (require isAdmin)
-  adminResolveReport: { reportId: string; action: "dismiss" | "remove-listing" | "warn-user"; note?: string };
-  adminResolveDispute: { dealId: string; outcome: "cancelled" | "completed"; note?: string };
+  adminResolveReport: { reportId: string; action: "dismiss" | "remove-listing" | "warn-user"; note: string };
+  adminResolveDispute: { dealId: string; outcome: "cancelled" | "completed"; note: string };
   adminSetUserVerified: { userId: string; verified: boolean };
   adminSetUserStatus: {
     userId: string;
     status: UserStatus;
-    /** For "suspended": days from now until it auto-lifts (default 7). */
+    /** Required for "suspended": whole days from now until it auto-lifts. */
     days?: number;
-    note?: string;
+    /** Durable moderator rationale, also shown to the user for visible status changes. */
+    note: string;
   };
   adminSetListingFeatured: { id: string; featured: boolean };
   adminRemoveListing: { id: string; reason?: string };
-  adminReviewIdentity: { identityId: string; status: "verified" | "rejected" | "pending"; note?: string };
+  adminReviewIdentity: { identityId: string; status: "verified" | "rejected" | "pending"; note: string };
   adminUpsertPartner: {
     id: string;
     kind: PartnerKind;
@@ -277,8 +307,22 @@ export interface OpMap {
 
 export type OpName = keyof OpMap;
 
+export type MutationDomain =
+  | "session"
+  | "profiles"
+  | "listings"
+  | "wanted"
+  | "deals"
+  | "messages"
+  | "notifications"
+  | "reputation"
+  | "saved"
+  | "haul"
+  | "moderation"
+  | "partners";
+
 export type OpResult =
-  | { ok: true; snapshot: WorldSnapshot }
-  | { ok: false; error: string; snapshot?: WorldSnapshot };
+  | { ok: true; invalidated: MutationDomain[]; committedAt: string }
+  | { ok: false; error: string };
 
 export const CLIENT_ID_PATTERN = /^[a-z]+_[a-z0-9]{5,32}$/;

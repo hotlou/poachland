@@ -91,6 +91,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.2,
     },
+    {
+      url: `${origin}/buyer-protection`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.3,
+    },
+    {
+      url: `${origin}/community-guidelines`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.3,
+    },
     ...traders.map((t) => ({
       url: `${origin}/u/${encodeURIComponent(t.username)}`,
       lastModified: t.updatedAt,

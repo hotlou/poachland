@@ -18,21 +18,15 @@ import {
   readSessionUser,
   setSessionCookie,
 } from "@/lib/server/session";
+import { canonicalOrigin } from "@/lib/env";
 
-async function resolveOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (host) {
-    const proto =
-      h.get("x-forwarded-proto") ??
-      (/^(localhost|127\.|0\.0\.0\.0)/.test(host) ? "http" : "https");
-    return `${proto}://${host}`;
-  }
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+function resolveOrigin(): string {
+  return canonicalOrigin(process.env.NODE_ENV === "production" ? "https://poachland.com" : "http://localhost:3000");
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
 async function resolveIp(): Promise<string | undefined> {
+  if (process.env.VERCEL !== "1") return undefined;
   const h = await headers();
   const fwd = h.get("x-forwarded-for");
   return fwd?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
@@ -46,7 +40,7 @@ export async function sendMagicLink(
   email: string,
 ): Promise<RequestMagicLinkResult> {
   try {
-    const [origin, ip] = await Promise.all([resolveOrigin(), resolveIp()]);
+    const [origin, ip] = await Promise.all([Promise.resolve(resolveOrigin()), resolveIp()]);
     return await requestMagicLink(email, origin, ip);
   } catch (error) {
     console.error("[auth] sendMagicLink failed:", error);

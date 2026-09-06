@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { DealStatusBadge } from "@/components/deal-status-badge";
 import { Hydrated } from "@/components/hydrated";
 import { DEAL_KIND_LABELS } from "@/lib/constants";
@@ -10,6 +10,7 @@ import { timeAgo, timeUntil } from "@/lib/format";
 import { useStore } from "@/lib/store-context";
 import type { Deal, DealStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { fetchDealPage } from "@/app/actions/query";
 
 type TabKey = "your-move" | "waiting" | "in-progress" | "history";
 
@@ -99,18 +100,38 @@ function DealsSkeleton() {
 function DealsContent() {
   const store = useStore();
   const [tab, setTab] = useState<TabKey>("your-move");
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const me = store.requireUser();
+  const queryStatuses = useMemo<DealStatus[]>(() => tab === "history" ? HISTORY_STATUSES : tab === "in-progress" ? ["accepted"] : ["open", "accepted"], [tab]);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await fetchDealPage(queryStatuses);
+      setDeals(page.items);
+      setNextCursor(page.nextCursor);
+    } finally { setLoading(false); }
+  }, [queryStatuses]);
+  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const onInvalidate = (event: Event) => {
+      const domains = (event as CustomEvent<{ domains?: string[] }>).detail?.domains;
+      if (domains?.includes("deals")) void reload();
+    };
+    window.addEventListener("poachland:invalidate", onInvalidate);
+    return () => window.removeEventListener("poachland:invalidate", onInvalidate);
+  }, [reload]);
 
-  const awaitingResponse = store.dealsAwaitingResponse(me.id);
-  const accepted = store.dealsForUser(me.id, { statuses: ["accepted"] });
+  const awaitingResponse = deals.filter((deal) => deal.status === "open" && deal.currentOffer.byUserId !== me.id);
+  const accepted = deals.filter((deal) => deal.status === "accepted");
   const acceptedNeedsMe = accepted.filter((d) => !d.fulfillment[me.id]?.receivedAt);
   const yourMove = [...awaitingResponse, ...acceptedNeedsMe].sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt),
   );
-  const waiting = store
-    .dealsForUser(me.id, { statuses: ["open"] })
-    .filter((d) => d.currentOffer.byUserId === me.id);
-  const history = store.dealsForUser(me.id, { statuses: HISTORY_STATUSES });
+  const waiting = deals.filter((deal) => deal.status === "open" && deal.currentOffer.byUserId === me.id);
+  const history = deals.filter((deal) => HISTORY_STATUSES.includes(deal.status));
 
   const tabs: { key: TabKey; deals: Deal[] }[] = [
     { key: "your-move", deals: yourMove },
@@ -119,26 +140,9 @@ function DealsContent() {
     { key: "history", deals: history },
   ];
 
-  const totalDeals = store.dealsForUser(me.id).length;
   const activeTab = tabs.find((t) => t.key === tab)!;
 
-  if (totalDeals === 0) {
-    return (
-      <div className="px-6 py-20 text-center">
-        <ArrowRightLeft size={32} className="mx-auto mb-4 text-muted-foreground" />
-        <h2 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
-          No deals yet
-        </h2>
-        <p className="text-sm text-muted-foreground mb-6">Go poach something.</p>
-        <Link
-          href="/app/browse"
-          className="inline-block bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-full shadow-sm"
-        >
-          Browse the market
-        </Link>
-      </div>
-    );
-  }
+  if (loading) return <DealsSkeleton />;
 
   return (
     <div>
@@ -181,6 +185,22 @@ function DealsContent() {
           activeTab.deals.map((deal) => <DealRow key={deal.id} deal={deal} meId={me.id} />)
         )}
       </div>
+      {nextCursor && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => {
+            setLoadingMore(true);
+            void fetchDealPage(queryStatuses, nextCursor).then((page) => {
+              setDeals((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+              setNextCursor(page.nextCursor);
+            }).finally(() => setLoadingMore(false));
+          }}
+          className="mx-auto mb-6 block rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Load older deals"}
+        </button>
+      )}
     </div>
   );
 }

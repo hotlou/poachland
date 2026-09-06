@@ -1,0 +1,2 @@
+CREATE INDEX "iso_posts_status_created_cursor_idx" ON "iso_posts" USING btree ("status","created_at","id");--> statement-breakpoint
+CREATE INDEX "iso_posts_status_saves_cursor_idx" ON "iso_posts" USING btree ("status","saves","id");

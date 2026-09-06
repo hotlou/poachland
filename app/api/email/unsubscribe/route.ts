@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { applyUnsubscribe, EMAIL_CATEGORY_LABELS } from "@/lib/server/email";
 import type { EmailCategory } from "@/lib/server/schema";
+import { canonicalOrigin } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
   const cat = url.searchParams.get("cat");
   const result = await applyUnsubscribe(token, cat);
 
-  const origin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com").replace(/\/$/, "");
+  const origin = canonicalOrigin();
   let heading: string;
   let sub: string;
   if (!result.ok) {

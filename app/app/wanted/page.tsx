@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -26,6 +26,7 @@ import { SaveButton } from "@/components/save-button";
 import { money, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ISOPost, ItemType } from "@/lib/types";
+import { fetchWantedPage } from "@/app/actions/query";
 
 type Filter = "all" | ItemType;
 type Sort = "newest" | "most-saved";
@@ -147,7 +148,47 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
   const store = useStore();
   const router = useRouter();
   const me = store.requireUser();
-  const posts = store.listISOPosts({ itemType: filter, sort });
+  const [posts, setPosts] = useState<ISOPost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await fetchWantedPage({ itemType: filter, sort, limit: 24 });
+      setPosts(page.items);
+      setNextCursor(page.nextCursor);
+    } catch {
+      toast.error("Couldn't load the wanted board");
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, sort]);
+
+  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const onInvalidate = (event: Event) => {
+      const domains = (event as CustomEvent<{ domains?: string[] }>).detail?.domains;
+      if (domains?.includes("wanted") || domains?.includes("moderation")) void reload();
+    };
+    window.addEventListener("poachland:invalidate", onInvalidate);
+    return () => window.removeEventListener("poachland:invalidate", onInvalidate);
+  }, [reload]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchWantedPage({ itemType: filter, sort, cursor: nextCursor, limit: 24 });
+      setPosts((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+      setNextCursor(page.nextCursor);
+    } catch {
+      toast.error("Couldn't load more wanted posts");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // "I have this" dialog state
   const [respondingTo, setRespondingTo] = useState<ISOPost | null>(null);
@@ -173,6 +214,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
     toast.success(
       status === "found" ? "Marked found. Hunt over." : "Post closed.",
     );
+    setPosts((current) => current.filter((item) => item.id !== post.id));
   };
 
   const sendResponse = () => {
@@ -201,6 +243,8 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
     setRespondingTo(null);
     router.push(`/app/inbox/${tRes.value.id}`);
   };
+
+  if (loading) return <BoardSkeleton />;
 
   if (posts.length === 0) {
     return (
@@ -335,6 +379,19 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
           </div>
         );
       })}
+
+      {nextCursor && (
+        <div className="break-inside-avoid mb-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
 
       {/* "I have this" dialog */}
       <Dialog

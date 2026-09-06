@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Hydrated } from "@/components/hydrated";
 import { PhotoPicker } from "@/components/photo-picker";
+import { TeamEventDatalist } from "@/components/team-event-datalist";
 import { Switch } from "@/components/ui/switch";
 import type { CreateListingInput } from "@/lib/engine";
 import { useStore } from "@/lib/store-context";
@@ -235,14 +236,17 @@ function EditForm({ listing }: { listing: Listing }) {
 
         {/* Team */}
         <section>
-          <FieldLabel>Team / Tournament</FieldLabel>
+          <FieldLabel htmlFor="edit-listing-team">Team / Tournament</FieldLabel>
           <input
+            id="edit-listing-team"
+            list="edit-listing-team-options"
             type="text"
             value={team}
             onChange={(e) => setTeam(e.target.value)}
             placeholder="e.g. Brute Squad, USAU Nationals"
             className={inputClass}
           />
+          <TeamEventDatalist id="edit-listing-team-options" />
         </section>
 
         {/* Year */}
@@ -465,9 +469,9 @@ const inputClass =
 /** Sentence-case display for lowercase enum values ("club" → "Club"). */
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
+function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
-    <label className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">
+    <label htmlFor={htmlFor} className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">
       {children}
     </label>
   );

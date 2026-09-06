@@ -12,7 +12,9 @@ import { TrustScore } from "@/components/trust-badge";
 import { timeAgo } from "@/lib/format";
 import { useStore } from "@/lib/store-context";
 import type { Message, Thread } from "@/lib/types";
+import type { ThreadSummary } from "@/lib/server/private-query";
 import { cn } from "@/lib/utils";
+import { fetchThread, fetchThreadMessagePage } from "@/app/actions/query";
 
 /** Show a timestamp divider on the first message, a day change, or a long gap. */
 function needsStamp(prev: Message | undefined, m: Message): boolean {
@@ -75,8 +77,13 @@ function MessageBubble({ message, mine, avatar }: { message: Message; mine: bool
   );
 }
 
-function ContextCard({ thread }: { thread: Thread }) {
-  if (!thread.listing && !thread.deal) return null;
+function ContextCard({ thread }: { thread: Thread | ThreadSummary }) {
+  const dealStatus = "deal" in thread && thread.deal
+    ? thread.deal.status
+    : "dealStatus" in thread
+      ? thread.dealStatus
+      : undefined;
+  if (!thread.listing && !thread.dealId) return null;
   return (
     <div className="mx-4 mt-3 bg-card border border-border rounded-xl p-3 space-y-2">
       {thread.listing && (
@@ -98,11 +105,11 @@ function ContextCard({ thread }: { thread: Thread }) {
           </div>
         </Link>
       )}
-      {thread.deal && (
+      {thread.dealId && dealStatus && (
         <div className={cn("flex items-center justify-between gap-2", thread.listing && "border-t border-border pt-2")}>
-          <DealStatusBadge status={thread.deal.status} />
+          <DealStatusBadge status={dealStatus} />
           <Link
-            href={`/app/trades/${thread.deal.id}`}
+            href={`/app/trades/${thread.dealId}`}
             className="inline-flex items-center gap-1 text-xs font-semibold text-accent"
           >
             View deal <ArrowRight size={12} />
@@ -136,12 +143,46 @@ function NotFound() {
 function ThreadContent({ threadId }: { threadId: string }) {
   const store = useStore();
   const me = store.requireUser();
-  const thread = store.getThread(threadId);
-  const messages = store.threadMessages(threadId);
+  const cachedThread = store.getThread(threadId);
+  const [fetchedThread, setFetchedThread] = useState<ThreadSummary | null | undefined>(cachedThread ?? undefined);
+  const thread = cachedThread ?? fetchedThread;
+  const snapshotMessages = store.threadMessages(threadId);
+  const snapshotLastMessageId = snapshotMessages.at(-1)?.id;
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const lastMessageId = messages[messages.length - 1]?.id;
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const threadExists = !!thread;
+
+  useEffect(() => {
+    if (cachedThread) return;
+    void fetchThread(threadId).then((result) => {
+      if (result) store.primeThread(result);
+      setFetchedThread(result);
+    }).catch(() => setFetchedThread(null));
+  }, [cachedThread, store, threadId]);
+
+  useEffect(() => {
+    void fetchThreadMessagePage(threadId).then((page) => {
+      setMessages(page.items);
+      setNextCursor(page.nextCursor);
+    }).finally(() => setLoaded(true));
+  }, [threadId]);
+
+  // The bounded bootstrap remains the optimistic/live window; merge messages
+  // that arrive after the authoritative page was loaded.
+  useEffect(() => {
+    if (!loaded || snapshotMessages.length === 0) return;
+    setMessages((current) => {
+      const byId = new Map(current.map((message) => [message.id, message]));
+      for (const message of snapshotMessages) byId.set(message.id, message);
+      return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, snapshotLastMessageId, threadId]);
 
   // Mark read on mount and whenever a new message lands.
   useEffect(() => {
@@ -153,6 +194,7 @@ function ThreadContent({ threadId }: { threadId: string }) {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [lastMessageId]);
 
+  if (thread === undefined) return <div className="px-6 py-24 text-center text-sm text-muted-foreground">Loading conversation…</div>;
   if (!thread) return <NotFound />;
 
   const other = thread.otherUser;
@@ -167,6 +209,21 @@ function ThreadContent({ threadId }: { threadId: string }) {
       return;
     }
     setDraft("");
+  };
+
+  const loadOlder = async () => {
+    if (!nextCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const page = await fetchThreadMessagePage(threadId, nextCursor);
+      setMessages((current) => {
+        const byId = new Map([...page.items, ...current].map((message) => [message.id, message]));
+        return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+      });
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoadingOlder(false);
+    }
   };
 
   return (
@@ -200,6 +257,13 @@ function ThreadContent({ threadId }: { threadId: string }) {
 
         {/* Messages */}
         <div className="px-4 pt-4 pb-24 space-y-3">
+          {nextCursor && (
+            <div className="flex justify-center pb-2">
+              <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold disabled:opacity-60">
+                {loadingOlder ? "Loading…" : "Load older messages"}
+              </button>
+            </div>
+          )}
           {messages.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-10">
               No messages yet. Say something worth trading over.

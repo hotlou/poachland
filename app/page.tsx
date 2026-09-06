@@ -260,7 +260,7 @@ export default function LandingPage() {
         </header>
 
         {/* Hero */}
-        <section id="main-content" className="px-5 pt-12 pb-10 md:pt-16">
+        <section id="main-content" tabIndex={-1} className="px-5 pt-12 pb-10 md:pt-16">
           <div className="max-w-2xl mx-auto text-center">
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="badge-stamp text-accent border-accent">

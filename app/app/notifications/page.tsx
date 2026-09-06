@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -26,6 +27,7 @@ import type { Notification, NotificationType } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { fetchNotificationPage } from "@/app/actions/query";
 
 const TYPE_ICONS: Record<
   NotificationType,
@@ -114,13 +116,14 @@ function groupNotifications(notifications: Notification[]): [GroupKey, Notificat
     .map((k) => [k, groups[k]]);
 }
 
-function NotificationRow({ n }: { n: Notification }) {
+function NotificationRow({ n, onRead }: { n: Notification; onRead: (id: string) => void }) {
   const store = useStore();
   const router = useRouter();
   const { icon: Icon, className } = TYPE_ICONS[n.type] ?? TYPE_ICONS.system;
 
   const handleClick = () => {
     store.markNotificationRead(n.id);
+    onRead(n.id);
     if (n.linkTo) router.push(n.linkTo);
   };
 
@@ -184,13 +187,43 @@ function ListSkeleton() {
 
 export default function NotificationsPage() {
   const store = useStore();
-  const notifications = store.listNotifications();
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
   const groups = groupNotifications(notifications);
+
+  useEffect(() => {
+    void fetchNotificationPage().then((page) => {
+      setNotifications(page.items);
+      setUnreadCount(page.unreadCount);
+      setNextCursor(page.nextCursor);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const onRead = (id: string) => {
+    setNotifications((current) => current.map((item) => item.id === id ? { ...item, read: true } : item));
+    setUnreadCount((count) => Math.max(0, count - (notifications.find((item) => item.id === id)?.read ? 0 : 1)));
+  };
 
   const markAllRead = () => {
     store.markAllNotificationsRead();
+    setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+    setUnreadCount(0);
     toast.success("All caught up.");
+  };
+
+  const loadMore = async () => {
+    if (!nextCursor || loading) return;
+    setLoading(true);
+    try {
+      const page = await fetchNotificationPage(nextCursor);
+      setNotifications((current) => [...current, ...page.items]);
+      setUnreadCount(page.unreadCount);
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -224,7 +257,7 @@ export default function NotificationsPage() {
       </header>
 
       <Hydrated fallback={<ListSkeleton />}>
-        {notifications.length === 0 ? (
+        {loading && notifications.length === 0 ? <ListSkeleton /> : notifications.length === 0 ? (
           <div className="text-center py-20 px-6">
             <Bell size={28} className="mx-auto mb-3 text-muted-foreground" />
             <p className="font-display font-bold text-xl text-muted-foreground mb-1">
@@ -249,11 +282,18 @@ export default function NotificationsPage() {
                 </h2>
                 <div className="mx-4 md:mx-6 bg-card border border-border rounded-xl divide-y divide-border overflow-hidden">
                   {items.map((n) => (
-                    <NotificationRow key={n.id} n={n} />
+                    <NotificationRow key={n.id} n={n} onRead={onRead} />
                   ))}
                 </div>
               </section>
             ))}
+            {nextCursor && (
+              <div className="flex justify-center pt-6">
+                <button type="button" onClick={() => void loadMore()} disabled={loading} className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+                  {loading ? "Loading…" : "Load older notifications"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </Hydrated>

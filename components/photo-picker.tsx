@@ -7,13 +7,13 @@ import { cn } from "@/lib/utils";
 import { STOCK_PHOTOS } from "@/lib/constants";
 import type { ItemType } from "@/lib/types";
 
-import { fileToDataUrl } from "@/lib/image";
+import { uploadImage } from "@/lib/image";
 
 const MAX_PHOTOS = 4;
 
 /**
  * Photo selection for create/edit listing: pick from stock item photos
- * and/or upload device photos (downscaled to keep the demo store small).
+ * and/or upload device photos directly to object storage.
  */
 export function PhotoPicker({
   photos,
@@ -108,9 +108,9 @@ export function PhotoPicker({
           const added: string[] = [];
           for (const file of files.slice(0, room)) {
             try {
-              added.push(await fileToDataUrl(file));
-            } catch {
-              toast.error(`Couldn't read ${file.name}`);
+              added.push(await uploadImage(file));
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : `Couldn't upload ${file.name}`);
             }
           }
           if (added.length) onChange([...photos, ...added]);

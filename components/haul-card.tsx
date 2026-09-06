@@ -64,7 +64,6 @@ function SidePanel({ side, label }: { side: HaulSide; label: string }) {
             <div key={`${it.listingId ?? it.title}-${i}`} className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-md overflow-hidden bg-surface border border-border flex-shrink-0">
                 {it.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.photo} alt="" className="w-full h-full object-cover" />
                 ) : null}
               </div>
@@ -232,7 +231,6 @@ export function HaulCard({
   const Party = ({ user }: { user: HaulPost["proposer"] }) => (
     <Link href={`${profileHrefBase}/${user.username}`} className="flex items-center gap-1.5 min-w-0">
       <span className="w-6 h-6 rounded-full overflow-hidden border border-border flex-shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
       </span>
       <span className="text-xs font-semibold text-foreground truncate">@{user.username}</span>
@@ -354,7 +352,6 @@ export function HaulCard({
                         href={`${profileHrefBase}/${c.user.username}`}
                         className="w-6 h-6 rounded-full overflow-hidden border border-border flex-shrink-0 mt-0.5"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={c.user.avatar}
                           alt={c.user.displayName}

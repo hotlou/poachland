@@ -454,7 +454,8 @@ function NewTradeContent() {
                     </div>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
-                    Slide up to $100, or type any amount.
+                    Slide up to $100, or type any amount. This records an offer;
+                    payment happens directly after both traders accept.
                   </p>
                 </div>
 

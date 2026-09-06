@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,46 +8,25 @@ import {
   BadgeCheck,
   Ban,
   Clock,
-  ExternalLink,
   EyeOff,
-  Flag,
-  Gavel,
-  Handshake,
-  IdCard,
-  ImagePlus,
-  LayoutGrid,
-  Megaphone,
   MoreHorizontal,
   Package,
-  Pencil,
-  Plus,
   RotateCcw,
   ShieldAlert,
   Star,
-  Store,
   Trash2,
   UserCog,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { dispatchOp, fetchAdminData } from "@/app/actions/engine";
-import { useAsUser } from "@/app/actions/auth";
+import { fetchAdminData } from "@/app/actions/engine";
+import { useAsUser as beginImpersonation } from "@/app/actions/auth";
 import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
 import { useHydrated, useStore } from "@/lib/store-context";
-import type { RemotePoachStore } from "@/lib/remote-store";
-import { DealStatusBadge } from "@/components/deal-status-badge";
-import { IDENTITY_PROVIDER_META, IDENTITY_STATUS_META } from "@/components/identity-chips";
 import { formatDate, formatMonthYear, timeAgo } from "@/lib/format";
-import { LISTING_STATUS_LABELS } from "@/lib/constants";
-import { fileToDataUrl } from "@/lib/image";
 import type {
-  DealRecord,
-  IdentityRecord,
   Listing,
-  Partner,
-  PartnerCategory,
-  Report,
   UserStatus,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -62,7 +41,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -81,860 +59,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-/**
- * Run an admin op against the server, then refresh both the admin view and
- * the shared world snapshot. Returns true on success.
- */
-async function runAdminOp<K extends OpName>(
-  store: RemotePoachStore,
-  reload: () => Promise<void>,
-  op: K,
-  payload: OpMap[K],
-): Promise<boolean> {
-  try {
-    const result = await dispatchOp(op, payload);
-    if (!result.ok) {
-      toast.error(result.error);
-      if (result.snapshot) store.applySnapshot(result.snapshot);
-      return false;
-    }
-    store.applySnapshot(result.snapshot);
-    await reload();
-    return true;
-  } catch (error) {
-    console.error(`[admin] ${op} failed`, error);
-    toast.error("Couldn't reach the server. Try again.");
-    return false;
-  }
-}
-
-type AdminUser = AdminData["users"][number];
-
-/* ── Small shared pieces ─────────────────────────────────────────────────── */
-
-function SectionHeading({
-  icon: Icon,
-  title,
-  count,
-}: {
-  icon: React.ElementType;
-  title: string;
-  count?: number;
-}) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <Icon size={15} className="text-accent" strokeWidth={2.5} />
-      <h2 className="font-display font-bold uppercase tracking-[0.14em] text-xs text-muted-foreground">
-        {title}
-      </h2>
-      {count !== undefined && count > 0 && (
-        <span className="badge-stamp text-accent border-accent">{count}</span>
-      )}
-    </div>
-  );
-}
-
-function EmptyRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-card border border-border rounded-xl px-4 py-8 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
-/** data: URLs can't be opened as top-level navigations — route them via a blob. */
-async function openPhoto(src: string) {
-  if (!src.startsWith("data:")) {
-    window.open(src, "_blank", "noopener,noreferrer");
-    return;
-  }
-  try {
-    const blob = await (await fetch(src)).blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch {
-    toast.error("Couldn't open the photo");
-  }
-}
-
-const REPORT_STATUS_STAMP: Record<Report["status"], { label: string; cls: string }> = {
-  pending: {
-    label: "Pending",
-    cls: "text-amber-700 border-amber-700 dark:text-yellow-400 dark:border-yellow-400",
-  },
-  resolved: {
-    label: "Resolved",
-    cls: "text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400",
-  },
-  dismissed: { label: "Dismissed", cls: "text-muted-foreground border-border" },
-};
-
-/** Moderation status → quiet chip. `active` shows nothing (kept off the roster). */
-const USER_STATUS_CHIP: Record<Exclude<UserStatus, "active">, { label: string; cls: string }> = {
-  shadowbanned: {
-    label: "Shadowbanned",
-    cls: "text-purple-700 border-purple-700/50 dark:text-purple-400 dark:border-purple-400/50",
-  },
-  suspended: {
-    label: "Suspended",
-    cls: "text-amber-700 border-amber-700/50 dark:text-yellow-400 dark:border-yellow-400/50",
-  },
-  banned: {
-    label: "Banned",
-    cls: "text-red-700 border-red-700/50 dark:text-red-400 dark:border-red-400/50",
-  },
-};
-
-/* ── 1. Stats grid ───────────────────────────────────────────────────────── */
-
-function StatsSection({ stats }: { stats: AdminData["stats"] }) {
-  const tiles: { label: string; value: number; tone?: "warn" | "alert" }[] = [
-    { label: "Members", value: stats.users },
-    { label: "Verified", value: stats.verifiedUsers },
-    { label: "Active listings", value: stats.activeListings },
-    { label: "ISO posts", value: stats.isoPosts },
-    { label: "Ratings", value: stats.ratings },
-    { label: "Deals open", value: stats.dealsOpen },
-    { label: "Deals agreed", value: stats.dealsAccepted },
-    { label: "Completed", value: stats.dealsCompleted },
-    {
-      label: "Disputed",
-      value: stats.dealsDisputed,
-      tone: stats.dealsDisputed > 0 ? "alert" : undefined,
-    },
-    {
-      label: "Pending reports",
-      value: stats.pendingReports,
-      tone: stats.pendingReports > 0 ? "warn" : undefined,
-    },
-    {
-      label: "Identity queue",
-      value: stats.pendingIdentities,
-      tone: stats.pendingIdentities > 0 ? "warn" : undefined,
-    },
-    { label: "Messages", value: stats.messages },
-  ];
-  return (
-    <section>
-      <SectionHeading icon={LayoutGrid} title="The state of the land" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {tiles.map((t) => (
-          <div
-            key={t.label}
-            className={cn(
-              "bg-card border border-border rounded-xl p-3",
-              t.tone === "alert" && "border-red-700/50 dark:border-red-400/50",
-              t.tone === "warn" && "border-amber-700/50 dark:border-yellow-400/50",
-            )}
-          >
-            <p
-              className={cn(
-                "font-display font-bold text-2xl leading-none",
-                t.tone === "alert"
-                  ? "text-red-700 dark:text-red-400"
-                  : t.tone === "warn"
-                    ? "text-amber-700 dark:text-yellow-400"
-                    : "text-foreground",
-              )}
-            >
-              {t.value}
-            </p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1.5 font-medium">
-              {t.label}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ── 2. Identity review queue ────────────────────────────────────────────── */
-
-function IdentityQueueSection({
-  queue,
-  findUser,
-  onReview,
-}: {
-  queue: IdentityRecord[];
-  findUser: (id: string) => AdminUser | undefined;
-  onReview: (
-    identity: IdentityRecord,
-    status: "verified" | "rejected",
-    note?: string,
-  ) => Promise<boolean>;
-}) {
-  const [reviewing, setReviewing] = useState<{
-    identity: IdentityRecord;
-    status: "verified" | "rejected";
-  } | null>(null);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const open = (identity: IdentityRecord, status: "verified" | "rejected") => {
-    setNote("");
-    setReviewing({ identity, status });
-  };
-
-  const confirm = async () => {
-    if (!reviewing || busy) return;
-    setBusy(true);
-    const ok = await onReview(reviewing.identity, reviewing.status, note.trim() || undefined);
-    setBusy(false);
-    if (ok) {
-      toast.success(
-        reviewing.status === "verified" ? "Identity verified" : "Identity rejected",
-      );
-      setReviewing(null);
-    }
-  };
-
-  return (
-    <section>
-      <SectionHeading icon={IdCard} title="Identity review queue" count={queue.length} />
-      {queue.length === 0 ? (
-        <EmptyRow>No identities waiting on review.</EmptyRow>
-      ) : (
-        <div className="space-y-2">
-          {queue.map((identity) => {
-            const meta = IDENTITY_PROVIDER_META[identity.provider];
-            const status = IDENTITY_STATUS_META[identity.status];
-            const Icon = meta.icon;
-            const user = findUser(identity.userId);
-            return (
-              <div
-                key={identity.id}
-                className="bg-card border border-border rounded-xl p-3.5 space-y-2.5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-surface border border-border flex items-center justify-center flex-shrink-0 text-muted-foreground">
-                      <Icon size={16} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
-                        @{identity.handle}
-                        <span className="text-muted-foreground font-normal">
-                          {" "}
-                          · {meta.label}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {user ? (
-                          <Link
-                            href={`/app/u/${user.username}`}
-                            className="hover:text-accent transition-colors"
-                          >
-                            {user.username}
-                          </Link>
-                        ) : (
-                          "unknown user"
-                        )}{" "}
-                        · submitted {timeAgo(identity.submittedAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={cn("badge-stamp shrink-0", status.cls)}>{status.label}</span>
-                </div>
-                {identity.url && (
-                  <a
-                    href={identity.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
-                  >
-                    <ExternalLink size={11} /> {identity.url}
-                  </a>
-                )}
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                    onClick={() => open(identity, "verified")}
-                  >
-                    Verify
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full text-red-700 border-red-700/40 hover:text-red-700 dark:text-red-400 dark:border-red-400/40 dark:hover:text-red-400"
-                    onClick={() => open(identity, "rejected")}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
-        <DialogContent className="max-w-sm bg-card border-border">
-          {reviewing && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="font-display font-bold tracking-tight">
-                  {reviewing.status === "verified" ? "Verify identity" : "Reject identity"}
-                </DialogTitle>
-                <DialogDescription>
-                  {reviewing.status === "verified"
-                    ? `Marks @${reviewing.identity.handle} as a verified ${IDENTITY_PROVIDER_META[reviewing.identity.provider].label} identity. It shows with a check on the trader's profile.`
-                    : `Rejects @${reviewing.identity.handle}. The trader sees the rejection on their settings page.`}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-1">
-                <Textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Optional reviewer note — goes on the record."
-                  rows={3}
-                  className="bg-surface resize-none"
-                />
-              </div>
-              <DialogFooter className="gap-2">
-                <Button variant="outline" className="rounded-full" onClick={() => setReviewing(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant={reviewing.status === "rejected" ? "destructive" : "default"}
-                  className={
-                    reviewing.status === "rejected"
-                      ? "rounded-full"
-                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                  }
-                  disabled={busy}
-                  onClick={() => void confirm()}
-                >
-                  {busy ? "Working…" : reviewing.status === "verified" ? "Verify" : "Reject"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </section>
-  );
-}
-
-/* ── 3. Reports queue ────────────────────────────────────────────────────── */
-
-type ResolveAction = "remove-listing" | "warn-user" | "dismiss";
-
-/** Quiet chip-style tab trigger — overrides the boxed shadcn segmented look. */
-const chipTabCls =
-  "flex-none h-auto rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors " +
-  "data-[state=active]:border-accent data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-sm " +
-  "dark:data-[state=active]:border-accent dark:data-[state=active]:bg-accent dark:data-[state=active]:text-accent-foreground";
-
-const RESOLVE_COPY: Record<
-  ResolveAction,
-  { title: string; description: string; cta: string; destructive?: boolean }
-> = {
-  "remove-listing": {
-    title: "Remove listing",
-    description:
-      "The listing comes down, open negotiations on it close, and the seller is notified.",
-    cta: "Remove it",
-    destructive: true,
-  },
-  "warn-user": {
-    title: "Warn user",
-    description: "Sends a community-guidelines warning to the user behind this report.",
-    cta: "Send warning",
-  },
-  dismiss: {
-    title: "Dismiss report",
-    description: "No action taken. The report is filed away as handled.",
-    cta: "Dismiss",
-  },
-};
-
-function ReportTarget({
-  report,
-  findUser,
-  findDisputedDeal,
-}: {
-  report: Report;
-  findUser: (id: string) => AdminUser | undefined;
-  findDisputedDeal: (id: string) => DealRecord | undefined;
-}) {
-  const store = useStore();
-  if (report.targetType === "listing") {
-    const listing = store.getListing(report.targetId);
-    if (!listing)
-      return <p className="text-xs text-muted-foreground">Listing no longer exists.</p>;
-    return (
-      <Link
-        href={`/app/listings/${listing.id}`}
-        className="flex items-center gap-2.5 group min-w-0"
-      >
-        <img
-          src={listing.photos[0] || "/placeholder.jpg"}
-          alt=""
-          className="w-10 h-10 rounded object-cover border border-border shrink-0"
-        />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
-            {listing.title}
-          </p>
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Listing · {LISTING_STATUS_LABELS[listing.status]} · {listing.seller.username}
-          </p>
-        </div>
-      </Link>
-    );
-  }
-  if (report.targetType === "user") {
-    const user = findUser(report.targetId);
-    if (!user) return <p className="text-xs text-muted-foreground">User no longer exists.</p>;
-    return (
-      <Link href={`/app/u/${user.username}`} className="flex items-center gap-2.5 group min-w-0">
-        <img
-          src={user.avatar}
-          alt=""
-          className="w-10 h-10 rounded-full object-cover border border-border shrink-0"
-        />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
-            {user.username}
-          </p>
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            User · {user.displayName}
-          </p>
-        </div>
-      </Link>
-    );
-  }
-  // Deal report: admin snapshots only include the admin's own deals, so fall
-  // back to the disputed-deals feed for a record.
-  const deal = findDisputedDeal(report.targetId) ?? store.getDeal(report.targetId);
-  if (!deal) return <p className="text-xs text-muted-foreground">Deal not in view.</p>;
-  const listing = store.getListing(deal.listingId);
-  const proposer = findUser(deal.proposerId);
-  const owner = findUser(deal.ownerId);
-  return (
-    <Link href={`/app/trades/${deal.id}`} className="flex items-center gap-2.5 group min-w-0">
-      <img
-        src={listing?.photos[0] || "/placeholder.jpg"}
-        alt=""
-        className="w-10 h-10 rounded object-cover border border-border shrink-0"
-      />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
-          {listing?.title ?? "A deal"}
-        </p>
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
-          Deal · {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-function ReportRow({
-  report,
-  findUser,
-  findDisputedDeal,
-  onAction,
-}: {
-  report: Report;
-  findUser: (id: string) => AdminUser | undefined;
-  findDisputedDeal: (id: string) => DealRecord | undefined;
-  onAction?: (report: Report, action: ResolveAction) => void;
-}) {
-  const reporter = findUser(report.reporterId);
-  const stamp = REPORT_STATUS_STAMP[report.status];
-  return (
-    <div className="bg-card border border-border rounded-xl p-3.5 space-y-2.5">
-      <div className="flex items-start justify-between gap-3">
-        <ReportTarget report={report} findUser={findUser} findDisputedDeal={findDisputedDeal} />
-        <span className={cn("badge-stamp shrink-0", stamp.cls)}>{stamp.label}</span>
-      </div>
-      <div className="text-sm">
-        <p className="font-bold text-foreground">{report.reason}</p>
-        {report.details && (
-          <p className="text-muted-foreground mt-0.5 leading-snug">{report.details}</p>
-        )}
-        <p className="text-xs text-muted-foreground mt-1.5">
-          Reported by{" "}
-          {reporter ? (
-            <Link
-              href={`/app/u/${reporter.username}`}
-              className="text-foreground hover:text-accent transition-colors font-medium"
-            >
-              {reporter.username}
-            </Link>
-          ) : (
-            "an ex-member"
-          )}{" "}
-          · {timeAgo(report.createdAt)}
-        </p>
-      </div>
-      {report.status === "pending" && onAction && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {report.targetType === "listing" && (
-            <Button
-              size="sm"
-              variant="destructive"
-              className="rounded-full"
-              onClick={() => onAction(report, "remove-listing")}
-            >
-              Remove listing
-            </Button>
-          )}
-          {report.targetType !== "deal" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-full text-amber-700 border-amber-700/40 hover:text-amber-700 dark:text-yellow-400 dark:border-yellow-400/40 dark:hover:text-yellow-400"
-              onClick={() => onAction(report, "warn-user")}
-            >
-              Warn user
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full"
-            onClick={() => onAction(report, "dismiss")}
-          >
-            Dismiss
-          </Button>
-          {report.targetType === "deal" && (
-            <span className="text-[11px] text-muted-foreground self-center">
-              Settle the deal itself under Disputed Deals below.
-            </span>
-          )}
-        </div>
-      )}
-      {report.status !== "pending" && (
-        <p className="text-xs text-muted-foreground border-t border-border pt-2">
-          Resolution: <span className="text-foreground">{report.resolution ?? "—"}</span>
-          {report.resolvedAt ? ` · ${timeAgo(report.resolvedAt)}` : ""}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function ReportsSection({
-  reports,
-  findUser,
-  findDisputedDeal,
-  onResolve,
-}: {
-  reports: Report[];
-  findUser: (id: string) => AdminUser | undefined;
-  findDisputedDeal: (id: string) => DealRecord | undefined;
-  onResolve: (report: Report, action: ResolveAction, note?: string) => Promise<boolean>;
-}) {
-  const [resolving, setResolving] = useState<{ report: Report; action: ResolveAction } | null>(
-    null,
-  );
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const pending = reports.filter((r) => r.status === "pending");
-  const handled = reports.filter((r) => r.status !== "pending");
-
-  const openAction = (report: Report, action: ResolveAction) => {
-    setNote("");
-    setResolving({ report, action });
-  };
-
-  const confirm = async () => {
-    if (!resolving || busy) return;
-    setBusy(true);
-    const ok = await onResolve(resolving.report, resolving.action, note.trim() || undefined);
-    setBusy(false);
-    if (ok) {
-      toast.success(
-        resolving.action === "remove-listing"
-          ? "Listing removed and seller notified"
-          : resolving.action === "warn-user"
-            ? "Warning sent"
-            : "Report dismissed",
-      );
-      setResolving(null);
-    }
-  };
-
-  const copy = resolving ? RESOLVE_COPY[resolving.action] : null;
-
-  return (
-    <section>
-      <SectionHeading icon={Flag} title="Reports queue" count={pending.length} />
-      <Tabs defaultValue="pending">
-        <TabsList className="mb-2 h-auto w-auto justify-start gap-2 rounded-none bg-transparent p-0 flex-wrap">
-          <TabsTrigger value="pending" className={chipTabCls}>
-            Pending{pending.length > 0 ? ` (${pending.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="handled" className={chipTabCls}>
-            Handled{handled.length > 0 ? ` (${handled.length})` : ""}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="pending" className="space-y-2">
-          {pending.length === 0 ? (
-            <EmptyRow>Queue&apos;s clear. The community polices itself. Mostly.</EmptyRow>
-          ) : (
-            pending.map((r) => (
-              <ReportRow
-                key={r.id}
-                report={r}
-                findUser={findUser}
-                findDisputedDeal={findDisputedDeal}
-                onAction={openAction}
-              />
-            ))
-          )}
-        </TabsContent>
-        <TabsContent value="handled" className="space-y-2">
-          {handled.length === 0 ? (
-            <EmptyRow>Nothing handled yet. Get to work, mod.</EmptyRow>
-          ) : (
-            handled.map((r) => (
-              <ReportRow
-                key={r.id}
-                report={r}
-                findUser={findUser}
-                findDisputedDeal={findDisputedDeal}
-              />
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={!!resolving} onOpenChange={(open) => !open && setResolving(null)}>
-        <DialogContent className="max-w-sm bg-card border-border">
-          {resolving && copy && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="font-display font-bold tracking-tight">
-                  {copy.title}
-                </DialogTitle>
-                <DialogDescription>{copy.description}</DialogDescription>
-              </DialogHeader>
-              <div className="py-1">
-                <Textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Optional note — goes in the record (and to the user, if they're being warned or removed)."
-                  rows={3}
-                  className="bg-surface resize-none"
-                />
-              </div>
-              <DialogFooter className="gap-2">
-                <Button variant="outline" className="rounded-full" onClick={() => setResolving(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant={copy.destructive ? "destructive" : "default"}
-                  className={
-                    copy.destructive
-                      ? "rounded-full"
-                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                  }
-                  disabled={busy}
-                  onClick={() => void confirm()}
-                >
-                  {busy ? "Working…" : copy.cta}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </section>
-  );
-}
-
-/* ── 4. Disputed deals ───────────────────────────────────────────────────── */
-
-function DisputesSection({
-  disputes,
-  findUser,
-  onResolve,
-}: {
-  disputes: DealRecord[];
-  findUser: (id: string) => AdminUser | undefined;
-  onResolve: (
-    deal: DealRecord,
-    outcome: "cancelled" | "completed",
-    note?: string,
-  ) => Promise<boolean>;
-}) {
-  const store = useStore();
-  const [resolving, setResolving] = useState<{
-    deal: DealRecord;
-    outcome: "cancelled" | "completed";
-  } | null>(null);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const openResolve = (deal: DealRecord, outcome: "cancelled" | "completed") => {
-    setNote("");
-    setResolving({ deal, outcome });
-  };
-
-  const confirm = async () => {
-    if (!resolving || busy) return;
-    setBusy(true);
-    const ok = await onResolve(resolving.deal, resolving.outcome, note.trim() || undefined);
-    setBusy(false);
-    if (ok) {
-      toast.success(
-        resolving.outcome === "cancelled"
-          ? "Deal cancelled — items released back to the market"
-          : "Deal force-completed",
-      );
-      setResolving(null);
-    }
-  };
-
-  return (
-    <section>
-      <SectionHeading icon={Gavel} title="Disputed deals" count={disputes.length} />
-      {disputes.length === 0 ? (
-        <EmptyRow>No open disputes. Peace in the land.</EmptyRow>
-      ) : (
-        <div className="space-y-2">
-          {disputes.map((deal) => {
-            const listing = store.getListing(deal.listingId);
-            const proposer = findUser(deal.proposerId);
-            const owner = findUser(deal.ownerId);
-            return (
-              <div
-                key={deal.id}
-                className="bg-card border border-red-700/40 dark:border-red-400/40 rounded-xl p-3.5 space-y-2.5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={listing?.photos[0] || "/placeholder.jpg"}
-                      alt=""
-                      className="w-10 h-10 rounded object-cover border border-border shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">
-                        {listing?.title ?? "A deal"}
-                      </p>
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
-                        {proposer?.username ?? "?"} ⇄ {owner?.username ?? "?"}
-                      </p>
-                    </div>
-                  </div>
-                  <DealStatusBadge status={deal.status} className="shrink-0" />
-                </div>
-                {deal.disputeReason && (
-                  <p className="text-sm text-muted-foreground leading-snug">
-                    <span className="font-bold text-red-700 dark:text-red-400">Dispute:</span> {deal.disputeReason}
-                  </p>
-                )}
-                {/* Proof photos each party attached — evidence for the call. */}
-                {[deal.proposerId, deal.ownerId].map((partyId) => {
-                  const photos = deal.fulfillment[partyId]?.proofPhotos ?? [];
-                  if (photos.length === 0) return null;
-                  const party = findUser(partyId);
-                  return (
-                    <div key={partyId}>
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
-                        Proof from {party?.username ?? "unknown"}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {photos.map((src, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => void openPhoto(src)}
-                            aria-label={`Open proof photo ${i + 1} from ${party?.username ?? "party"}`}
-                            className="w-12 h-12 rounded-lg overflow-hidden border border-border hover:border-accent transition-colors"
-                          >
-                            <img src={src} alt="" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-                <p className="text-xs text-muted-foreground">Updated {timeAgo(deal.updatedAt)}</p>
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="rounded-full"
-                    onClick={() => openResolve(deal, "cancelled")}
-                  >
-                    Cancel deal
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full text-accent border-accent/40 hover:text-accent"
-                    onClick={() => openResolve(deal, "completed")}
-                  >
-                    Force complete
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <Dialog open={!!resolving} onOpenChange={(open) => !open && setResolving(null)}>
-        <DialogContent className="max-w-sm bg-card border-border">
-          {resolving && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="font-display font-bold tracking-tight">
-                  {resolving.outcome === "cancelled" ? "Cancel this deal?" : "Force complete?"}
-                </DialogTitle>
-                <DialogDescription>
-                  {resolving.outcome === "cancelled"
-                    ? "The deal is voided and every locked item goes back on the market. Both parties are notified."
-                    : "The deal is marked done for both sides — items change hands on the record and trade counts tick up."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-1">
-                <Textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Optional note for both parties."
-                  rows={3}
-                  className="bg-surface resize-none"
-                />
-              </div>
-              <DialogFooter className="gap-2">
-                <Button variant="outline" className="rounded-full" onClick={() => setResolving(null)}>
-                  Back
-                </Button>
-                <Button
-                  variant={resolving.outcome === "cancelled" ? "destructive" : "default"}
-                  className={
-                    resolving.outcome === "cancelled"
-                      ? "rounded-full"
-                      : "rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                  }
-                  disabled={busy}
-                  onClick={() => void confirm()}
-                >
-                  {busy
-                    ? "Working…"
-                    : resolving.outcome === "cancelled"
-                      ? "Cancel the deal"
-                      : "Complete the deal"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </section>
-  );
-}
+import { StatsSection } from "./stats-section";
+import { PartnersSection } from "./partners-section";
+import { IdentityQueueSection } from "./identity-queue-section";
+import { DisputesSection } from "./disputes-section";
+import { ReportsSection } from "./reports-section";
+import { AdminUser, EmptyRow, runAdminOp, SectionHeading, USER_STATUS_CHIP } from "./admin-shared";
 
 /* ── 5. Users ────────────────────────────────────────────────────────────── */
 
@@ -958,7 +88,7 @@ function UserStatusChip({ user }: { user: AdminUser }) {
   );
 }
 
-type ModAction = "shadowban" | "suspend" | "ban";
+type ModAction = "shadowban" | "suspend" | "ban" | "restore";
 
 function UsersSection({
   users,
@@ -970,13 +100,17 @@ function UsersSection({
   onSetStatus: (
     userId: string,
     status: UserStatus,
-    opts?: { days?: number; note?: string },
+    opts: { days?: number; note: string },
   ) => Promise<boolean>;
 }) {
   const [modTarget, setModTarget] = useState<{ user: AdminUser; action: ModAction } | null>(null);
   const [days, setDays] = useState("7");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const cleanNote = note.trim();
+  const parsedDays = Number(days);
+  const validNote = cleanNote.length >= 20 && cleanNote.length <= 2_000;
+  const validDays = Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 365;
 
   const toggleVerified = async (user: AdminUser, verified: boolean) => {
     const ok = await onSetVerified(user.id, verified);
@@ -995,17 +129,12 @@ function UsersSection({
     setModTarget({ user, action });
   };
 
-  const restore = async (user: AdminUser) => {
-    const ok = await onSetStatus(user.id, "active");
-    if (ok) toast.success(`@${user.username} restored`);
-  };
-
-  const useAs = async (user: AdminUser) => {
-    const res = await useAsUser(user.id);
+  const impersonate = async (user: AdminUser) => {
+    const res = await beginImpersonation(user.id);
     if (res.ok) {
       toast.success(`Now using Poachland as @${user.username}`);
       // Full navigation so the impersonated session bootstraps cleanly.
-      window.location.assign("/app");
+      window.location.replace(`${window.location.origin}/app`);
     } else {
       toast.error(res.error);
     }
@@ -1017,13 +146,13 @@ function UsersSection({
     setBusy(true);
     let ok = false;
     if (action === "shadowban") {
-      ok = await onSetStatus(user.id, "shadowbanned");
+      ok = await onSetStatus(user.id, "shadowbanned", { note: cleanNote });
     } else if (action === "suspend") {
-      const parsed = Number.parseInt(days, 10);
-      const d = Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
-      ok = await onSetStatus(user.id, "suspended", { days: d, note: note.trim() || undefined });
+      ok = await onSetStatus(user.id, "suspended", { days: parsedDays, note: cleanNote });
+    } else if (action === "restore") {
+      ok = await onSetStatus(user.id, "active", { note: cleanNote });
     } else {
-      ok = await onSetStatus(user.id, "banned", { note: note.trim() || undefined });
+      ok = await onSetStatus(user.id, "banned", { note: cleanNote });
     }
     setBusy(false);
     if (ok) {
@@ -1032,6 +161,8 @@ function UsersSection({
           ? `@${user.username} shadowbanned`
           : action === "suspend"
             ? `@${user.username} suspended`
+            : action === "restore"
+              ? `@${user.username} restored`
             : `@${user.username} banned`,
       );
       setModTarget(null);
@@ -1121,14 +252,14 @@ function UsersSection({
                     <Ban /> Ban
                   </DropdownMenuItem>
                   {u.status !== "active" && (
-                    <DropdownMenuItem onSelect={() => void restore(u)}>
+                    <DropdownMenuItem onSelect={() => openMod(u, "restore")}>
                       <RotateCcw /> Restore
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="flex-col items-start gap-0.5"
-                    onSelect={() => void useAs(u)}
+                    onSelect={() => void impersonate(u)}
                   >
                     <span className="flex items-center gap-2">
                       <UserCog /> Use as @{u.username}
@@ -1144,9 +275,13 @@ function UsersSection({
         ))}
       </div>
 
-      {/* Shadowban / Suspend — reversible, accent-styled dialogs. */}
+      {/* Reversible account-standing changes. */}
       <Dialog
-        open={modTarget?.action === "shadowban" || modTarget?.action === "suspend"}
+        open={
+          modTarget?.action === "shadowban" ||
+          modTarget?.action === "suspend" ||
+          modTarget?.action === "restore"
+        }
         onOpenChange={(o) => !o && setModTarget(null)}
       >
         <DialogContent className="max-w-sm bg-card border-border">
@@ -1160,13 +295,23 @@ function UsersSection({
                   Their listings, posts, and profile vanish for everyone else. They won&apos;t know.
                 </DialogDescription>
               </DialogHeader>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Required rationale (20–2,000 characters). Kept in the audit record."
+                minLength={20}
+                maxLength={2_000}
+                rows={3}
+                className="bg-surface resize-none"
+                aria-label="Shadowban rationale"
+              />
               <DialogFooter className="gap-2">
                 <Button variant="outline" className="rounded-full" onClick={() => setModTarget(null)}>
                   Cancel
                 </Button>
                 <Button
                   className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                  disabled={busy}
+                  disabled={busy || !validNote}
                   onClick={() => void confirmMod()}
                 >
                   {busy ? "Working…" : "Shadowban"}
@@ -1188,6 +333,8 @@ function UsersSection({
                   <Input
                     type="number"
                     min={1}
+                    max={365}
+                    step={1}
                     value={days}
                     onChange={(e) => setDays(e.target.value)}
                     className="mt-1 bg-surface"
@@ -1197,7 +344,9 @@ function UsersSection({
                 <Textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Optional note — the user sees this on their notice."
+                  placeholder="Required rationale (20–2,000 characters). The user sees this."
+                  minLength={20}
+                  maxLength={2_000}
                   rows={3}
                   className="bg-surface resize-none"
                 />
@@ -1208,10 +357,44 @@ function UsersSection({
                 </Button>
                 <Button
                   className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-                  disabled={busy}
+                  disabled={busy || !validNote || !validDays}
                   onClick={() => void confirmMod()}
                 >
                   {busy ? "Working…" : "Suspend"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+          {modTarget?.action === "restore" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display font-bold tracking-tight">
+                  Restore @{modTarget.user.username}?
+                </DialogTitle>
+                <DialogDescription>
+                  Restores normal account access and explains the decision to the member.
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Required rationale (20–2,000 characters). The user sees this."
+                minLength={20}
+                maxLength={2_000}
+                rows={3}
+                className="bg-surface resize-none"
+                aria-label="Restoration rationale"
+              />
+              <DialogFooter className="gap-2">
+                <Button variant="outline" className="rounded-full" onClick={() => setModTarget(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+                  disabled={busy || !validNote}
+                  onClick={() => void confirmMod()}
+                >
+                  {busy ? "Working…" : "Restore account"}
                 </Button>
               </DialogFooter>
             </>
@@ -1236,7 +419,9 @@ function UsersSection({
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Optional note — the user sees this on their notice."
+            placeholder="Required rationale (20–2,000 characters). The user sees this."
+            minLength={20}
+            maxLength={2_000}
             rows={3}
             className="bg-surface resize-none"
           />
@@ -1244,7 +429,7 @@ function UsersSection({
             <AlertDialogCancel className="rounded-full">Keep them</AlertDialogCancel>
             <AlertDialogAction
               className="rounded-full bg-destructive text-white hover:bg-destructive/90"
-              disabled={busy}
+              disabled={busy || !validNote}
               onClick={(e) => {
                 e.preventDefault(); // keep the dialog open until the server answers
                 void confirmMod();
@@ -1402,467 +587,6 @@ function ListingsSection({
   );
 }
 
-/* ── 7. Partners (sponsors & vendors) ────────────────────────────────────── */
-
-const PARTNER_CATEGORY_LABELS: Record<PartnerCategory, string> = {
-  jerseys: "Jerseys",
-  discs: "Discs",
-  apparel: "Apparel",
-  cleats: "Cleats",
-  accessories: "Accessories",
-  media: "Media",
-  other: "Other",
-};
-
-const PARTNER_CATEGORIES = Object.keys(PARTNER_CATEGORY_LABELS) as PartnerCategory[];
-
-const PARTNER_KIND_META: Record<Partner["kind"], { label: string; icon: React.ElementType }> = {
-  sponsor: { label: "Sponsor", icon: Megaphone },
-  vendor: { label: "Vendor", icon: Store },
-};
-
-type PartnerForm = {
-  id?: string;
-  kind: Partner["kind"];
-  name: string;
-  slug: string;
-  tagline: string;
-  description: string;
-  logo: string;
-  url: string;
-  category: PartnerCategory;
-  featured: boolean;
-  active: boolean;
-};
-
-const EMPTY_PARTNER_FORM: PartnerForm = {
-  kind: "sponsor",
-  name: "",
-  slug: "",
-  tagline: "",
-  description: "",
-  logo: "",
-  url: "",
-  category: "other",
-  featured: false,
-  active: true,
-};
-
-/** Square logo tile — the partner's mark, or an initial fallback when none. */
-function PartnerLogo({ logo, name, size = 40 }: { logo: string; name: string; size?: number }) {
-  if (logo) {
-    return (
-      <img
-        src={logo}
-        alt={`${name || "Partner"} logo`}
-        className="rounded-lg object-contain bg-surface border border-border shrink-0"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <div
-      className="rounded-lg bg-surface border border-border flex items-center justify-center shrink-0 font-display font-bold text-muted-foreground"
-      style={{ width: size, height: size }}
-      aria-hidden
-    >
-      {name.trim().charAt(0).toUpperCase() || "?"}
-    </div>
-  );
-}
-
-function PartnerKindBadge({ kind }: { kind: Partner["kind"] }) {
-  const meta = PARTNER_KIND_META[kind];
-  const Icon = meta.icon;
-  return (
-    <span className="badge-stamp shrink-0 inline-flex items-center gap-1 text-accent border-accent">
-      <Icon size={10} strokeWidth={2.5} /> {meta.label}
-    </span>
-  );
-}
-
-function PartnersSection({
-  partners,
-  onChanged,
-}: {
-  partners: Partner[];
-  onChanged: () => Promise<void>;
-}) {
-  const store = useStore();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<PartnerForm | null>(null); // null → form closed
-  const [busy, setBusy] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<Partner | null>(null);
-  const [removeBusy, setRemoveBusy] = useState(false);
-
-  const editing = !!form?.id;
-
-  const openAdd = () => setForm({ ...EMPTY_PARTNER_FORM });
-  const openEdit = (p: Partner) =>
-    setForm({
-      id: p.id,
-      kind: p.kind,
-      name: p.name,
-      slug: p.slug,
-      tagline: p.tagline,
-      description: p.description,
-      logo: p.logo,
-      url: p.url,
-      category: p.category,
-      featured: p.featured,
-      active: p.active,
-    });
-
-  const patch = (v: Partial<PartnerForm>) => setForm((f) => (f ? { ...f, ...v } : f));
-
-  const pickLogo = async (file: File) => {
-    try {
-      patch({ logo: await fileToDataUrl(file, 400) });
-    } catch {
-      toast.error("Couldn't read that image");
-    }
-  };
-
-  const submit = async () => {
-    if (!form || busy) return;
-    const name = form.name.trim();
-    if (!name) {
-      toast.error("Give the partner a name");
-      return;
-    }
-    setBusy(true);
-    const res = store.upsertPartner({
-      id: form.id,
-      kind: form.kind,
-      name,
-      slug: form.slug.trim() || undefined,
-      tagline: form.tagline.trim() || undefined,
-      description: form.description.trim() || undefined,
-      logo: form.logo || undefined,
-      url: form.url.trim() || undefined,
-      category: form.category,
-      featured: form.featured,
-      active: form.active,
-    });
-    if (!res.ok) {
-      setBusy(false);
-      toast.error(res.error);
-      return;
-    }
-    await onChanged();
-    setBusy(false);
-    toast.success(editing ? `${res.value.name} updated` : `${res.value.name} added`);
-    setForm(null);
-  };
-
-  const confirmRemove = async () => {
-    if (!removeTarget || removeBusy) return;
-    setRemoveBusy(true);
-    const res = store.removePartner(removeTarget.id);
-    if (!res.ok) {
-      setRemoveBusy(false);
-      toast.error(res.error);
-      return;
-    }
-    await onChanged();
-    setRemoveBusy(false);
-    toast.success(`${removeTarget.name} removed`);
-    setRemoveTarget(null);
-  };
-
-  const fieldLabel = "text-xs font-medium text-muted-foreground";
-
-  return (
-    <section>
-      <div className="flex items-center justify-between gap-3">
-        <SectionHeading icon={Handshake} title="Partners" count={partners.length} />
-        <Button
-          size="sm"
-          variant={form ? "outline" : "default"}
-          className={cn(
-            "rounded-full mb-3 shrink-0",
-            !form && "bg-accent text-accent-foreground hover:bg-accent/90",
-          )}
-          onClick={() => (form ? setForm(null) : openAdd())}
-        >
-          {form ? "Close" : (
-            <>
-              <Plus size={15} /> Add partner
-            </>
-          )}
-        </Button>
-      </div>
-
-      {/* Add / edit form */}
-      {form && (
-        <div className="bg-card border border-border rounded-xl p-4 space-y-3.5 mb-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-display font-bold tracking-tight text-sm text-foreground">
-              {editing ? "Edit partner" : "New partner"}
-            </p>
-            {/* Kind — segmented sponsor / vendor toggle */}
-            <div className="inline-flex rounded-full border border-border bg-surface p-0.5">
-              {(Object.keys(PARTNER_KIND_META) as Partner["kind"][]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => patch({ kind: k })}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-[13px] font-medium transition-colors",
-                    form.kind === k
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {PARTNER_KIND_META[k].label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <PartnerLogo logo={form.logo} name={form.name} size={56} />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => fileRef.current?.click()}
-              >
-                <ImagePlus size={14} /> {form.logo ? "Replace logo" : "Upload logo"}
-              </Button>
-              {form.logo && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400"
-                  onClick={() => patch({ logo: "" })}
-                >
-                  Remove
-                </Button>
-              )}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file) void pickLogo(file);
-              }}
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className={fieldLabel}>Name</span>
-              <Input
-                value={form.name}
-                onChange={(e) => patch({ name: e.target.value })}
-                placeholder="e.g. VC Ultimate"
-                className="mt-1 bg-surface"
-              />
-            </label>
-            <label className="block">
-              <span className={fieldLabel}>Slug</span>
-              <Input
-                value={form.slug}
-                onChange={(e) => patch({ slug: e.target.value })}
-                placeholder="Auto-derived from name if blank"
-                className="mt-1 bg-surface"
-              />
-              <span className="text-[11px] text-muted-foreground mt-1 block">
-                Used at /vendors/&lt;slug&gt;. Leave blank to auto-generate.
-              </span>
-            </label>
-          </div>
-
-          <label className="block">
-            <span className={fieldLabel}>Tagline</span>
-            <Input
-              value={form.tagline}
-              onChange={(e) => patch({ tagline: e.target.value })}
-              placeholder="Short one-liner shown under the name"
-              className="mt-1 bg-surface"
-            />
-          </label>
-
-          <label className="block">
-            <span className={fieldLabel}>Description</span>
-            <Textarea
-              value={form.description}
-              onChange={(e) => patch({ description: e.target.value })}
-              placeholder="A sentence or two about the partner."
-              rows={3}
-              className="mt-1 bg-surface resize-none"
-            />
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className={fieldLabel}>External URL</span>
-              <Input
-                type="url"
-                value={form.url}
-                onChange={(e) => patch({ url: e.target.value })}
-                placeholder="https://…"
-                className="mt-1 bg-surface"
-              />
-            </label>
-            <label className="block">
-              <span className={fieldLabel}>Category</span>
-              <select
-                value={form.category}
-                onChange={(e) => patch({ category: e.target.value as PartnerCategory })}
-                className="mt-1 w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent"
-              >
-                {PARTNER_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {PARTNER_CATEGORY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-0.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Switch
-                checked={form.featured}
-                onCheckedChange={(v) => patch({ featured: v })}
-                className="data-[state=checked]:bg-accent"
-                aria-label="Featured"
-              />
-              <span className="text-sm text-foreground">Featured</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Switch
-                checked={form.active}
-                onCheckedChange={(v) => patch({ active: v })}
-                className="data-[state=checked]:bg-accent"
-                aria-label="Active"
-              />
-              <span className="text-sm text-foreground">Active</span>
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => setForm(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
-              disabled={busy}
-              onClick={() => void submit()}
-            >
-              {busy ? "Saving…" : editing ? "Save changes" : "Add partner"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* List */}
-      {partners.length === 0 ? (
-        <EmptyRow>No partners yet. Add a sponsor or vendor to fill the shop.</EmptyRow>
-      ) : (
-        <div className="bg-card border border-border rounded-xl divide-y divide-border">
-          {partners.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 px-3.5 py-3">
-              <PartnerLogo logo={p.logo} name={p.name} size={40} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 flex-wrap min-w-0">
-                  <span className="truncate">{p.name}</span>
-                  <PartnerKindBadge kind={p.kind} />
-                  {p.featured && (
-                    <span className="badge-stamp shrink-0 text-amber-700 border-amber-700 dark:text-yellow-400 dark:border-yellow-400">
-                      Featured
-                    </span>
-                  )}
-                  {!p.active && (
-                    <span className="badge-stamp shrink-0 text-muted-foreground border-border">
-                      Inactive
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {PARTNER_CATEGORY_LABELS[p.category]} · /{p.slug}
-                  {p.tagline ? ` · ${p.tagline}` : ""}
-                </p>
-                {p.url && (
-                  <a
-                    href={p.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-0.5"
-                  >
-                    <ExternalLink size={11} /> {p.url}
-                  </a>
-                )}
-              </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-                aria-label={`Edit ${p.name}`}
-                onClick={() => openEdit(p)}
-              >
-                <Pencil size={15} />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="shrink-0 rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400"
-                aria-label={`Remove ${p.name}`}
-                onClick={() => setRemoveTarget(p)}
-              >
-                <Trash2 size={15} />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
-        <AlertDialogContent className="max-w-sm bg-card border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-display font-bold tracking-tight">
-              Remove &quot;{removeTarget?.name}&quot;?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This partner is pulled from the shop directory and support strips. You can always add
-              them back later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full">Keep it</AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
-              disabled={removeBusy}
-              onClick={(e) => {
-                e.preventDefault(); // keep the dialog open until the server answers
-                void confirmRemove();
-              }}
-            >
-              {removeBusy ? "Removing…" : "Remove partner"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
-  );
-}
-
 /* ── Skeleton fallback ───────────────────────────────────────────────────── */
 
 function AdminSkeleton() {
@@ -1999,8 +723,8 @@ export default function AdminPage() {
                   run("adminSetUserStatus", {
                     userId,
                     status,
-                    days: opts?.days,
-                    note: opts?.note,
+                    days: opts.days,
+                    note: opts.note,
                   })
                 }
               />

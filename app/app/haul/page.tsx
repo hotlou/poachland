@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRightLeft, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,6 +8,7 @@ import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { HaulCard } from "@/components/haul-card";
 import type { HaulPost, HaulReactionEmoji } from "@/lib/types";
+import { fetchHaulPage } from "@/app/actions/query";
 
 /* ── Leaderboards strip ──────────────────────────────────────────────────── */
 
@@ -78,8 +80,31 @@ function LeaderboardStrip() {
 /* ── Feed ────────────────────────────────────────────────────────────────── */
 
 function HaulFeed() {
-  const store = useStore();
-  const posts = store.listHaul();
+  const [posts, setPosts] = useState<HaulPost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await fetchHaulPage();
+      setPosts(page.items);
+      setNextCursor(page.nextCursor);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const onInvalidate = (event: Event) => {
+      const domains = (event as CustomEvent<{ domains?: string[] }>).detail?.domains;
+      if (domains?.includes("haul") || domains?.includes("moderation")) void reload();
+    };
+    window.addEventListener("poachland:invalidate", onInvalidate);
+    return () => window.removeEventListener("poachland:invalidate", onInvalidate);
+  }, [reload]);
+
+  if (loading) return <HaulSkeleton />;
 
   if (posts.length === 0) {
     return (
@@ -107,6 +132,22 @@ function HaulFeed() {
         {posts.map((post) => (
           <HaulCard key={post.id} post={post} />
         ))}
+        {nextCursor && (
+          <button
+            type="button"
+            disabled={loadingMore}
+            onClick={() => {
+              setLoadingMore(true);
+              void fetchHaulPage(nextCursor).then((page) => {
+                setPosts((current) => [...current, ...page.items.filter((item) => !current.some((seen) => seen.id === item.id))]);
+                setNextCursor(page.nextCursor);
+              }).finally(() => setLoadingMore(false));
+            }}
+            className="self-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        )}
       </div>
     </section>
   );

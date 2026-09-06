@@ -38,6 +38,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <TopNav />
         <main
           id="main-content"
+          tabIndex={-1}
           className="pb-20 md:pb-12 mx-auto w-full max-w-lg md:max-w-3xl lg:max-w-4xl"
         >
           {children}

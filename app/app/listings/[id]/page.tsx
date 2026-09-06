@@ -59,6 +59,8 @@ import { formatMonthYear, money, timeAgo } from "@/lib/format";
 import { useStore } from "@/lib/store-context";
 import type { Listing } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { fetchMarketplaceListing } from "@/app/actions/query";
+import { dispatchOp } from "@/app/actions/engine";
 
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
@@ -68,7 +70,8 @@ export default function ListingDetailPage() {
 
   // Count the view once per session (engine ignores owner views + repeats).
   useEffect(() => {
-    store.markListingViewed(id);
+    if (store.getListing(id)) store.markListingViewed(id);
+    else void dispatchOp("markListingViewed", { id });
   }, [store, id]);
 
   return (
@@ -98,7 +101,16 @@ function ListingDetail({ id }: { id: string }) {
   const store = useStore();
   const router = useRouter();
   const me = store.requireUser();
-  const listing = store.getListing(id);
+  const cached = store.getListing(id);
+  const [fetched, setFetched] = useState<Listing | null | undefined>(cached ?? undefined);
+  const listing = cached ?? fetched;
+
+  useEffect(() => {
+    if (cached) return;
+    void fetchMarketplaceListing(id).then(setFetched).catch(() => setFetched(null));
+  }, [cached, id]);
+
+  if (listing === undefined) return <DetailSkeleton />;
 
   const isOwner = !!listing && listing.sellerId === me.id;
 
@@ -528,13 +540,14 @@ function ReportButton({ listingId }: { listingId: string }) {
           <textarea
             value={details}
             onChange={(e) => setDetails(e.target.value)}
+            maxLength={2000}
             placeholder="Anything else the mods should know? (optional)"
             rows={3}
             className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
           />
           <button
             type="button"
-            disabled={!reason}
+            disabled={!reason || (reason === "Other" && details.trim().length < 20)}
             onClick={submit}
             className="w-full bg-accent text-accent-foreground font-semibold text-sm py-3 rounded-full shadow-sm disabled:opacity-40"
           >
@@ -810,9 +823,10 @@ function BuyNowButton({ listing, primary }: { listing: Listing; primary: boolean
             Buy at asking price?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            This sends {money(price)} — the full ask — as an offer on
+            This records {money(price)} — the full ask — as an offer on
             &ldquo;{listing.title}&rdquo;. Once the seller accepts, you two
-            arrange payment and shipping directly. No fees, ever.
+            arrange payment and shipping directly. Poachland does not process
+            payment or hold escrow.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

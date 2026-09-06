@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -31,13 +31,15 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { fetchDeal } from "@/app/actions/query";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
 import type { OfferTermsInput } from "@/lib/engine";
-import type { Deal, HydratedRating, Listing, PaymentKind, User } from "@/lib/types";
-import { fileToDataUrl } from "@/lib/image";
+import type { Deal, HydratedRating, Listing, PaymentKind, ShippingCarrier, User } from "@/lib/types";
+import { uploadImage } from "@/lib/image";
 import { DEAL_KIND_LABELS } from "@/lib/constants";
 import { formatDate, timeAgo, timeUntil } from "@/lib/format";
+import { carrierTrackingUrl, SHIPPING_CARRIER_LABELS } from "@/lib/shipping";
 import { Hydrated } from "@/components/hydrated";
 import { OfferCard } from "@/components/offer-card";
 import { DealStatusBadge } from "@/components/deal-status-badge";
@@ -365,6 +367,7 @@ function RateBlock({ deal, other }: { deal: Deal; other: User }) {
       <textarea
         value={comment}
         onChange={(e) => setComment(e.target.value)}
+        maxLength={500}
         placeholder="Optional — a line about how it went"
         rows={2}
         className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none mb-3"
@@ -539,7 +542,11 @@ function SettleUpBlock({ other }: { other: User }) {
         )}
       </p>
       <p className="text-[11px] text-muted-foreground/70 mt-1">
-        Settle directly. Poachland escrow is on the roadmap.
+        Settle directly. Poachland does not process payments, hold escrow, or guarantee refunds.{" "}
+        <Link href="/buyer-protection" className="underline underline-offset-2 hover:text-accent">
+          Review deal safety
+        </Link>
+        .
       </p>
     </div>
   );
@@ -567,7 +574,7 @@ function ProofSection({ deal, me, other }: { deal: Deal; me: User; other: User }
     const photos: string[] = [];
     for (const file of files.slice(0, room)) {
       try {
-        photos.push(await fileToDataUrl(file, 800));
+        photos.push(await uploadImage(file, 800));
       } catch {
         toast.error(`Couldn't read ${file.name}`);
       }
@@ -650,9 +657,26 @@ function ProofSection({ deal, me, other }: { deal: Deal; me: User; other: User }
 
 // ─── Fulfillment panel ────────────────────────────────────────────────────────
 
+function TrackingReference({ carrier, tracking }: { carrier?: ShippingCarrier; tracking: string }) {
+  const label = carrier ? SHIPPING_CARRIER_LABELS[carrier] : "Tracking";
+  const url = carrierTrackingUrl(carrier, tracking);
+  const content = <>{label} #{tracking}</>;
+  return url ? (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2 hover:text-accent"
+    >
+      {content}
+    </a>
+  ) : content;
+}
+
 function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: User }) {
   const store = useStore();
   const [tracking, setTracking] = useState("");
+  const [carrier, setCarrier] = useState<ShippingCarrier>("usps");
   const [cancelReason, setCancelReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
@@ -661,9 +685,12 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
   const mine = deal.fulfillment[me.id];
   const theirs = deal.fulfillment[other.id];
   const handoffWording = deal.kind !== "trade";
+  const shipmentStarted = Object.values(deal.fulfillment).some(
+    (side) => side.shippedAt || side.receivedAt,
+  );
 
   const ship = () => {
-    const res = store.markShipped(deal.id, tracking);
+    const res = store.markShipped(deal.id, tracking, tracking.trim() ? carrier : undefined);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -720,7 +747,12 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             <>
               <Truck size={11} className="inline mr-1 -mt-0.5" />
               Shipped {timeAgo(f.shippedAt)}
-              {f.tracking && <span className="text-muted-foreground"> · #{f.tracking}</span>}
+              {f.tracking && (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  <TrackingReference carrier={f.carrier} tracking={f.tracking} />
+                </span>
+              )}
             </>
           ) : (
             "Not shipped yet"
@@ -759,10 +791,25 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
       {!mine?.shippedAt && (
         <div className="mb-3">
           <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="shipping-carrier">Shipping carrier</label>
+            <select
+              id="shipping-carrier"
+              value={carrier}
+              onChange={(event) => setCarrier(event.target.value as ShippingCarrier)}
+              className="bg-surface border border-border rounded-full px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent"
+              aria-label="Shipping carrier"
+            >
+              <option value="usps">USPS</option>
+              <option value="ups">UPS</option>
+              <option value="fedex">FedEx</option>
+              <option value="dhl">DHL</option>
+              <option value="other">Other</option>
+            </select>
             <input
               value={tracking}
               onChange={(e) => setTracking(e.target.value)}
               placeholder="Tracking # (optional)"
+              aria-label="Tracking number"
               className="flex-1 bg-surface border border-border rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors"
             />
             <button
@@ -812,7 +859,7 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
       </div>
 
       <div className="flex items-center justify-center gap-4 mt-3">
-        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        {!shipmentStarted ? <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
           <DialogTrigger asChild>
             <button type="button" className="text-xs text-muted-foreground hover:text-orange-700 dark:hover:text-orange-400 transition-colors flex items-center gap-1">
               <Ban size={12} /> Cancel deal
@@ -828,19 +875,23 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
             <textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Reason (optional)"
+              placeholder="Reason (at least 10 characters)"
+              maxLength={500}
               rows={2}
               className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
             <button
               type="button"
               onClick={cancel}
-              className="w-full bg-orange-600/10 border border-orange-600 text-orange-700 dark:bg-orange-400/15 dark:border-orange-400 dark:text-orange-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full"
+              disabled={cancelReason.trim().length < 10}
+              className="w-full bg-orange-600/10 border border-orange-600 text-orange-700 dark:bg-orange-400/15 dark:border-orange-400 dark:text-orange-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full disabled:opacity-40"
             >
               Cancel the deal
             </button>
           </DialogContent>
-        </Dialog>
+        </Dialog> : (
+          <span className="text-xs text-muted-foreground">Shipping started—use Report a problem</span>
+        )}
 
         <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
           <DialogTrigger asChild>
@@ -860,12 +911,14 @@ function FulfillmentPanel({ deal, me, other }: { deal: Deal; me: User; other: Us
               onChange={(e) => setDisputeReason(e.target.value)}
               placeholder="Describe what went wrong"
               rows={3}
+              maxLength={2000}
               className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-accent transition-colors resize-none"
             />
             <button
               type="button"
               onClick={dispute}
-              className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full"
+              disabled={disputeReason.trim().length < 20}
+              className="w-full bg-red-600/10 border border-red-600 text-red-600 dark:bg-red-400/15 dark:border-red-400 dark:text-red-400 font-display font-semibold text-sm px-5 py-2.5 rounded-full disabled:opacity-40"
             >
               Open dispute
             </button>
@@ -971,8 +1024,20 @@ function DealRoom({ id }: { id: string }) {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
-  const deal = store.getDeal(id);
+  const cachedDeal = store.getDeal(id);
+  const [fetchedDeal, setFetchedDeal] = useState<Deal | null | undefined>(cachedDeal ?? undefined);
+  const deal = cachedDeal ?? fetchedDeal;
   const me = store.requireUser();
+
+  useEffect(() => {
+    if (cachedDeal) return;
+    void fetchDeal(id).then((result) => {
+      if (result) store.primeDeal(result);
+      setFetchedDeal(result);
+    }).catch(() => setFetchedDeal(null));
+  }, [cachedDeal, id, store]);
+
+  if (deal === undefined) return <DealRoomSkeleton />;
 
   if (!deal) {
     return (

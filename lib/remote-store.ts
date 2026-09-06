@@ -11,9 +11,8 @@
  *    instant, validated UI update.
  *  - AUTHORITATIVE RECONCILE: if the local call succeeded, the same op (with
  *    the SAME client-generated ids) is dispatched to the server, which
- *    re-validates and replies with a fresh WorldSnapshot the client swaps in
- *    wholesale. On server rejection we toast the error and swap in the
- *    server's snapshot anyway, rolling the optimistic change back.
+ *    re-validates and returns a compact invalidation receipt. On rejection we
+ *    fetch/apply the authoritative snapshot to roll the optimistic change back.
  *
  * A monotonically increasing request counter guards snapshot application so a
  * stale in-flight response can never overwrite a newer one.
@@ -50,6 +49,7 @@ import type {
   Rating,
   ReportTargetType,
   SaveTargetType,
+  SavedSearch,
   Thread,
   User,
   UserRecord,
@@ -93,6 +93,45 @@ export class RemotePoachStore extends PoachStore {
     this.applyIfFresh(snap, ++this.reqSeq);
   }
 
+  /** Add an authorized exact-query result to the optimistic cache. */
+  primeDeal(deal: Deal & { relatedListings?: Listing[] }): void {
+    const { listing, proposer, owner, currentOffer: _currentOffer, relatedListings = [], ...record } = deal;
+    for (const user of [proposer, owner]) {
+      this.state.users = [...this.state.users.filter((entry) => entry.id !== user.id), user];
+    }
+    for (const hydrated of [listing, ...relatedListings]) {
+      const { seller: _seller, ...listingRecord } = hydrated;
+      this.state.listings = [...this.state.listings.filter((entry) => entry.id !== hydrated.id), listingRecord];
+    }
+    this.state.deals = [...this.state.deals.filter((entry) => entry.id !== deal.id), record];
+    this.commit();
+  }
+
+  /** Add an authorized exact thread summary so messaging remains optimistic. */
+  primeThread(thread: Omit<Thread, "deal"> & { dealStatus?: import("./types").DealStatus }): void {
+    const {
+      participants,
+      otherUser,
+      lastMessage,
+      unreadCount: _unreadCount,
+      listing,
+      dealStatus: _dealStatus,
+      ...record
+    } = thread;
+    for (const user of [...participants, otherUser]) {
+      this.state.users = [...this.state.users.filter((entry) => entry.id !== user.id), user];
+    }
+    if (listing) {
+      const { seller: _seller, ...listingRecord } = listing;
+      this.state.listings = [...this.state.listings.filter((entry) => entry.id !== listing.id), listingRecord];
+    }
+    this.state.threads = [...this.state.threads.filter((entry) => entry.id !== thread.id), record];
+    if (lastMessage) {
+      this.state.messages = [...this.state.messages.filter((entry) => entry.id !== lastMessage.id), lastMessage];
+    }
+    this.commit();
+  }
+
   private applyIfFresh(snap: WorldSnapshot, seq: number): void {
     if (seq <= this.appliedSeq) return; // stale response — a newer one already landed
     this.appliedSeq = seq;
@@ -114,6 +153,7 @@ export class RemotePoachStore extends PoachStore {
       ratings: snap.ratings,
       notifications: snap.notifications,
       saves: snap.saves,
+      savedSearches: snap.savedSearches ?? [],
       reports: snap.reports,
       blocks: snap.blocks,
       activity: snap.activity,
@@ -144,19 +184,27 @@ export class RemotePoachStore extends PoachStore {
 
   /**
    * Fire-and-forget dispatch of an op the local engine already accepted.
-   * The server's snapshot (success or rejection) reconciles local state.
+   * A successful write acknowledges the optimistic delta without shipping the
+   * whole world back. Rejections trigger an authoritative bounded refresh.
    */
   private send<K extends OpName>(op: K, payload: OpMap[K], opts: { quiet?: boolean } = {}): void {
     const seq = ++this.reqSeq;
     void dispatchOp(op, payload)
       .then((result) => {
         if (result.ok) {
-          this.applyIfFresh(result.snapshot, seq);
+          // Prevent an older in-flight bootstrap from overwriting this
+          // acknowledged optimistic mutation. The next focus/poll refresh has
+          // a higher sequence and can still reconcile server-generated fields.
+          this.appliedSeq = Math.max(this.appliedSeq, seq);
+          window.dispatchEvent(
+            new CustomEvent("poachland:invalidate", {
+              detail: { domains: result.invalidated, committedAt: result.committedAt },
+            }),
+          );
           return;
         }
         if (!opts.quiet) toast.error(result.error);
-        if (result.snapshot) this.applyIfFresh(result.snapshot, seq);
-        else void this.refetch();
+        void this.refetch();
       })
       .catch((error) => {
         console.error(`[store] dispatch ${op} failed`, error);
@@ -235,7 +283,8 @@ export class RemotePoachStore extends PoachStore {
   override createListing(input: CreateListingInput & { id?: string }): Res<Listing> {
     const res = super.createListing(input);
     if (res.ok) {
-      const { id: _id, ...rest } = input;
+      const { id, ...rest } = input;
+      void id;
       this.send("createListing", { id: res.value.id, input: rest });
     }
     return res;
@@ -266,6 +315,22 @@ export class RemotePoachStore extends PoachStore {
   override toggleSave(targetType: SaveTargetType, targetId: string): Res<boolean> {
     const res = super.toggleSave(targetType, targetId);
     if (res.ok) this.send("toggleSave", { targetType, targetId });
+    return res;
+  }
+
+  override createSavedSearch(input: OpMap["createSavedSearch"]["input"] & { id?: string }): Res<SavedSearch> {
+    const res = super.createSavedSearch(input);
+    if (res.ok) {
+      const { id, ...rest } = input;
+      void id;
+      this.send("createSavedSearch", { id: res.value.id, input: rest });
+    }
+    return res;
+  }
+
+  override deleteSavedSearch(id: string): Res {
+    const res = super.deleteSavedSearch(id);
+    if (res.ok) this.send("deleteSavedSearch", { id });
     return res;
   }
 
@@ -378,9 +443,9 @@ export class RemotePoachStore extends PoachStore {
     return res;
   }
 
-  override markShipped(dealId: string, tracking?: string): Res {
-    const res = super.markShipped(dealId, tracking);
-    if (res.ok) this.send("markShipped", { dealId, tracking });
+  override markShipped(dealId: string, tracking?: string, carrier?: import("./types").ShippingCarrier): Res {
+    const res = super.markShipped(dealId, tracking, carrier);
+    if (res.ok) this.send("markShipped", { dealId, tracking, carrier });
     return res;
   }
 
@@ -624,7 +689,6 @@ export class RemotePoachStore extends PoachStore {
 // ─── Singleton wiring ─────────────────────────────────────────────────────────
 
 declare global {
-  // eslint-disable-next-line no-var
   var __remotePoachStore: RemotePoachStore | undefined;
 }
 

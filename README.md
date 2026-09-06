@@ -11,13 +11,13 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Listings** — post items to trade, sell, trade+cash, or give away free; edit, remove, photos (stock or uploads), tags, condition, shipping preference.
 - **Claims** — free items get claim requests with a pitch note; the owner picks who gets it.
 - **Negotiation** — real multi-round deals: propose (multiple items + cash), counter-offer from either side, accept, decline with a reason, withdraw. Offers expire after 7 days.
-- **Deal lifecycle** — accepted deals lock the items (competing deals auto-close), both parties mark shipped (with tracking) and confirm completion. Either side can cancel or open a dispute for moderators.
+- **Deal lifecycle** — accepted deals lock the items (competing deals auto-close), both parties record a carrier and linked tracking number, attach evidence, and confirm completion. Either side can cancel or open a dispute for moderators.
 - **Trust & reputation** — ratings unlock only after both parties complete a deal: communication / shipping speed / item accuracy + "would trade again". Trust scores are computed from ratings.
 - **Badges** — an 18-badge collection across trading milestones (First Trade → Centurion), trust & quality (Trusted, Flawless, Quick Shipper), collecting, generosity (Community Giver, Philanthropist), community (Show-off, Crowd Pleaser, 🏴‍☠️ Heist Legend, Connector), Verified, and a **Founding Member** badge for the first 1,000 traders. Criteria badges recompute from one shared source of truth (so the optimistic client and authoritative server never disagree); event badges land the moment you earn them. A full showcase at `/app/badges` shows every badge earned and locked, with how to get it.
 - **Wanted board (ISO)** — post what you're hunting; new listings auto-match against active ISO posts and notify the hunter; "I have this" starts a conversation.
 - **Messaging** — per-listing and per-deal threads, offer cards inline, unread counts, system messages for every deal event.
 - **Notifications** — every marketplace event lands in the in-app feed with a deep link, and the important ones also **email** you: all deal activity, messages (coalesced to one email per conversation until you read it), community events, and account/safety notices. Per-category toggles in Settings + one-click unsubscribe in every email. Delivered via Resend; queued to an outbox so email failures never touch the write path.
-- **Saves** — watchlist for listings and ISO posts.
+- **Saves & saved searches** — watchlists for listings and ISO posts, plus private reusable browse filters that notify their owner when a new listing matches.
 - **Moderation** — report listings/users/deals, block traders, admin dashboard with a report queue, dispute resolution, verification, and featuring. Moderator powers over any trader: **shadowban** (their content silently vanishes from everyone else; they see a normal app), **suspend** (time-boxed lockout that auto-lifts), **ban** (permanent gate), and **"use as"** — impersonate any non-admin to see the app exactly as they do (with an exit banner; admin powers drop while impersonating).
 - **Accounts** — magic-link email sign-in, plus an optional password (set it in Settings after your first sign-in; scrypt-hashed, lockout after repeated failures, magic link doubles as password recovery). First sign-in claims your username through onboarding. Sessions are 30-day sliding httpOnly cookies backed by Postgres. **Data portability & deletion** — download everything Poachland holds about you as JSON, or delete your account yourself (guarded: blocked while a deal is in flight, type-your-username to confirm); deletion scrubs your personal data and tombstones the row so counterparties' completed deals and exchanged ratings still resolve.
 - **Identity scaffolding** — traders can link Instagram / Facebook / USAU ID handles to their profile (shown as chips); moderators verify them in the admin queue, laying the groundwork for real-life-identity reputation.
@@ -27,7 +27,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Deal proof** — both parties can attach proof photos (packed item, receipt, label) alongside tracking numbers; proof surfaces in the deal room and as evidence in disputes.
 - **The Haul** — a community wall of completed trades. Either party can "show off" a finished deal; the trade sides show as thumbnails with a deliberately *vague, rounded* cash figure (we celebrate the swap, not the receipt). Additive-only reactions (🔥 Heat · 👏 Clean · 🤝 Fair · 😮 Whoa · 🏴‍☠️ Heist — a heist badge is honor, never shame) and comments let the community cheer surprising or lopsided deals without punching down. Weekly leaderboards crown the Heist of the week and the Cleanest deal. Consent-first: the *other* trader can hide any post or turn its comments off at any time; re-sharing brings a hidden post back. There's a public, crawlable `/haul` wall (with its own OG card) so great trades are shareable off-platform.
 - **Sponsors & vendors** — a first-class partners system: community **sponsors** (brands backing the sport) surface in a tasteful "supported by" rail; **vendors** (jersey / disc / apparel / cleats / accessories companies) get a public shop directory at `/shop` and individual pages at `/vendors/[slug]` (crawlable, in the sitemap). Both link out — Poachland doesn't process their sales. Moderators manage them from a Partners panel in the admin dashboard.
-- **Roadmap** — middleman/escrow for high-value deals; object-storage image offload; native app wrappers. Deliberately not built yet: trust features ship first, bloat waits for demand.
+- **Payment model** — Poachland is coordination-only: it does not process payments, hold escrow, insure shipments, or guarantee refunds. The published Deal Safety policy explains evidence, cancellation, and dispute handling. User images upload directly to S3-compatible object storage through short-lived signed URLs; the database stores only HTTPS references.
 
 **Routes:**
 - `/` — Landing page
@@ -39,7 +39,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/browse`, `/wanted` — public, signed-out browse + wanted board (lurk before you join)
 - `/shop`, `/vendors/[slug]` — public sponsor/vendor directory + vendor pages
 - `/app/badges`, `/app/invite` — badge showcase, invite/referral
-- `/terms`, `/privacy`, `/accessibility` — legal + a11y pages
+- `/terms`, `/privacy`, `/accessibility`, `/buyer-protection`, `/community-guidelines` — legal, safety, community, and accessibility policies
 - `/app/listings/[id]/edit` — edit listing
 - `/app/create` — create listing
 - `/app/wanted`, `/app/wanted/create` — wanted board (ISO)
@@ -64,7 +64,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - **Icons:** lucide-react
 - **Data:** Postgres (Neon in production, embedded PGlite for local dev) via Drizzle ORM
 - **Auth:** custom magic-link flow (Resend for email delivery) + optional passwords (scrypt), Postgres-backed sessions
-- **State:** server-authoritative world snapshots with an optimistic client store
+- **Observability:** structured JSON logs, health probe, OpenTelemetry framework and marketplace-operation spans
 - **Deployment:** Vercel
 
 ## Architecture
@@ -76,8 +76,8 @@ lib/
   types.ts           # Domain model (shared client/server)
   shared/ops.ts      # THE CONTRACT: every mutation op + WorldSnapshot shape
   engine.ts          # PoachStore — the rules engine the client runs optimistically
-  remote-store.ts    # RemotePoachStore: applies mutations locally for instant UI,
-                     # dispatches to the server, reconciles with its snapshot
+  remote-store.ts    # RemotePoachStore: applies optimistic deltas, dispatches them,
+                     # consumes compact domain-invalidation receipts
   store-context.tsx  # React binding: useStore(), useHydrated(); refetch on focus/45s
   server/
     schema.ts        # Drizzle Postgres schema (all tables + auth + identities)
@@ -90,7 +90,7 @@ app/actions/         # the only client→server doorway (dispatchOp / fetchBoots
 drizzle/             # committed SQL migrations (pnpm db:generate / db:migrate)
 ```
 
-Every mutation runs twice: once in the browser for instant feedback, then on the server inside a transaction with row locks — the server's snapshot is authoritative and reconciles the client on every response, tab focus, and a 45s poll. Deal/listing ids are client-generated (validated server-side) so optimistic navigation never breaks.
+Every mutation runs twice: once in the browser for instant feedback, then on the server inside a transaction with row locks. Successful writes return only a timestamped list of invalidated domains; affected screen queries refresh selectively. Rejected writes trigger an authoritative rollback refresh, while tab focus and a 45-second safety poll reconcile server-generated fields. Deal/listing ids are client-generated and server-validated so optimistic navigation stays stable without returning the entire marketplace after every write.
 
 ### Deal state machine
 
@@ -112,6 +112,9 @@ pnpm dev        # localhost:3000 — no env vars needed locally:
                 # uses embedded PGlite (./.pglite) and logs magic links
                 # to the console / shows a DEV link on /login
 pnpm build      # production build
+pnpm check      # lint, types, unit/integration, domain smoke, load gate, build
+pnpm test:e2e   # Playwright desktop/mobile journeys
+pnpm test:a11y  # axe WCAG A/AA browser gate
 ```
 
 ### Deploy (Vercel + Neon + Resend)
@@ -124,14 +127,41 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `RESEND_API_KEY` | Resend API key (verify a sending domain!) |
 | `EMAIL_FROM` | e.g. `Poachland <login@yourdomain.com>` |
 | `AUTH_SECRET` | `openssl rand -base64 32` |
+| `CRON_SECRET` | independent random value, at least 32 characters |
 | `ADMIN_EMAILS` | comma-separated moderator emails |
 | `NEXT_PUBLIC_APP_URL` | canonical site origin (used in emails, OG, sitemap) |
+| `STORAGE_ENDPOINT` | S3-compatible endpoint (for example, Cloudflare R2) |
+| `STORAGE_REGION` | provider region; `auto` for R2 |
+| `STORAGE_BUCKET` | private upload bucket name |
+| `STORAGE_ACCESS_KEY_ID` | scoped bucket access key |
+| `STORAGE_SECRET_ACCESS_KEY` | scoped bucket secret |
+| `STORAGE_PUBLIC_URL` | HTTPS CDN/public origin mapped to the bucket |
 
 Then run migrations once against the database:
 
 ```bash
 DATABASE_URL="postgresql://…-pooler…/neondb?sslmode=require" pnpm db:migrate
 ```
+
+Deployments run the same migration through `pnpm deploy:prepare` before the new
+application artifact receives traffic; Vercel invokes `pnpm vercel-build`, which
+enforces that ordering. Production application instances never migrate on cold
+start. Production also requires a random
+`CRON_SECRET` (32+ characters) for the independently scheduled email worker.
+The storage bucket must allow browser `PUT` requests from `NEXT_PUBLIC_APP_URL`
+with `Content-Type`, and public reads should pass through `STORAGE_PUBLIC_URL`.
+Clients resize and JPEG-compress images before upload; signed URLs expire after
+five minutes, inline data URLs are rejected by the server, and unclaimed objects
+are removed after 24 hours by the background worker.
+Operational response, backup/restore, rollback, moderation, and monitoring
+procedures live in [`docs/operations.md`](docs/operations.md); release security
+acceptance is tracked in [`docs/security-checklist.md`](docs/security-checklist.md).
+The beta, accessibility, and load thresholds are defined in
+[`docs/beta-operations.md`](docs/beta-operations.md),
+[`docs/accessibility-acceptance.md`](docs/accessibility-acceptance.md), and
+[`docs/performance-targets.md`](docs/performance-targets.md). First-party event,
+funnel, acquisition, and retention definitions live in
+[`docs/analytics.md`](docs/analytics.md).
 
 Production starts with a clean marketplace (no fake users — that's the point).
 `SEED_DEMO=yes node scripts/db-seed-demo.mjs` can populate a staging DB with

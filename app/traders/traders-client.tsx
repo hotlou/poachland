@@ -10,7 +10,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, MapPin, Search, Users, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useHydrated, useStore } from "@/lib/store-context";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
@@ -181,7 +180,7 @@ export function TradersDirectory() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicSiteHeader />
-      <main id="main-content" className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-5 pt-7 pb-12">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl px-5 pt-7 pb-12">
         <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
           The community
         </p>

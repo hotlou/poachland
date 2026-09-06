@@ -6,6 +6,13 @@ import type {
   ListingType,
 } from "./types";
 
+export const ITEM_TYPES = ["jersey", "disc"] as const;
+export const LEVELS = ["club", "college", "pro", "national", "tournament"] as const;
+export const DIVISIONS = ["open", "women", "mixed", "masters"] as const;
+export const CONDITIONS = ["Mint", "Near Mint", "Good", "Fair", "Worn"] as const;
+export const LISTING_TYPES = ["trade", "sell", "trade+cash", "free"] as const;
+export const SHIPPING_PREFERENCES = ["seller-pays", "buyer-pays", "local-only"] as const;
+
 export const CONDITION_COLORS: Record<Condition, string> = {
   Mint: "text-emerald-700 border-emerald-600 bg-emerald-600/10 dark:text-emerald-400 dark:border-emerald-400 dark:bg-transparent",
   "Near Mint": "text-sky-700 border-sky-600 bg-sky-600/10 dark:text-cyan-400 dark:border-cyan-400 dark:bg-transparent",

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { STOCK_AVATARS } from "@/lib/constants";
-import { fileToDataUrl } from "@/lib/image";
+import { uploadImage } from "@/lib/image";
 import type { HistoryEntry, User } from "@/lib/types";
 
 const MAX_BIO = 500;
@@ -132,7 +132,7 @@ function EditForm({ me }: { me: User }) {
     setUploading(true);
     try {
       const urls = await Promise.all(
-        files.slice(0, room).map((f) => fileToDataUrl(f, 800)),
+        files.slice(0, room).map((f) => uploadImage(f, 800)),
       );
       setGallery((g) => [...g, ...urls].slice(0, MAX_GALLERY));
     } catch {

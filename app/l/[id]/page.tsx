@@ -70,5 +70,5 @@ export default async function PublicListingPage({ params }: PageProps) {
   const l = await getPublicListing(id);
   if (!l) notFound();
 
-  return <PublicListingView id={l.id} />;
+  return <PublicListingView listing={l} />;
 }

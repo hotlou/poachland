@@ -21,6 +21,7 @@ import {
 import { promisify } from "node:util";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { getDb, type Db } from "./db";
+import { recordAdminAudit } from "./audit";
 import { underRateLimit } from "./rate-limit";
 import { loginTokens, sessions, users, type UserRow } from "./schema";
 
@@ -515,13 +516,26 @@ export async function startImpersonation(
     .update(sessions)
     .set({ impersonatingUserId: targetUserId })
     .where(eq(sessions.id, sessionId));
-  console.log(`[audit] admin ${row.user.username} started using-as @${target.username}`);
+  await recordAdminAudit(db, row.user, "adminStartImpersonation", { type: "user", id: target.id }, {
+    targetUsername: target.username,
+  });
   return { ok: true };
 }
 
 export async function stopImpersonation(sessionId: string): Promise<void> {
   const db = await getDb();
+  const [row] = await db
+    .select({ session: sessions, user: users })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.id, sessionId));
   await db.update(sessions).set({ impersonatingUserId: null }).where(eq(sessions.id, sessionId));
+  if (row?.user.isAdmin && row.session.impersonatingUserId) {
+    await recordAdminAudit(db, row.user, "adminStopImpersonation", {
+      type: "user",
+      id: row.session.impersonatingUserId,
+    });
+  }
 }
 
 export async function destroySession(sessionId: string): Promise<void> {
