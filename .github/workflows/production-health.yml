@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: production-health
@@ -22,4 +23,11 @@ jobs:
         with:
           node-version: 22
       - name: Probe production from outside Vercel
+        id: probe
         run: node scripts/production-smoke.mjs https://poachland.com https://www.poachland.com
+      - name: Report confirmed failure or recovery
+        if: ${{ always() && !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+        run: node scripts/production-health-alert.mjs

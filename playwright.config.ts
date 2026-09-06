@@ -2,7 +2,13 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: true,
+  // The browser suite shares one embedded PGlite database. Serial CI execution
+  // avoids competing migrations and writes while preserving per-test isolation.
+  fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
+  // Authenticated marketplace journeys intentionally exercise multiple users,
+  // page compilations, and the complete deal lifecycle.
+  timeout: 90_000,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: "http://127.0.0.1:3000", trace: "on-first-retry" },

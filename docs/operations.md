@@ -2,6 +2,17 @@
 
 This runbook is the minimum production procedure for Poachland. Record every exercise and incident in the team incident system with timestamps, operator, environment, and evidence links.
 
+## Authoritative Vercel project
+
+- Production project: `hotlous-projects/v0-poachland`
+- Project ID: `prj_HywlhAsFVMBqCVmbDRagxMwPVeRz`
+- Production domain: `https://poachland.com`
+- The local `.vercel/project.json` must name `v0-poachland` and the project ID
+  above before any CLI environment mutation, deployment, or rollback.
+- `v0-poachland-community-app` is a legacy project and is not a staging target.
+  Do not add production credentials or promote deployments there. Disconnect
+  its Git integration when its historical deployments are no longer needed.
+
 ## Deploy and rollback
 
 1. Confirm the target commit passed the `Quality` and `Security` workflows.
@@ -19,7 +30,14 @@ For rollback, stop traffic to the bad artifact, redeploy the last known-good imm
 - Enable provider-managed point-in-time recovery and daily logical backups, encrypted with access limited to production operators.
 - Retain daily backups for 30 days and monthly backups for 12 months. Alert on missing or failed backups.
 - Quarterly, restore the latest backup into an isolated account/project. Never restore over production during an exercise.
-- Run migrations, compare row counts for users/listings/deals/messages, sample referential integrity, and run `pnpm test:smoke` against the restored database.
+- Run current migrations against the isolated target, then execute
+  `RESTORE_DRILL=yes RESTORE_DATABASE_URL='<isolated-url>' pnpm verify:restore`.
+  The verifier opens a read-only transaction, checks migration parity, records
+  users/listings/deals/messages row counts, checks core referential integrity,
+  and fails if the primary schema contains binary columns. Compare its counts
+  with the source backup manifest and attach the redacted JSON output to the
+  release record. Run `pnpm test:smoke` against the restored database as the
+  final application-level check.
 - Measure recovery point and recovery time. Target RPO: 24 hours; target RTO: 4 hours. Delete the isolated copy after evidence is retained.
 
 ## Incident response
@@ -51,7 +69,13 @@ rotate them immediately after suspected exposure.
 
 ## Routine checks
 
-- Continuously probe `/api/health` from outside the hosting provider and alert after two consecutive HTTP failures or `status: degraded` responses. The probe exposes only component states for database connectivity, email delivery, and abandoned-upload cleanup—never queue contents or credentials.
+- Continuously probe `/api/health` from outside the hosting provider and alert
+  after two consecutive HTTP failures or `status: degraded` responses. The
+  GitHub `Production health` workflow opens one deduplicated operations issue
+  on the confirming failure, adds evidence while failure persists, and closes
+  it after a successful recovery probe. The probe exposes only component states
+  for database connectivity, email delivery, and abandoned-upload cleanup—never
+  queue contents or credentials.
 - The `Production health` GitHub workflow provides a five-minute external
   baseline probe of public routes, dependency health, response security
   headers, and canonical-host redirects. Enable GitHub Actions failure

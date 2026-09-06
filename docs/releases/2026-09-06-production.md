@@ -5,11 +5,11 @@ authoritative evidence. It contains no credentials or customer data.
 
 ## Deployed artifact
 
-- Git revision: `f43fb6db519f3cc24cdb2861e55810a303d147b0`
-- Vercel deployment: `dpl_129GoYGEz2hFqR9i13kvhvuhomLP`
-- Immutable URL: `https://v0-poachland-3536xnl12-hotlous-projects.vercel.app`
+- Git revision: `a53a7464a04d5a48eec16b8124b183a7ca652b86`
+- Vercel deployment: `dpl_ARsga2LvStYctFyJ8eUbZi9sgwa7`
+- Immutable URL: `https://v0-poachland-by6fcv8a5-hotlous-projects.vercel.app`
 - Production aliases: `https://poachland.com`, `https://www.poachland.com`
-- Vercel state observed at 2026-09-06 20:56 UTC: Ready
+- Vercel state observed at 2026-09-06 22:38 UTC: Ready
 
 ## Verified evidence
 
@@ -21,23 +21,32 @@ authoritative evidence. It contains no credentials or customer data.
   permissions headers.
 - An authenticated operator exercised production sign-in and a Vercel Blob
   image upload successfully after this deployment.
+- `pnpm verify:production -- https://poachland.com https://www.poachland.com`
+  passed at 2026-09-06 22:38 UTC. Public and policy routes, dependency health,
+  no-store health caching, required security headers, and the permanent
+  canonical redirect all passed against the current production aliases.
 - Security workflow passed for the deployed revision:
-  `https://github.com/hotlou/poachland/actions/runs/34059000676`.
+  `https://github.com/hotlou/poachland/actions/runs/34064121767`.
+- The external `Production health` workflow passed by manual dispatch against
+  the deployed revision at 2026-09-06 22:39 UTC:
+  `https://github.com/hotlou/poachland/actions/runs/34064632613`.
+- Vercel production runtime logs show the authenticated background worker
+  completing at 22:30, 22:35, and 22:40 UTC. Each run independently processed
+  the email queue and abandoned-upload cleanup with zero dead letters and zero
+  cleanup backlog, confirming the five-minute cron is active without user
+  traffic.
 - The complete local `pnpm check` gate passed on the pending follow-up worktree:
   lint, types, 52 unit/integration tests, migration safety, 60 smoke checks,
   representative load targets, and the production build.
 
 ## Open release gates
 
-- Quality CI failed for the deployed revision because Playwright started a
-  production server without its production service contract. The verified
-  worktree fix uses an isolated development database for browser journeys and
-  still runs the production build separately; it requires a commit and green
-  GitHub run.
-- `www.poachland.com` currently serves HTTP 200 instead of permanently
-  redirecting to the canonical origin. The pending worktree emits a 308 rule in
-  the production routes manifest and the external probe will gate it after
-  deployment.
+- Quality CI for the deployed revision reached all 18 desktop journeys: 13
+  passed, one passed on retry, and four complete marketplace lifecycle tests
+  exceeded Playwright's 30-second default while two workers shared the single
+  embedded test database. The pending worktree serializes that test database
+  and gives multi-user lifecycle journeys 90 seconds; it requires a commit and
+  green desktop/mobile GitHub run.
 - Attach successful production migration-job evidence; a healthy schema is not
   proof of which deployment step applied it.
 - Configure and exercise production alerts for 5xx, latency, database pool
