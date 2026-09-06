@@ -53,10 +53,10 @@ export function CookieNotice() {
         inApp ? "bottom-20 md:bottom-3" : "bottom-3",
       )}
     >
-      <div className="pointer-events-auto flex items-center gap-3 max-w-md w-full rounded-xl border border-border bg-card/95 backdrop-blur shadow-lg px-4 py-2.5">
+      <div className="pointer-events-none flex items-center gap-3 max-w-md w-full rounded-xl border border-border bg-card/95 backdrop-blur shadow-lg px-4 py-2.5">
         <p className="text-xs text-muted-foreground leading-relaxed flex-1">
           We use only essential cookies to keep you signed in — no ad tracking.{" "}
-          <Link href="/privacy" className="text-accent font-semibold hover:underline">
+          <Link href="/privacy" className="pointer-events-auto text-accent font-semibold hover:underline">
             Privacy
           </Link>
           .
@@ -64,7 +64,7 @@ export function CookieNotice() {
         <button
           type="button"
           onClick={dismiss}
-          className="text-xs font-semibold text-accent whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-accent/10 transition-colors"
+          className="pointer-events-auto text-xs font-semibold text-accent whitespace-nowrap px-2.5 py-1 rounded-full hover:bg-accent/10 transition-colors"
         >
           Got it
         </button>
@@ -72,7 +72,7 @@ export function CookieNotice() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss cookie notice"
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="pointer-events-auto text-muted-foreground hover:text-foreground transition-colors"
         >
           <X size={14} />
         </button>
