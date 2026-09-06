@@ -18,10 +18,14 @@ import {
   readSessionUser,
   setSessionCookie,
 } from "@/lib/server/session";
-import { canonicalOrigin } from "@/lib/env";
+import { canonicalOrigin, isE2ETestRuntime } from "@/lib/env";
 
 function resolveOrigin(): string {
-  return canonicalOrigin(process.env.NODE_ENV === "production" ? "https://poachland.com" : "http://localhost:3000");
+  return canonicalOrigin(
+    process.env.NODE_ENV === "production" && !isE2ETestRuntime()
+      ? "https://poachland.com"
+      : "http://localhost:3000",
+  );
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */

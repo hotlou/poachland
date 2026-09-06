@@ -15,9 +15,24 @@ export const environmentSchema = z.object({
   ADMIN_EMAILS: z.string().optional(),
   NEXT_PUBLIC_APP_URL: optionalUrl,
   SEED_DEMO: z.enum(["yes", "no"]).optional(),
+  CI: z.enum(["true"]).optional(),
+  POACHLAND_E2E_MODE: z.enum(["1"]).optional(),
   VERCEL: z.enum(["1"]).optional(),
 }).superRefine((environment, context) => {
+  const e2eRequested = environment.POACHLAND_E2E_MODE === "1";
+  const isolatedE2E = isE2ETestRuntime(environment);
+  if (e2eRequested && !isolatedE2E) {
+    context.addIssue({
+      code: "custom",
+      path: ["POACHLAND_E2E_MODE"],
+      message: "POACHLAND_E2E_MODE requires CI=true, PGLITE_PATH, and a non-Vercel runtime",
+    });
+  }
   if (environment.NODE_ENV !== "production") return;
+  // Playwright exercises the built production artifact in GitHub Actions, but
+  // against an isolated embedded database with local-only magic links. This
+  // escape hatch is deliberately impossible on Vercel.
+  if (isolatedE2E) return;
   for (const key of [
     "DATABASE_URL",
     "RESEND_API_KEY",
@@ -36,6 +51,14 @@ export const environmentSchema = z.object({
 });
 
 export type AppEnvironment = z.infer<typeof environmentSchema>;
+
+export function isE2ETestRuntime(input: Record<string, unknown> = process.env): boolean {
+  return input.POACHLAND_E2E_MODE === "1"
+    && input.CI === "true"
+    && typeof input.PGLITE_PATH === "string"
+    && input.PGLITE_PATH.length > 0
+    && input.VERCEL !== "1";
+}
 
 let cached: AppEnvironment | undefined;
 

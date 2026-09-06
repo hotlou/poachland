@@ -8,6 +8,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { isE2ETestRuntime } from "../env";
 import { getSessionContext, getSessionUser, type SessionContext, type SessionUser } from "./auth";
 
 export const SESSION_COOKIE = "poach_session";
@@ -17,7 +18,7 @@ export function sessionCookieOptions(maxAge: number = SESSION_COOKIE_MAX_AGE) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && !isE2ETestRuntime(),
     path: "/",
     maxAge,
   };

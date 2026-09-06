@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { canonicalOrigin } from "../env";
+import { canonicalOrigin, isE2ETestRuntime } from "../env";
 
 export function isTrustedMutationOrigin(
   originHeader: string | null,
@@ -18,7 +18,9 @@ export function isTrustedMutationOrigin(
 /** Explicit CSRF boundary for cookie-authenticated Route Handler mutations. */
 export function hasTrustedMutationOrigin(request: NextRequest): boolean {
   const expected = canonicalOrigin(
-    process.env.NODE_ENV === "production" ? "https://poachland.com" : request.nextUrl.origin,
+    process.env.NODE_ENV === "production" && !isE2ETestRuntime()
+      ? "https://poachland.com"
+      : request.nextUrl.origin,
   );
   return isTrustedMutationOrigin(
     request.headers.get("origin"),

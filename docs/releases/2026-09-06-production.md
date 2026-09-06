@@ -36,17 +36,22 @@ authoritative evidence. It contains no credentials or customer data.
   cleanup backlog, confirming the five-minute cron is active without user
   traffic.
 - The complete local `pnpm check` gate passed on the pending follow-up worktree:
-  lint, types, 52 unit/integration tests, migration safety, 60 smoke checks,
+  lint, types, 53 unit/integration tests, migration safety, 61 smoke checks,
   representative load targets, and the production build.
 
 ## Open release gates
 
-- Quality CI for the deployed revision reached all 18 desktop journeys: 13
-  passed, one passed on retry, and four complete marketplace lifecycle tests
-  exceeded Playwright's 30-second default while two workers shared the single
-  embedded test database. The pending worktree serializes that test database
-  and gives multi-user lifecycle journeys 90 seconds; it requires a commit and
-  green desktop/mobile GitHub run.
+- Quality CI run `34065012148` for revision `4dca324` completed the full local
+  quality gate, then was cancelled at the 20-minute job limit during desktop
+  Playwright. Its server/browser logs captured a Next development-server Fast
+  Refresh reload followed by `Router action dispatched before initialization`
+  and a truncated JSON response on `/app/create`; downstream lifecycle tests
+  consequently timed out and mobile never ran. The pending worktree runs CI
+  journeys against the already-built production server while retaining an
+  isolated PGlite database and local magic links. The exception is accepted
+  only with `CI=true`, an explicit `PGLITE_PATH`, and a non-Vercel runtime. It
+  has passed the complete local `pnpm check` gate and still requires a commit
+  and green desktop/mobile GitHub run.
 - Attach successful production migration-job evidence; a healthy schema is not
   proof of which deployment step applied it.
 - Configure and exercise production alerts for 5xx, latency, database pool

@@ -28,4 +28,18 @@ describe("environment schema", () => {
     expect(() => environmentSchema.parse(production)).not.toThrow();
     expect(() => environmentSchema.parse({ ...production, NEXT_PUBLIC_APP_URL: "http://poachland.example" })).toThrow();
   });
+
+  it("allows the production artifact to use isolated services only in non-Vercel CI E2E", () => {
+    const e2e = {
+      NODE_ENV: "production",
+      CI: "true",
+      POACHLAND_E2E_MODE: "1",
+      PGLITE_PATH: ".pglite-e2e",
+    } as const;
+
+    expect(() => environmentSchema.parse(e2e)).not.toThrow();
+    expect(() => environmentSchema.parse({ ...e2e, CI: undefined })).toThrow(/CI=true/);
+    expect(() => environmentSchema.parse({ ...e2e, PGLITE_PATH: undefined })).toThrow(/PGLITE_PATH/);
+    expect(() => environmentSchema.parse({ ...e2e, VERCEL: "1" })).toThrow(/non-Vercel/);
+  });
 });

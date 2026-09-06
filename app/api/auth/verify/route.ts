@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyMagicLink } from "@/lib/server/auth";
 import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session";
-import { canonicalOrigin } from "@/lib/env";
+import { canonicalOrigin, isE2ETestRuntime } from "@/lib/env";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const origin = canonicalOrigin(process.env.NODE_ENV === "production" ? "https://poachland.com" : request.nextUrl.origin);
+  const origin = canonicalOrigin(
+    process.env.NODE_ENV === "production" && !isE2ETestRuntime()
+      ? "https://poachland.com"
+      : request.nextUrl.origin,
+  );
   const token = request.nextUrl.searchParams.get("token") ?? "";
   const result = token ? await verifyMagicLink(token) : null;
 

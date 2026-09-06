@@ -12,15 +12,19 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: { baseURL: "http://127.0.0.1:3000", trace: "on-first-retry" },
-  // Browser journeys use an isolated development database so magic links stay
-  // local and CI never needs production credentials. `pnpm check` separately
-  // builds and validates the production artifact before this step runs.
+  // CI exercises the exact artifact built by `pnpm check`. Local development
+  // retains the faster dev server. Both use an isolated embedded database.
   webServer: {
-    command: "pnpm dev --webpack",
+    command: process.env.CI ? "pnpm start" : "pnpm dev --webpack",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { PGLITE_PATH: ".pglite-e2e", WATCHPACK_POLLING: "true" },
+    env: {
+      PGLITE_PATH: ".pglite-e2e",
+      ...(process.env.CI
+        ? { POACHLAND_E2E_MODE: "1" }
+        : { WATCHPACK_POLLING: "true" }),
+    },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
