@@ -287,7 +287,7 @@ function toActivityEvent(row: ActivityRow): ActivityEvent {
   };
 }
 
-function toIdentityRecord(row: IdentityRow): IdentityRecord {
+function toIdentityRecord(row: IdentityRow, includeReviewerNote = false): IdentityRecord {
   return {
     id: row.id,
     userId: row.userId,
@@ -297,7 +297,7 @@ function toIdentityRecord(row: IdentityRow): IdentityRecord {
     status: row.status,
     submittedAt: iso(row.submittedAt),
     verifiedAt: isoOpt(row.verifiedAt),
-    reviewerNote: row.reviewerNote ?? undefined,
+    reviewerNote: includeReviewerNote ? row.reviewerNote ?? undefined : undefined,
   };
 }
 
@@ -412,7 +412,16 @@ export async function buildSnapshot(
         .from(activity)
         .orderBy(desc(activity.createdAt), desc(activity.id))
         .limit(ACTIVITY_LIMIT),
-      db.select().from(identities).orderBy(desc(identities.submittedAt), desc(identities.id)).limit(BOOTSTRAP_IDENTITY_LIMIT),
+      db
+        .select()
+        .from(identities)
+        .where(
+          viewerId
+            ? or(eq(identities.status, "verified"), eq(identities.userId, viewerId))
+            : eq(identities.status, "verified"),
+        )
+        .orderBy(desc(identities.submittedAt), desc(identities.id))
+        .limit(BOOTSTRAP_IDENTITY_LIMIT),
       db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)).limit(BOOTSTRAP_HAUL_LIMIT),
       db
         .select()
@@ -764,7 +773,7 @@ export async function buildSnapshot(
       .filter((a) => !hidden.has(a.actorId))
       .map(toActivityEvent)
       .reverse(), // chronological
-    identities: identityRows.map(toIdentityRecord),
+    identities: identityRows.map((row) => toIdentityRecord(row, row.userId === viewerId)),
     paymentMethods: paymentRows.map(toPaymentMethod),
     haulPosts: hydratedHaul,
     partners: partnerRows.map(toPartner),
@@ -864,7 +873,7 @@ export async function buildAdminData(): Promise<AdminData> {
   return {
     reports: reportRows.map(toReport),
     disputedDeals: disputedRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
-    identityQueue: identityQueue.map(toIdentityRecord),
+    identityQueue: identityQueue.map((row) => toIdentityRecord(row, true)),
     partners: partnerRows.map(toPartner),
     users: userRows.map((u) => ({
       ...toUserRecord(u),

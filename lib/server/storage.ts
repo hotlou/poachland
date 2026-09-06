@@ -52,8 +52,31 @@ export async function verifyAndRecordBlobUpload(ownerUserId: string, url: string
 }
 
 export async function claimImageUploads(db: Db, userId: string, urls: string[]): Promise<void> {
-  if (urls.length === 0) return;
-  await db.update(objectUploads).set({ claimedAt: new Date() }).where(and(eq(objectUploads.ownerUserId, userId), inArray(objectUploads.publicUrl, urls), isNull(objectUploads.deletedAt)));
+  const objectUrls = [...new Set(urls.filter((url) => url.startsWith("https://")))];
+  if (objectUrls.length === 0) return;
+  const owned = await db
+    .select({ url: objectUploads.publicUrl })
+    .from(objectUploads)
+    .where(
+      and(
+        eq(objectUploads.ownerUserId, userId),
+        inArray(objectUploads.publicUrl, objectUrls),
+        isNull(objectUploads.deletedAt),
+      ),
+    );
+  if (owned.length !== objectUrls.length) {
+    throw new Error("Image upload is missing or belongs to another account");
+  }
+  await db
+    .update(objectUploads)
+    .set({ claimedAt: new Date() })
+    .where(
+      and(
+        eq(objectUploads.ownerUserId, userId),
+        inArray(objectUploads.publicUrl, objectUrls),
+        isNull(objectUploads.deletedAt),
+      ),
+    );
 }
 
 export async function cleanupAbandonedUploads(limit = 100): Promise<number> {

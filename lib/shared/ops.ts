@@ -43,11 +43,13 @@ import type {
 /**
  * The viewer's world. Same shape the client engine already consumes (DBState)
  * plus session info. Privacy scoping is done server-side:
- *  - public collections: bounded recent discovery windows (never emails)
+ *  - public collections: bounded recent discovery windows (never emails;
+ *    identities include verified records only)
  *  - relationship allowlist: viewer/counterparties and referenced items
  *  - activity/messages/notifications: bounded recent windows
  *  - deals, threads, messages, notifications, saves, blocks, reports: only
- *    rows involving the viewer
+ *    rows involving the viewer; the viewer can also see their own pending or
+ *    rejected identity submissions
  * Signed-out viewers get bounded public collections with `me: null` and empty
  * private collections.
  */

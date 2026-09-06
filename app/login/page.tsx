@@ -175,7 +175,7 @@ function LoginCard() {
                     <input
                       type="email"
                       name="email"
-                      autoComplete="username email"
+                      autoComplete="email"
                       inputMode="email"
                       placeholder="you@example.com"
                       value={email}

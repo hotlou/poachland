@@ -32,7 +32,7 @@
   --muted: oklch(0.93 0.012 90);
 
   /* Friendly pops (badges, highlights) */
-  --pop: oklch(0.62 0.17 40);                 /* burnt orange */
+  --pop: oklch(0.54 0.17 40);                 /* accessible burnt orange */
   --pop-foreground: oklch(0.99 0 0);
   --sunny: oklch(0.88 0.12 95);               /* "rare find" yellow pill */
   --sunny-foreground: oklch(0.35 0.06 80);

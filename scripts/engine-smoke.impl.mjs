@@ -18,6 +18,7 @@ import path from "node:path";
 delete process.env.DATABASE_URL;
 delete process.env.RESEND_API_KEY;
 process.env.ADMIN_EMAILS = "admin@smoke.local";
+process.env.BLOB_STORE_ID = "store_smoke123";
 
 const dataDir = path.join(process.cwd(), ".pglite-engine-smoke");
 fs.rmSync(dataDir, { recursive: true, force: true });
@@ -31,6 +32,7 @@ const { requestMagicLink, verifyMagicLink, getSessionUser } = await import(
 );
 const { executeOp } = await import("../lib/server/engine.ts");
 const { flushEmailOutbox } = await import("../lib/server/email.ts");
+const { claimImageUploads } = await import("../lib/server/storage.ts");
 const { buildSnapshot, buildAdminData } = await import("../lib/server/snapshot.ts");
 const { queryMarketplaceListing, queryMarketplacePage } = await import("../lib/server/marketplace-query.ts");
 const { queryWantedPage } = await import("../lib/server/wanted-query.ts");
@@ -140,6 +142,30 @@ const m2 = cid("m");
 const idn1 = cid("idn");
 
 try {
+  await check("Blob uploads can only be claimed by their owner", async () => {
+    const db = await getDb();
+    const uploadId = "upl_00000000000000000000000000000001";
+    const objectKey = `${uploadId}.jpg`;
+    const publicUrl = `https://${process.env.BLOB_STORE_ID}.public.blob.vercel-storage.com/uploads/${objectKey}`;
+    await db.insert(schema.objectUploads).values({
+      id: uploadId,
+      ownerUserId: A,
+      objectKey: `uploads/${objectKey}`,
+      publicUrl,
+      contentType: "image/jpeg",
+      byteSize: 128,
+    });
+    await assert.rejects(
+      () => claimImageUploads(db, B, [publicUrl]),
+      /belongs to another account/,
+    );
+    let [upload] = await db.select().from(schema.objectUploads).where(eq(schema.objectUploads.id, uploadId));
+    assert.equal(upload.claimedAt, null, "failed cross-account claim leaves upload unclaimed");
+    await claimImageUploads(db, A, [publicUrl]);
+    [upload] = await db.select().from(schema.objectUploads).where(eq(schema.objectUploads.id, uploadId));
+    assert.ok(upload.claimedAt, "owner can claim their upload");
+  });
+
   await check("ops are gated until onboarding completes", async () => {
     expectErr(
       await op(sA, "createListing", { id: cid("l"), input: listingInput() }),
@@ -1030,6 +1056,30 @@ try {
   });
 
   await check("snapshot privacy: viewer sees only their own private rows, no emails", async () => {
+    const privateIdentityId = cid("idn");
+    const publicIdentityId = cid("idn");
+    expectOk(await op(sB, "linkIdentity", {
+      id: privateIdentityId,
+      provider: "other",
+      handle: "bob-private-review",
+      url: "https://example.com/bob-private-review",
+    }));
+    expectOk(await op(sM, "adminReviewIdentity", {
+      identityId: privateIdentityId,
+      status: "rejected",
+      note: "The submitted profile did not provide enough matching evidence.",
+    }));
+    expectOk(await op(sC, "linkIdentity", {
+      id: publicIdentityId,
+      provider: "usau",
+      handle: "carol-public-profile",
+      url: "https://play.usaultimate.org/teams/events/Eventteam/?TeamId=1234",
+    }));
+    expectOk(await op(sM, "adminReviewIdentity", {
+      identityId: publicIdentityId,
+      status: "verified",
+      note: "The submitted USA Ultimate profile matched the account owner.",
+    }));
     const snap = await buildSnapshot(A);
     assert.ok(snap.users.length >= 4, "public profiles present");
     for (const u of snap.users) {
@@ -1047,6 +1097,27 @@ try {
     assert.ok(!snap.threads.some((t) => t.id === t5), "A can't see the B↔C thread");
     assert.ok(byId(snap.listings, CL1), "public listings of others visible");
     assert.equal(snap.ratings.length, 2, "public ratings visible");
+    assert.ok(
+      !snap.identities.some((identity) => identity.id === privateIdentityId),
+      "another member's rejected identity and reviewer note stay private",
+    );
+    const publicIdentity = byId(snap.identities, publicIdentityId);
+    assert.equal(publicIdentity.status, "verified", "verified identity is public");
+    assert.equal(publicIdentity.reviewerNote, undefined, "moderator rationale is not public");
+    const ownerSnap = await buildSnapshot(B);
+    const ownerIdentity = byId(ownerSnap.identities, privateIdentityId);
+    assert.equal(ownerIdentity.status, "rejected", "owner sees their identity decision");
+    assert.equal(
+      ownerIdentity.reviewerNote,
+      "The submitted profile did not provide enough matching evidence.",
+      "owner sees the reviewer rationale",
+    );
+    const publicOwnerIdentity = byId((await buildSnapshot(C)).identities, publicIdentityId);
+    assert.equal(
+      publicOwnerIdentity.reviewerNote,
+      "The submitted USA Ultimate profile matched the account owner.",
+      "verified identity owner sees the reviewer rationale",
+    );
     assert.equal(snap.me.email, "alice@smoke.local");
     assert.equal(snap.me.isAdmin, false);
   });
@@ -1059,6 +1130,10 @@ try {
       [snap.deals, snap.threads, snap.messages, snap.notifications, snap.saves, snap.reports, snap.blocks].map((c) => c.length),
       [0, 0, 0, 0, 0, 0, 0],
       "private collections empty",
+    );
+    assert.ok(
+      snap.identities.every((identity) => identity.status === "verified"),
+      "signed-out bootstrap exposes verified identities only",
     );
     for (const u of snap.users) assert.ok(!("email" in u));
   });
