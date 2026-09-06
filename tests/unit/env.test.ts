@@ -21,11 +21,8 @@ describe("environment schema", () => {
       EMAIL_FROM: "Poachland <hello@poachland.example>",
       AUTH_SECRET: "x".repeat(32),
       CRON_SECRET: "y".repeat(32),
-      STORAGE_ENDPOINT: "https://storage.example",
-      STORAGE_BUCKET: "poachland",
-      STORAGE_ACCESS_KEY_ID: "key",
-      STORAGE_SECRET_ACCESS_KEY: "secret",
-      STORAGE_PUBLIC_URL: "https://cdn.poachland.example",
+      BLOB_STORE_ID: "store_abc123",
+      BLOB_WEBHOOK_PUBLIC_KEY: "public-key",
       NEXT_PUBLIC_APP_URL: "https://poachland.example",
     } as const;
     expect(() => environmentSchema.parse(production)).not.toThrow();

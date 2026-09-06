@@ -24,3 +24,11 @@ Build success is not sufficient evidence that the production server can boot. Ru
 - Completed manual browser, keyboard, screen-reader, zoom, contrast, and reduced-motion matrix.
 
 Never put real credentials, tokens, payment handles, addresses, or customer data in the release record.
+
+## Vercel Blob service contract
+
+Production and Preview use a connected public Vercel Blob store. The platform
+supplies `BLOB_STORE_ID`, `BLOB_WEBHOOK_PUBLIC_KEY`, and the rotating runtime
+OIDC credential. Do not add the legacy S3 `STORAGE_*` variables or a static Blob
+read/write token. After connecting or replacing a store, redeploy and exercise
+an authenticated image upload plus the abandoned-upload cleanup worker.

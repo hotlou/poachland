@@ -1,15 +1,15 @@
-/** Allow only bundled assets or objects inside the configured public CDN. */
-export function isAllowedImageReference(value: unknown, storagePublicUrl?: string): value is string {
+/** Allow only bundled assets or objects in the project's public Vercel Blob store. */
+export function isAllowedImageReference(value: unknown, blobStoreId?: string): value is string {
   if (typeof value !== "string" || value.length > 2048) return false;
   if (value.startsWith("/")) {
     return !value.startsWith("//") && !value.includes("\\") && !value.includes("..") &&
       (value.startsWith("/images/") || value === "/placeholder.jpg" || value === "/placeholder-user.jpg");
   }
-  if (!storagePublicUrl) return false;
+  if (!blobStoreId || !/^store_[A-Za-z0-9]+$/.test(blobStoreId)) return false;
   try {
     const url = new URL(value);
-    const base = new URL(storagePublicUrl.endsWith("/") ? storagePublicUrl : `${storagePublicUrl}/`);
-    return url.protocol === "https:" && url.origin === base.origin && url.pathname.startsWith(base.pathname) &&
+    return url.protocol === "https:" && url.hostname === `${blobStoreId}.public.blob.vercel-storage.com` &&
+      url.pathname.startsWith("/uploads/") &&
       !url.username && !url.password && !url.search && !url.hash;
   } catch {
     return false;

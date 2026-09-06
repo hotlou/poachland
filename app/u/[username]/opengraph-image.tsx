@@ -31,7 +31,7 @@ const STAR_EMPTY = "#d9d3c2";
 async function loadAvatar(avatar: string): Promise<string | null> {
   try {
     if (!avatar) return null;
-    if (!isAllowedImageReference(avatar, process.env.STORAGE_PUBLIC_URL)) return null;
+    if (!isAllowedImageReference(avatar, process.env.BLOB_STORE_ID)) return null;
     const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com";
     let url: string;
     if (avatar.startsWith("https://")) {

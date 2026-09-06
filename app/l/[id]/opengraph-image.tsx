@@ -32,7 +32,7 @@ const MUTED = "#6f6a5c";
 async function loadPhoto(photo: string): Promise<string | null> {
   try {
     if (!photo) return null;
-    if (!isAllowedImageReference(photo, process.env.STORAGE_PUBLIC_URL)) return null;
+    if (!isAllowedImageReference(photo, process.env.BLOB_STORE_ID)) return null;
     const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com";
     let url: string;
     if (photo.startsWith("https://")) {

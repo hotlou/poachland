@@ -24,14 +24,20 @@ export async function uploadImage(file: File, maxEdge = 1600): Promise<string> {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Image encoding failed")), "image/jpeg", 0.82),
   );
   bitmap.close();
-  const signed = await fetch("/api/uploads/sign", {
+  const { uploadPresigned } = await import("@vercel/blob/client");
+  const pathname = `uploads/upl_${crypto.randomUUID().replaceAll("-", "")}.jpg`;
+  const uploaded = await uploadPresigned(pathname, blob, {
+    access: "public",
+    handleUploadUrl: "/api/uploads/sign",
+    contentType: blob.type,
+    clientPayload: JSON.stringify({ contentType: blob.type, byteSize: blob.size }),
+  });
+  const completed = await fetch("/api/uploads/sign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contentType: blob.type, byteSize: blob.size }),
+    body: JSON.stringify({ type: "poachland.upload-completed", url: uploaded.url }),
   });
-  const payload = await signed.json() as { uploadUrl?: string; imageUrl?: string; error?: string };
-  if (!signed.ok || !payload.uploadUrl || !payload.imageUrl) throw new Error(payload.error ?? "Upload unavailable");
-  const uploaded = await fetch(payload.uploadUrl, { method: "PUT", headers: { "Content-Type": blob.type }, body: blob });
-  if (!uploaded.ok) throw new Error("Object storage rejected the upload");
+  const payload = await completed.json() as { imageUrl?: string; error?: string };
+  if (!completed.ok || !payload.imageUrl) throw new Error(payload.error ?? "Upload unavailable");
   return payload.imageUrl;
 }

@@ -130,12 +130,8 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `CRON_SECRET` | independent random value, at least 32 characters |
 | `ADMIN_EMAILS` | comma-separated moderator emails |
 | `NEXT_PUBLIC_APP_URL` | canonical site origin (used in emails, OG, sitemap) |
-| `STORAGE_ENDPOINT` | S3-compatible endpoint (for example, Cloudflare R2) |
-| `STORAGE_REGION` | provider region; `auto` for R2 |
-| `STORAGE_BUCKET` | private upload bucket name |
-| `STORAGE_ACCESS_KEY_ID` | scoped bucket access key |
-| `STORAGE_SECRET_ACCESS_KEY` | scoped bucket secret |
-| `STORAGE_PUBLIC_URL` | HTTPS CDN/public origin mapped to the bucket |
+| `BLOB_STORE_ID` | connected public Vercel Blob store identifier |
+| `BLOB_WEBHOOK_PUBLIC_KEY` | Vercel-managed key used to verify upload-completion callbacks |
 
 Then run migrations once against the database:
 
@@ -148,11 +144,13 @@ application artifact receives traffic; Vercel invokes `pnpm vercel-build`, which
 enforces that ordering. Production application instances never migrate on cold
 start. Production also requires a random
 `CRON_SECRET` (32+ characters) for the independently scheduled email worker.
-The storage bucket must allow browser `PUT` requests from `NEXT_PUBLIC_APP_URL`
-with `Content-Type`, and public reads should pass through `STORAGE_PUBLIC_URL`.
-Clients resize and JPEG-compress images before upload; signed URLs expire after
-five minutes, inline data URLs are rejected by the server, and unclaimed objects
-are removed after 24 hours by the background worker.
+Connect a public Vercel Blob store to both Preview and Production. Vercel adds
+`BLOB_STORE_ID`, `BLOB_WEBHOOK_PUBLIC_KEY`, and a short-lived runtime OIDC
+credential automatically. Clients resize and JPEG-compress images, request a
+five-minute grant scoped to one pathname, and upload directly to Blob; binary
+data never traverses an application mutation or primary database snapshot.
+Inline data URLs are rejected, completion callbacks are signature-verified,
+and unclaimed objects are removed after 24 hours by the background worker.
 Operational response, backup/restore, rollback, moderation, and monitoring
 procedures live in [`docs/operations.md`](docs/operations.md); release security
 acceptance is tracked in [`docs/security-checklist.md`](docs/security-checklist.md).
@@ -162,6 +160,8 @@ The beta, accessibility, and load thresholds are defined in
 [`docs/performance-targets.md`](docs/performance-targets.md). First-party event,
 funnel, acquisition, and retention definitions live in
 [`docs/analytics.md`](docs/analytics.md).
+Planned launch merchandising and other deferred product work is tracked in
+[`docs/backlog.md`](docs/backlog.md).
 
 Production starts with a clean marketplace (no fake users — that's the point).
 `SEED_DEMO=yes node scripts/db-seed-demo.mjs` can populate a staging DB with
