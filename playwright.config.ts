@@ -11,7 +11,7 @@ export default defineConfig({
   timeout: 90_000,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://127.0.0.1:3000", trace: "on-first-retry" },
+  use: { baseURL: "http://localhost:3000", trace: "on-first-retry" },
   // CI exercises the exact artifact built by `pnpm check`. Local development
   // retains the faster dev server. Both use an isolated embedded database.
   webServer: {
