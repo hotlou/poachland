@@ -52,6 +52,13 @@ rotate them immediately after suspected exposure.
 ## Routine checks
 
 - Continuously probe `/api/health` from outside the hosting provider and alert after two consecutive HTTP failures or `status: degraded` responses. The probe exposes only component states for database connectivity, email delivery, and abandoned-upload cleanup—never queue contents or credentials.
+- The `Production health` GitHub workflow provides a five-minute external
+  baseline probe of public routes, dependency health, response security
+  headers, and canonical-host redirects. Enable GitHub Actions failure
+  notifications for the release owner and treat one failed scheduled run as a
+  warning; page after a second consecutive failure. GitHub scheduling is not an
+  SLO-grade paging service, so retain provider alerts for latency, errors,
+  database saturation, queues, and backups.
 - Alert on elevated 5xx rate, p95 latency, database connection exhaustion, email dead letters, and backup failure.
 - Weekly: review dependency and secret-scanning results and unresolved moderation queue age.
 - Monthly: test rollback in staging. Quarterly: perform the restore exercise and an access review.

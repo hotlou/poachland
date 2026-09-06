@@ -17,6 +17,7 @@
     "test:smoke": "node scripts/foundation-smoke.mjs && node scripts/engine-smoke.mjs",
     "test:load": "node scripts/load-smoke.mjs",
     "test:migrations": "node scripts/migration-safety.mjs",
+    "verify:production": "node scripts/production-smoke.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:migrations && pnpm test:smoke && pnpm test:load && pnpm build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",

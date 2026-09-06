@@ -13,6 +13,7 @@ import "server-only";
 
 import path from "node:path";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import { postgresConnectionOptions } from "../database-connection";
 import * as schema from "./schema";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -43,8 +44,7 @@ async function init(): Promise<Db> {
     const { drizzle } = await import("drizzle-orm/node-postgres");
     const { Pool } = await import("pg");
     const pool = new Pool({
-      connectionString: url,
-      ssl: url.includes("localhost") ? undefined : { rejectUnauthorized: false },
+      ...postgresConnectionOptions(url),
       max: 5,
     });
     return drizzle(pool, { schema });

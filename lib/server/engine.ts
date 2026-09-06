@@ -15,17 +15,15 @@ import { validateAccountModeration } from "../account-moderation";
 
 import { and, asc, count, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { OFFER_EXPIRY_DAYS } from "../constants";
-import { BADGE_BY_TYPE, FOUNDER_LIMIT, qualifyingBadges, type BadgeStats } from "../badges";
-import { CLIENT_ID_PATTERN, type OpMap, type OpName, type OfferTerms } from "../shared/ops";
+import { FOUNDER_LIMIT } from "../badges";
+import { type OpMap, type OpName } from "../shared/ops";
 import type {
-  BadgeType,
   DealKind,
   DealStatus,
   FulfillmentState,
   HaulReactionEmoji,
   HaulSide,
   ISOStatus,
-  MessageKind,
   ReportTargetType,
 } from "../types";
 import { uid, type SessionUser } from "./auth";
@@ -36,8 +34,7 @@ import { insertNotifications, notify } from "./notify";
 import { underRateLimit } from "./rate-limit";
 import { claimImageUploads, validImageReference } from "./storage";
 import { isDuplicateListing, listingMatchesISO, listingMatchesSavedSearch } from "../listing-matching";
-import { ratingOverall, ratingSummaryFrom } from "../reputation";
-import { describeOfferTerms, normalizeOfferTerms, type NormalizedOfferTerms } from "../offer-rules";
+import { ratingOverall } from "../reputation";
 import { sanitizeSlug, sanitizeUsername } from "../identifiers";
 import { canonicalizeTeamOrEvent } from "../taxonomy";
 import { normalizeShipmentTracking } from "../shipping";
@@ -47,6 +44,30 @@ import { validateModerationReport } from "../moderation-rules";
 import { validateRatingInput } from "../rating-rules";
 import { validateIdentityClaim, validateIdentityReviewNote } from "../identity-rules";
 import {
+  capPhotos,
+  cleanTerms,
+  describeOffer,
+  isClientId,
+  makeOfferValues,
+  otherParty,
+  type OfferTermsClean,
+} from "./engine-domain";
+import {
+  getDealForUpdate,
+  getListingRow,
+  getUserRow,
+  isBlockedPair,
+  latestOffer,
+  latestOffersByDeal,
+} from "./engine-repository";
+import {
+  appendMessage,
+  awardEventBadge,
+  pushActivity,
+  recomputeReputation,
+  syncVerifiedIdentityBadge,
+} from "./engine-effects";
+import {
   CONDITIONS,
   DIVISIONS,
   ITEM_TYPES,
@@ -55,7 +76,6 @@ import {
   SHIPPING_PREFERENCES,
 } from "../constants";
 import {
-  activity,
   blocks,
   deals,
   haulComments,
@@ -80,10 +100,7 @@ import {
   type DealRow,
   type ListingRow,
   type OfferRow,
-  type UserRow,
 } from "./schema";
-
-const DAY_MS = 86_400_000;
 
 export type Res = OperationResult;
 
@@ -102,286 +119,9 @@ export async function executeOp<K extends OpName>(
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-const isClientId = (id: unknown): id is string =>
-  typeof id === "string" && CLIENT_ID_PATTERN.test(id);
-
 const MAX_DESCRIPTION = 4000;
 
-/** Slice to 4 opaque object/stock URLs; uploaded binary data is never accepted. */
-function capPhotos(raw: unknown): string[] | null {
-  const photos = (Array.isArray(raw) ? raw : []).slice(0, 4).map(String);
-  if (photos.some((p) => !validImageReference(p))) return null;
-  return photos;
-}
-
-function otherParty(deal: { proposerId: string; ownerId: string }, userId: string): string {
-  return deal.proposerId === userId ? deal.ownerId : deal.proposerId;
-}
-
-async function getListingRow(tx: Db, id: string): Promise<ListingRow | undefined> {
-  const [row] = await tx.select().from(listings).where(eq(listings.id, id)).limit(1);
-  return row;
-}
-
-async function getUserRow(tx: Db, id: string): Promise<UserRow | undefined> {
-  const [row] = await tx.select().from(users).where(eq(users.id, id)).limit(1);
-  return row;
-}
-
-async function getDealForUpdate(tx: Db, id: string): Promise<DealRow | undefined> {
-  const [row] = await tx.select().from(deals).where(eq(deals.id, id)).for("update");
-  return row;
-}
-
-async function latestOffer(tx: Db, dealId: string): Promise<OfferRow | undefined> {
-  const [row] = await tx
-    .select()
-    .from(offers)
-    .where(eq(offers.dealId, dealId))
-    .orderBy(sql`${offers.position} desc`)
-    .limit(1);
-  return row;
-}
-
-/** Latest offer per deal, from one IN query. */
-async function latestOffersByDeal(tx: Db, dealIds: string[]): Promise<Map<string, OfferRow>> {
-  const map = new Map<string, OfferRow>();
-  if (dealIds.length === 0) return map;
-  const rows = await tx
-    .select()
-    .from(offers)
-    .where(inArray(offers.dealId, dealIds))
-    .orderBy(asc(offers.dealId), asc(offers.position));
-  for (const row of rows) map.set(row.dealId, row); // ascending → last wins
-  return map;
-}
-
-async function isBlockedPair(tx: Db, a: string, b: string): Promise<boolean> {
-  const rows = await tx
-    .select({ blockerId: blocks.blockerId })
-    .from(blocks)
-    .where(
-      or(
-        and(eq(blocks.blockerId, a), eq(blocks.blockedId, b)),
-        and(eq(blocks.blockerId, b), eq(blocks.blockedId, a)),
-      ),
-    )
-    .limit(1);
-  return rows.length > 0;
-}
-
-/**
- * The server twin of PoachStore.appendMessage: inserts the message and bumps
- * the thread's updatedAt + the sender's lastRead to the message timestamp.
- */
-async function appendMessage(
-  tx: Db,
-  threadId: string,
-  senderId: string,
-  kind: MessageKind,
-  content: string,
-  opts: { offerId?: string; createdAt?: Date; id?: string } = {},
-): Promise<string> {
-  const at = opts.createdAt ?? new Date();
-  const id = opts.id ?? uid("m");
-  await tx.insert(messages).values({
-    id,
-    threadId,
-    senderId,
-    kind,
-    content,
-    offerId: opts.offerId ?? null,
-    createdAt: at,
-  });
-  await tx
-    .update(threads)
-    .set({
-      updatedAt: at,
-      lastRead: sql`${threads.lastRead} || ${JSON.stringify({ [senderId]: at.toISOString() })}::jsonb`,
-    })
-    .where(eq(threads.id, threadId));
-  return id;
-}
-
-async function pushActivity(
-  tx: Db,
-  type: "new_listing" | "new_iso" | "deal_completed" | "new_rating" | "new_member",
-  actorId: string,
-  targetId: string | undefined,
-  summary: string,
-  linkTo?: string,
-): Promise<void> {
-  await tx.insert(activity).values({
-    id: uid("a"),
-    type,
-    actorId,
-    targetId: targetId ?? null,
-    summary,
-    createdAt: new Date(),
-    linkTo: linkTo ?? null,
-  });
-}
-
-// ─── Reputation (exact port of ratingSummary / recomputeReputation / awardBadges)
-
-async function recomputeReputation(tx: Db, userId: string): Promise<void> {
-  const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
-  if (!user) return;
-  const userRatings = await tx.select().from(ratings).where(eq(ratings.toUserId, userId));
-  const summary = ratingSummaryFrom(userRatings, user);
-  const [{ n: completedInvolving }] = await tx
-    .select({ n: count() })
-    .from(deals)
-    .where(
-      and(
-        eq(deals.status, "completed"),
-        or(eq(deals.proposerId, userId), eq(deals.ownerId, userId)),
-      ),
-    );
-  const trustScore = summary.overall;
-  const ratingsCount = summary.count;
-  const tradesCompleted = user.baselineTrades + completedInvolving;
-
-  // awardBadges — same checks, same order, same copy.
-  const [{ n: listingCount }] = await tx
-    .select({ n: count() })
-    .from(listings)
-    .where(eq(listings.sellerId, userId));
-  const [{ n: givenAway }] = await tx
-    .select({ n: count() })
-    .from(deals)
-    .where(and(eq(deals.status, "completed"), eq(deals.kind, "claim"), eq(deals.ownerId, userId)));
-  const [{ n: isoCount }] = await tx
-    .select({ n: count() })
-    .from(isoPosts)
-    .where(eq(isoPosts.userId, userId));
-
-  const shipRatings = userRatings.map((r) => r.shippingSpeed);
-  const stats: BadgeStats = {
-    tradesCompleted,
-    trustScore,
-    ratingsCount,
-    ratingsReceived: userRatings.length,
-    allFiveStar:
-      userRatings.length > 0 &&
-      userRatings.every((r) => r.communication === 5 && r.shippingSpeed === 5 && r.itemAccuracy === 5),
-    shippingAvg: shipRatings.length
-      ? shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length
-      : 0,
-    shippingCount: shipRatings.length,
-    listingCount: Number(listingCount),
-    givenAway: Number(givenAway),
-    isoCount: Number(isoCount),
-  };
-
-  const badges = [...user.badges];
-  const notifs: Parameters<typeof insertNotifications>[1] = [];
-  const has = (t: BadgeType) => badges.some((b) => b.type === t);
-  for (const type of qualifyingBadges(stats)) {
-    if (has(type)) continue;
-    badges.push({ id: uid("b"), label: BADGE_BY_TYPE[type].label, type });
-    notifs.push({
-      userId,
-      type: "badge_earned",
-      title: `Badge earned: ${BADGE_BY_TYPE[type].label}`,
-      body: "It now shows on your profile. Wear it well.",
-      linkTo: "/app/badges",
-    });
-  }
-
-  await tx
-    .update(users)
-    .set({ trustScore, ratingsCount, tradesCompleted, badges })
-    .where(eq(users.id, userId));
-  await insertNotifications(tx, notifs);
-}
-
-/**
- * Grant an event badge (founding, verified, show-off, …) to a user if they
- * don't already hold it. Event badges live outside the stat-based qualifier.
- */
-async function awardEventBadge(tx: Db, userId: string, type: BadgeType): Promise<void> {
-  const [u] = await tx
-    .select({ badges: users.badges })
-    .from(users)
-    .where(eq(users.id, userId))
-    .for("update");
-  if (!u || u.badges.some((b) => b.type === type)) return;
-  const def = BADGE_BY_TYPE[type];
-  await tx
-    .update(users)
-    .set({ badges: [...u.badges, { id: uid("b"), label: def.label, type }] })
-    .where(eq(users.id, userId));
-  await insertNotifications(tx, [
-    {
-      userId,
-      type: "badge_earned",
-      title: `Badge earned: ${def.label}`,
-      body: def.description,
-      linkTo: "/app/badges",
-    },
-  ]);
-}
-
-async function syncVerifiedIdentityBadge(tx: Db, userId: string): Promise<void> {
-  const [{ n }] = await tx
-    .select({ n: count() })
-    .from(identities)
-    .where(and(eq(identities.userId, userId), eq(identities.status, "verified")));
-  if (Number(n) > 0) {
-    await awardEventBadge(tx, userId, "verified");
-    return;
-  }
-  const [target] = await tx.select({ badges: users.badges }).from(users).where(eq(users.id, userId)).for("update");
-  if (!target?.badges.some((badge) => badge.type === "verified")) return;
-  await tx
-    .update(users)
-    .set({ badges: target.badges.filter((badge) => badge.type !== "verified") })
-    .where(eq(users.id, userId));
-  await notify(
-    tx,
-    userId,
-    "system",
-    "Identity badge removed",
-    "Your Verified badge was removed because no confirmed linked identity remains.",
-    "/app/profile",
-  );
-}
-
 // ─── Offers: build / describe / validate / expire / close ────────────────────
-
-type OfferTermsClean = NormalizedOfferTerms;
-
-const cleanTerms = (terms: OfferTerms): OfferTermsClean => normalizeOfferTerms(terms);
-
-function makeOfferValues(byUserId: string, terms: OfferTermsClean, now: Date) {
-  return {
-    id: uid("of"),
-    byUserId,
-    proposerListingIds: terms.proposerListingIds,
-    ownerListingIds: terms.ownerListingIds,
-    cashFromProposer: terms.cashFromProposer,
-    cashFromOwner: terms.cashFromOwner,
-    note: terms.note,
-    createdAt: now,
-    expiresAt: new Date(now.getTime() + OFFER_EXPIRY_DAYS * DAY_MS),
-    status: "pending" as const,
-  };
-}
-
-/** Human-readable summary of an offer — same copy as PoachStore.describeOffer. */
-function describeOffer(
-  kind: DealKind,
-  offer: {
-    proposerListingIds: string[];
-    ownerListingIds: string[];
-    cashFromProposer: number;
-    cashFromOwner: number;
-  },
-  titles: Map<string, string>,
-): string {
-  return describeOfferTerms(kind, offer, (id) => titles.get(id));
-}
 
 /**
  * Validates both sides of an offer against ownership and availability

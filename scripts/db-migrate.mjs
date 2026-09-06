@@ -23,9 +23,15 @@ const journal = JSON.parse(
 );
 const allMigrations = journal.entries.map((e) => e.tag);
 
+const parsedUrl = new URL(url);
+const local = parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1" || parsedUrl.hostname === "[::1]";
+if (!local) {
+  parsedUrl.searchParams.delete("sslmode");
+  parsedUrl.searchParams.delete("uselibpqcompat");
+}
 const pool = new pg.Pool({
-  connectionString: url,
-  ssl: url.includes("localhost") ? undefined : { rejectUnauthorized: false },
+  connectionString: parsedUrl.toString(),
+  ssl: local ? undefined : { rejectUnauthorized: true },
   max: 1,
 });
 

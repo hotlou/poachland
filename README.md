@@ -136,7 +136,7 @@ Environment variables (Vercel → Settings → Environment Variables):
 Then run migrations once against the database:
 
 ```bash
-DATABASE_URL="postgresql://…-pooler…/neondb?sslmode=require" pnpm db:migrate
+DATABASE_URL="postgresql://…-pooler…/neondb?sslmode=verify-full" pnpm db:migrate
 ```
 
 Deployments run the same migration through `pnpm deploy:prepare` before the new

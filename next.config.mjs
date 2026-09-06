@@ -1,3 +1,9 @@
+const canonicalOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com").replace(/\/$/, "");
+const canonicalHostname = new URL(canonicalOrigin).hostname;
+const alternateHostname = canonicalHostname.startsWith("www.")
+  ? canonicalHostname.slice(4)
+  : `www.${canonicalHostname}`;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -14,6 +20,14 @@ const nextConfig = {
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
       ],
+    }];
+  },
+  async redirects() {
+    return [{
+      source: "/:path*",
+      has: [{ type: "host", value: alternateHostname }],
+      destination: `${canonicalOrigin}/:path*`,
+      permanent: true,
     }];
   },
   // PGlite (local-dev embedded Postgres) loads its WASM via import.meta.url,
