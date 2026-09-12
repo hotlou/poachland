@@ -2,7 +2,7 @@
 
 Prepared September 12, 2026. Audience: copywriter, creative strategist, or marketing team.
 
-This describes the product implemented in this repository. The sharing update described below is implemented locally and requires deployment before marketing calls it live. Existing features have been checked against product code and repository documentation; this document does not independently establish production availability or audience size.
+This describes the product implemented in this repository. The sharing update went live at [poachland.com](https://poachland.com) on September 12, 2026. Production health and social-preview checks passed; see the [release record](releases/2026-09-12-sharing.md). Existing features have been checked against product code and repository documentation; this document does not independently establish audience size or validate every feature in production.
 
 ## The product in one sentence
 
