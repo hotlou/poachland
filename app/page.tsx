@@ -1,4 +1,5 @@
 "use client";
+import { SampleBadge } from "@/components/sample-notice";
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -97,6 +98,7 @@ function CrateStrip() {
             </span>
           </div>
           <div className="p-2.5">
+            {listing.sampleBatchId && <div className="mb-1"><SampleBadge /></div>}
             <p className="text-xs font-semibold leading-tight line-clamp-2">
               {listing.title}
             </p>

@@ -10,11 +10,9 @@ import {
   Clock,
   EyeOff,
   MoreHorizontal,
-  Package,
   RotateCcw,
   ShieldAlert,
   Star,
-  Trash2,
   UserCog,
   Users,
 } from "lucide-react";
@@ -24,9 +22,8 @@ import { fetchAdminData } from "@/app/actions/engine";
 import { useAsUser as beginImpersonation } from "@/app/actions/auth";
 import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
 import { useHydrated, useStore } from "@/lib/store-context";
-import { formatDate, formatMonthYear, timeAgo } from "@/lib/format";
+import { formatDate, formatMonthYear } from "@/lib/format";
 import type {
-  Listing,
   UserStatus,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -59,12 +56,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { SamplesSection, ContentSection, MemberDetailsSection, AuditSection } from "./workspace-sections";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { StatsSection } from "./stats-section";
 import { PartnersSection } from "./partners-section";
 import { IdentityQueueSection } from "./identity-queue-section";
 import { DisputesSection } from "./disputes-section";
 import { ReportsSection } from "./reports-section";
-import { AdminUser, EmptyRow, runAdminOp, SectionHeading, USER_STATUS_CHIP } from "./admin-shared";
+import { AdminUser, runAdminOp, SectionHeading, USER_STATUS_CHIP } from "./admin-shared";
 
 /* ── 5. Users ────────────────────────────────────────────────────────────── */
 
@@ -103,6 +102,10 @@ function UsersSection({
     opts: { days?: number; note: string },
   ) => Promise<boolean>;
 }) {
+  const [search, setSearch] = useState("");
+  const [scope, setScope] = useState("all");
+  const [page, setPage] = useState(1);
+  const filtered = users.filter((u) => !u.deletedAt && (scope === "all" || (scope === "sample" ? !!u.sampleBatchId : !u.sampleBatchId)) && `${u.username} ${u.displayName} ${u.email}`.toLowerCase().includes(search.toLowerCase()));
   const [modTarget, setModTarget] = useState<{ user: AdminUser; action: ModAction } | null>(null);
   const [days, setDays] = useState("7");
   const [note, setNote] = useState("");
@@ -172,8 +175,9 @@ function UsersSection({
   return (
     <section>
       <SectionHeading icon={Users} title="Members" />
+      <div className="mb-4 flex flex-wrap gap-2"><Input aria-label="Search members" className="w-full sm:w-72" placeholder="Username, name, or email" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /><select aria-label="Member source" className="min-h-11 rounded-lg border border-border bg-card px-3 text-sm" value={scope} onChange={(e) => { setScope(e.target.value); setPage(1); }}><option value="all">Real and sample</option><option value="real">Real only</option><option value="sample">Sample only</option></select></div>
       <div className="bg-card border border-border rounded-xl divide-y divide-border">
-        {users.map((u) => (
+        {filtered.slice((page - 1) * 20, page * 20).map((u) => (
           <div key={u.id} className="flex items-center gap-3 px-3.5 py-3">
             <Link href={`/app/u/${u.username}`} className="shrink-0">
               <img
@@ -194,6 +198,7 @@ function UsersSection({
                   <BadgeCheck size={14} className="text-accent shrink-0" strokeWidth={2.5} />
                 )}
                 <UserStatusChip user={u} />
+                {u.sampleBatchId && <span className="badge-stamp">Example</span>}
                 {u.isAdmin && (
                   <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[13px] font-medium text-muted-foreground shrink-0">
                     Mod
@@ -220,6 +225,7 @@ function UsersSection({
                 Verified
               </span>
               <Switch
+                disabled={!!u.sampleBatchId}
                 checked={u.isVerified}
                 onCheckedChange={(v) => void toggleVerified(u, v)}
                 className="data-[state=checked]:bg-accent"
@@ -259,6 +265,7 @@ function UsersSection({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="flex-col items-start gap-0.5"
+                    disabled={!!u.sampleBatchId}
                     onSelect={() => void impersonate(u)}
                   >
                     <span className="flex items-center gap-2">
@@ -276,6 +283,7 @@ function UsersSection({
       </div>
 
       {/* Reversible account-standing changes. */}
+      <div className="mt-3 flex flex-wrap justify-between gap-3 text-sm"><span>{filtered.length} members · Page {page}</span><div className="flex gap-2"><Button variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button variant="outline" disabled={page * 20 >= filtered.length} onClick={() => setPage(page + 1)}>Next</Button></div></div>
       <Dialog
         open={
           modTarget?.action === "shadowban" ||
@@ -413,7 +421,7 @@ function UsersSection({
               Ban @{modTarget?.user.username}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Permanent. They see a banned notice and can&apos;t act. Content hidden.
+              Blocks access and hides public content. You can restore the account later; banning does not delete it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Textarea
@@ -436,149 +444,6 @@ function UsersSection({
               }}
             >
               {busy ? "Banning…" : "Ban user"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
-  );
-}
-
-/* ── 6. Listings ─────────────────────────────────────────────────────────── */
-
-function ListingsSection({
-  onSetFeatured,
-  onRemove,
-}: {
-  onSetFeatured: (id: string, featured: boolean) => Promise<boolean>;
-  onRemove: (id: string, reason?: string) => Promise<boolean>;
-}) {
-  const store = useStore();
-  const listings = store
-    .listListings({
-      statuses: ["active", "pending"],
-      sort: "newest",
-      includeOwn: true,
-      includeBlocked: true,
-    })
-    .slice(0, 10);
-  const [removeTarget, setRemoveTarget] = useState<Listing | null>(null);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const toggleFeatured = async (listing: Listing, featured: boolean) => {
-    const ok = await onSetFeatured(listing.id, featured);
-    if (ok) {
-      toast.success(featured ? `"${listing.title}" is now featured` : "Pulled from featured");
-    }
-  };
-
-  const confirmRemove = async () => {
-    if (!removeTarget || busy) return;
-    setBusy(true);
-    const ok = await onRemove(removeTarget.id, reason.trim() || undefined);
-    setBusy(false);
-    if (ok) {
-      toast.success("Listing removed and seller notified");
-      setRemoveTarget(null);
-    }
-  };
-
-  return (
-    <section>
-      <SectionHeading icon={Package} title="Recent listings" />
-      {listings.length === 0 ? (
-        <EmptyRow>No live listings. A quiet marketplace is a suspicious marketplace.</EmptyRow>
-      ) : (
-        <div className="bg-card border border-border rounded-xl divide-y divide-border">
-          {listings.map((l) => (
-            <div key={l.id} className="flex items-center gap-3 px-3.5 py-3">
-              <Link href={`/app/listings/${l.id}`} className="shrink-0">
-                <img
-                  src={l.photos[0] || "/placeholder.jpg"}
-                  alt=""
-                  className="w-10 h-10 rounded object-cover border border-border"
-                />
-              </Link>
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`/app/listings/${l.id}`}
-                  className="text-sm font-semibold text-foreground truncate block hover:text-accent transition-colors"
-                >
-                  {l.title}
-                </Link>
-                <p className="text-xs text-muted-foreground truncate">
-                  {l.seller.username} · {timeAgo(l.createdAt)}
-                  {l.status === "pending" && (
-                    <span className="text-amber-700 dark:text-yellow-400"> · deal pending</span>
-                  )}
-                </p>
-              </div>
-              <label
-                className="flex items-center gap-1.5 shrink-0 cursor-pointer"
-                title="Featured on the front page"
-              >
-                <Star
-                  size={13}
-                  className={cn(
-                    l.isFeatured
-                      ? "fill-amber-700 text-amber-700 dark:fill-yellow-400 dark:text-yellow-400"
-                      : "text-muted-foreground",
-                  )}
-                />
-                <Switch
-                  checked={!!l.isFeatured}
-                  onCheckedChange={(v) => void toggleFeatured(l, v)}
-                  className="data-[state=checked]:bg-accent"
-                  aria-label={`Feature ${l.title}`}
-                />
-              </label>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="shrink-0 rounded-full text-muted-foreground hover:text-red-700 dark:hover:text-red-400"
-                aria-label={`Remove ${l.title}`}
-                onClick={() => {
-                  setReason("");
-                  setRemoveTarget(l);
-                }}
-              >
-                <Trash2 size={15} />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
-        <AlertDialogContent className="max-w-sm bg-card border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-display font-bold tracking-tight">
-              Remove &quot;{removeTarget?.title}&quot;?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              It disappears from the marketplace, open negotiations on it close, and the seller
-              gets notified with your reason.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason (optional) — the seller sees this."
-            rows={3}
-            className="bg-surface resize-none"
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-full">Keep it</AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-full bg-destructive text-white hover:bg-destructive/90"
-              disabled={busy}
-              onClick={(e) => {
-                e.preventDefault(); // keep the dialog open until the server answers
-                void confirmRemove();
-              }}
-            >
-              {busy ? "Removing…" : "Remove listing"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -672,7 +537,7 @@ export default function AdminPage() {
             <span className="text-border">/</span>
             <h1 className="font-display font-bold tracking-tight text-lg text-foreground flex items-center gap-1.5 truncate">
               <ShieldAlert size={18} className="text-accent shrink-0" />
-              Mod desk
+              Admin
             </h1>
           </div>
           <span className="badge-stamp text-accent border-accent hidden sm:inline-flex shrink-0">
@@ -686,7 +551,12 @@ export default function AdminPage() {
           <AdminSkeleton />
         ) : (
           <>
-            <StatsSection stats={data.stats} />
+            <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-surface p-1">{[["overview", "Overview"], ["samples", "Samples"], ["content", "Content"], ["members", "Members"], ["queues", "Review queues"], ["partners", "Partners"], ["audit", "Audit log"]].map(([id, label]) => <TabsTrigger className="min-h-11" key={id} value={id}>{label}</TabsTrigger>)}</TabsList>
+            <TabsContent value="overview"><StatsSection stats={data.stats} /></TabsContent>
+            <TabsContent value="samples"><SamplesSection run={run} /></TabsContent>
+            <TabsContent value="content"><ContentSection run={run} /></TabsContent>
+            <TabsContent value="queues">
             {/* Review queues, side by side on desktop */}
             <div className="grid gap-10 md:grid-cols-2 md:gap-6 items-start">
               <IdentityQueueSection
@@ -712,8 +582,9 @@ export default function AdminPage() {
                 run("adminResolveDispute", { dealId: deal.id, outcome, note })
               }
             />
-            {/* Rosters, side by side on desktop */}
-            <div className="grid gap-10 md:grid-cols-2 md:gap-6 items-start">
+            </TabsContent>
+            <TabsContent value="members" className="space-y-8">
+              <MemberDetailsSection users={data.users} run={run} />
               <UsersSection
                 users={data.users}
                 onSetVerified={(userId, verified) =>
@@ -728,12 +599,12 @@ export default function AdminPage() {
                   })
                 }
               />
-              <ListingsSection
-                onSetFeatured={(id, featured) => run("adminSetListingFeatured", { id, featured })}
-                onRemove={(id, reason) => run("adminRemoveListing", { id, reason })}
-              />
-            </div>
+            </TabsContent>
+            <TabsContent value="partners">
             <PartnersSection partners={data.partners} onChanged={reload} />
+            </TabsContent>
+            <TabsContent value="audit"><AuditSection /></TabsContent>
+            </Tabs>
           </>
         )}
       </main>

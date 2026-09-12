@@ -11,7 +11,8 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { sampleVisible, visibleSampleBatchIds } from "./sample-visibility";
 import type { AdminData, SessionMe, WorldSnapshot } from "../shared/ops";
 import type {
   ActivityEvent,
@@ -90,6 +91,7 @@ const isoOpt = (d: Date | null): string | undefined => (d ? d.toISOString() : un
 function toUserRecord(row: UserRow): UserRecord {
   return {
     id: row.id,
+    sampleBatchId: row.sampleBatchId ?? undefined,
     username: row.username ?? "",
     displayName: row.displayName,
     avatar: row.avatar,
@@ -113,6 +115,8 @@ function toUserRecord(row: UserRow): UserRecord {
 function toListingRecord(row: ListingRow): ListingRecord {
   return {
     id: row.id,
+    sampleBatchId: row.sampleBatchId ?? undefined,
+    hiddenAt: row.hiddenAt?.toISOString(),
     sellerId: row.sellerId,
     type: row.type,
     title: row.title,
@@ -218,6 +222,7 @@ function toMessageRecord(row: MessageRow): MessageRecord {
 function toRating(row: RatingRow): Rating {
   return {
     id: row.id,
+    sampleBatchId: row.sampleBatchId ?? undefined,
     dealId: row.dealId,
     fromUserId: row.fromUserId,
     toUserId: row.toUserId,
@@ -321,6 +326,7 @@ function toPartner(row: PartnerRow): Partner {
 function toHaulPostRecord(row: HaulPostRow): HaulPostRecord {
   return {
     id: row.id,
+    sampleBatchId: row.sampleBatchId ?? undefined,
     dealId: row.dealId,
     kind: row.kind,
     proposerId: row.proposerId,
@@ -391,22 +397,22 @@ export async function buildSnapshot(
     recentHaulPostRows,
     partnerRows,
   ] = await Promise.all([
-      db.select().from(users).orderBy(desc(users.memberSince), desc(users.id)).limit(BOOTSTRAP_USER_LIMIT),
+      db.select().from(users).where(sampleVisible(users.sampleBatchId)).orderBy(desc(users.memberSince), desc(users.id)).limit(BOOTSTRAP_USER_LIMIT),
       viewerId
         ? db
             .select()
             .from(listings)
-            .where(or(ne(listings.status, "removed"), eq(listings.sellerId, viewerId)))
+            .where(and(or(ne(listings.status, "removed"), eq(listings.sellerId, viewerId)), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId)))
             .orderBy(desc(listings.createdAt), desc(listings.id))
             .limit(BOOTSTRAP_LISTING_LIMIT)
         : db
             .select()
             .from(listings)
-            .where(ne(listings.status, "removed"))
+            .where(and(ne(listings.status, "removed"), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId)))
             .orderBy(desc(listings.createdAt), desc(listings.id))
             .limit(BOOTSTRAP_LISTING_LIMIT),
-      db.select().from(isoPosts).orderBy(desc(isoPosts.createdAt), desc(isoPosts.id)).limit(BOOTSTRAP_ISO_LIMIT),
-      db.select().from(ratings).orderBy(desc(ratings.createdAt), desc(ratings.id)).limit(BOOTSTRAP_RATING_LIMIT),
+      db.select().from(isoPosts).where(isNull(isoPosts.hiddenAt)).orderBy(desc(isoPosts.createdAt), desc(isoPosts.id)).limit(BOOTSTRAP_ISO_LIMIT),
+      db.select().from(ratings).where(and(isNull(ratings.hiddenAt), sampleVisible(ratings.sampleBatchId))).orderBy(desc(ratings.createdAt), desc(ratings.id)).limit(BOOTSTRAP_RATING_LIMIT),
       db
         .select()
         .from(activity)
@@ -422,7 +428,7 @@ export async function buildSnapshot(
         )
         .orderBy(desc(identities.submittedAt), desc(identities.id))
         .limit(BOOTSTRAP_IDENTITY_LIMIT),
-      db.select().from(haulPosts).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)).limit(BOOTSTRAP_HAUL_LIMIT),
+      db.select().from(haulPosts).where(sampleVisible(haulPosts.sampleBatchId)).orderBy(desc(haulPosts.createdAt), desc(haulPosts.id)).limit(BOOTSTRAP_HAUL_LIMIT),
       db
         .select()
         .from(partners)
@@ -545,6 +551,7 @@ export async function buildSnapshot(
     for (const id of row.proposerListingIds) relevantListingIds.add(id);
     for (const id of row.ownerListingIds) relevantListingIds.add(id);
   }
+  const privateDealListingIds = new Set(relevantListingIds);
   for (const row of saveRows) if (row.targetType === "listing") relevantListingIds.add(row.targetId);
   const viewerListingRows = viewerId
     ? await db.select().from(listings).where(eq(listings.sellerId, viewerId))
@@ -590,13 +597,13 @@ export async function buildSnapshot(
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
   const viewerIsAdmin = !!viewerRow?.isAdmin;
   const [referralResult] = viewerId
-    ? await db.select({ value: sql<number>`count(*)::int` }).from(users).where(eq(users.referredBy, viewerId))
+    ? await db.select({ value: sql<number>`count(*)::int` }).from(users).where(and(eq(users.referredBy, viewerId), isNull(users.sampleBatchId)))
     : [{ value: 0 }];
   const referralCount = Number(referralResult?.value ?? 0);
   const viewerOnboarded = viewerRow?.onboardedAt?.getTime();
   const [memberResult] = viewerOnboarded
     ? await db.select({ value: sql<number>`count(*)::int` }).from(users)
-        .where(sql`${users.onboardedAt} is not null and ${users.onboardedAt} <= ${new Date(viewerOnboarded)}`)
+        .where(sql`${users.sampleBatchId} is null and ${users.onboardedAt} is not null and ${users.onboardedAt} <= ${new Date(viewerOnboarded)}`)
     : [{ value: 0 }];
   const memberNumber = Number(memberResult?.value ?? 0);
   const me: SessionMe | null = viewerRow
@@ -639,6 +646,7 @@ export async function buildSnapshot(
   // moderate. Existing relationships (the viewer's own deals/threads) keep
   // resolving via a relationship allowlist so nothing breaks mid-trade.
   const hidden = new Set<string>();
+  const visibleBatches = await visibleSampleBatchIds(db);
   if (!viewerIsAdmin) {
     for (const u of userRows) {
       if (u.id === viewerId) continue;
@@ -652,6 +660,7 @@ export async function buildSnapshot(
   // completed deals and the ratings they left still render.
   for (const u of userRows) {
     if (u.deletedAt && u.id !== viewerId) hidden.add(u.id);
+    if (u.sampleBatchId && !visibleBatches.has(u.sampleBatchId)) hidden.add(u.id);
   }
   const related = new Set<string>();
   if (viewerId) {
@@ -744,12 +753,15 @@ export async function buildSnapshot(
     users: userRows
       .filter((u) => u.username !== null && userVisible(u.id))
       .map(toUserRecord),
-    listings: listingRows.filter((l) => userVisible(l.sellerId)).map(toListingRecord),
-    isoPosts: isoRows.filter((p) => !hidden.has(p.userId)).map(toISORecord),
+    listings: listingRows.filter((l) =>
+      (!l.hiddenAt || l.sellerId === viewerId || privateDealListingIds.has(l.id)) &&
+      (!l.sampleBatchId || visibleBatches.has(l.sampleBatchId)) && userVisible(l.sellerId)
+    ).map(toListingRecord),
+    isoPosts: isoRows.filter((p) => !p.hiddenAt && !hidden.has(p.userId)).map(toISORecord),
     deals: dealRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
     threads: threadRows.map(toThreadRecord),
     messages: messageRows.map(toMessageRecord),
-    ratings: ratingRows.map(toRating),
+    ratings: ratingRows.filter((r) => !r.hiddenAt && userVisible(r.fromUserId) && userVisible(r.toUserId) && (!r.sampleBatchId || visibleBatches.has(r.sampleBatchId))).map(toRating),
     notifications: notificationRows.map(toNotification),
     saves: saveRows.map(toSave),
     savedSearches: savedSearchRows.map((row) => ({
@@ -818,23 +830,25 @@ export async function buildAdminData(): Promise<AdminData> {
       .where(eq(deals.status, "disputed"))
       .orderBy(asc(deals.createdAt), asc(deals.id)),
     db.select().from(identities).orderBy(asc(identities.submittedAt), asc(identities.id)),
-    db.select({ status: deals.status, n: sql<number>`count(*)::int` }).from(deals).groupBy(deals.status),
+    db.select({ status: deals.status, n: sql<number>`count(*)::int` }).from(deals).where(isNull(deals.sampleBatchId)).groupBy(deals.status),
     db
       .select({ status: listings.status, n: sql<number>`count(*)::int` })
       .from(listings)
+      .where(and(isNull(listings.sampleBatchId), isNull(listings.hiddenAt)))
       .groupBy(listings.status),
     db.select({ n: sql<number>`count(*)::int` }).from(isoPosts).where(eq(isoPosts.status, "active")),
-    db.select({ n: sql<number>`count(*)::int` }).from(ratings),
-    db.select({ n: sql<number>`count(*)::int` }).from(messages),
+    db.select({ n: sql<number>`count(*)::int` }).from(ratings).where(and(isNull(ratings.sampleBatchId), isNull(ratings.hiddenAt))),
+    db.select({ n: sql<number>`count(*)::int` }).from(messages).where(sql`not exists (select 1 from users mu where mu.id = ${messages.senderId} and mu.sample_batch_id is not null)`),
     db
       .select({ name: productEvents.name, n: sql<number>`count(*)::int` })
       .from(productEvents)
+      .where(sql`not exists (select 1 from users eu where eu.id = ${productEvents.userId} and eu.sample_batch_id is not null)`)
       .groupBy(productEvents.name),
     db.select({
       activatedListers: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.name} = 'listing_created')::int`,
       activeUsers7d: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.createdAt} >= now() - interval '7 days')::int`,
       activeUsers30d: sql<number>`count(distinct ${productEvents.userId}) filter (where ${productEvents.createdAt} >= now() - interval '30 days')::int`,
-    }).from(productEvents),
+    }).from(productEvents).where(sql`not exists (select 1 from users eu where eu.id = ${productEvents.userId} and eu.sample_batch_id is not null)`),
     db.select({
       ready: sql<number>`count(*) filter (where ${emailOutbox.sentAt} is null and ${emailOutbox.deadLetteredAt} is null)::int`,
       dead: sql<number>`count(*) filter (where ${emailOutbox.deadLetteredAt} is not null)::int`,
@@ -869,6 +883,12 @@ export async function buildAdminData(): Promise<AdminData> {
   const identityQueue = identityRows.filter(
     (i) => i.status === "pending" || i.status === "unverified",
   );
+  const realUsers = userRows.filter((u) => !u.sampleBatchId && !u.deletedAt);
+  const [sampleCounts] = await db.select({
+    listings: sql<number>`(select count(*)::int from listings where sample_batch_id is not null)`,
+    deals: sql<number>`(select count(*)::int from deals where sample_batch_id is not null)`,
+  }).from(users).limit(1);
+  const since = (days: number) => Date.now() - days * 86_400_000;
 
   return {
     reports: reportRows.map(toReport),
@@ -882,10 +902,19 @@ export async function buildAdminData(): Promise<AdminData> {
       suspendedUntil: u.suspendedUntil ? iso(u.suspendedUntil) : undefined,
       moderationNote: u.moderationNote ?? undefined,
       isAdmin: u.isAdmin,
+      lastActiveAt: u.lastActiveAt?.toISOString(),
+      deletedAt: u.deletedAt?.toISOString(),
     })),
     stats: {
-      users: userRows.length,
-      verifiedUsers: userRows.filter((u) => u.isVerified).length,
+      samples: { users: userRows.filter((u) => !!u.sampleBatchId).length, listings: Number(sampleCounts?.listings ?? 0), deals: Number(sampleCounts?.deals ?? 0) },
+      visits: {
+        signedIn7d: realUsers.filter((u) => u.lastActiveAt && u.lastActiveAt.getTime() >= since(7)).length,
+        signedIn30d: realUsers.filter((u) => u.lastActiveAt && u.lastActiveAt.getTime() >= since(30)).length,
+        newMembers7d: realUsers.filter((u) => u.onboardedAt && u.onboardedAt.getTime() >= since(7)).length,
+        newMembers30d: realUsers.filter((u) => u.onboardedAt && u.onboardedAt.getTime() >= since(30)).length,
+      },
+      users: realUsers.length,
+      verifiedUsers: realUsers.filter((u) => u.isVerified).length,
       listings: listingsTotal - listingCount("removed"),
       activeListings: listingCount("active"),
       isoPosts: isoActive,
@@ -911,8 +940,8 @@ export async function buildAdminData(): Promise<AdminData> {
         ),
       ),
       acquisition: {
-        referredMembers: userRows.filter((user) => !!user.referredBy).length,
-        directMembers: userRows.filter((user) => !user.referredBy).length,
+        referredMembers: realUsers.filter((user) => !!user.referredBy).length,
+        directMembers: realUsers.filter((user) => !user.referredBy).length,
       },
       retention: {
         activeUsers7d: Number(productAudience?.activeUsers7d ?? 0),

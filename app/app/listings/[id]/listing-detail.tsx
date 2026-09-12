@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 
 import { ShareButton } from "@/components/share-button";
+import { SampleNotice } from "@/components/sample-notice";
 import { listingShareContent } from "@/lib/sharing";
 import { Hydrated } from "@/components/hydrated";
 import { ListingCard } from "@/components/listing-card";
@@ -151,8 +152,8 @@ function ListingDetail({ id }: { id: string }) {
             </button>
           </div>
           <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
-            {!isRemoved && <ShareButton content={listingShareContent(listing)} label="Share listing" iconOnly className="min-h-11 h-11 w-11 rounded-full border-0 bg-black/60 p-0 text-white backdrop-blur-sm hover:bg-black/80" />}
-            {!isOwner && (
+            {!isRemoved && !listing.hiddenAt && <ShareButton content={listingShareContent(listing)} label="Share listing" iconOnly className="min-h-11 h-11 w-11 rounded-full border-0 bg-black/60 p-0 text-white backdrop-blur-sm hover:bg-black/80" />}
+            {!isOwner && !listing.sampleBatchId && (
               <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
                 <SaveButton
                   targetType="listing"
@@ -373,7 +374,7 @@ function ListingDetail({ id }: { id: string }) {
           </div>
 
           {/* Report */}
-          {!isOwner && <ReportButton listingId={listing.id} />}
+          {!isOwner && !listing.sampleBatchId && <ReportButton listingId={listing.id} />}
         </div>
       </div>
 
@@ -605,6 +606,15 @@ function OpenDealsNotice({
 function ActionRow({ listing, isOwner }: { listing: Listing; isOwner: boolean }) {
   const store = useStore();
   const activeDeal = isOwner ? null : store.activeDealForListing(listing.id);
+
+  if (listing.sampleBatchId) return <SampleNotice />;
+
+  if (listing.hiddenAt) return (
+    <div className="rounded-xl border border-border p-4 text-sm text-muted-foreground">
+      <p>This listing is hidden by a moderator. New offers are paused.</p>
+      {activeDeal && <Link href={`/app/trades/${activeDeal.id}`} className="mt-2 inline-block font-semibold underline">Open your existing deal</Link>}
+    </div>
+  );
 
   if (isOwner) return <OwnerActions listing={listing} />;
 

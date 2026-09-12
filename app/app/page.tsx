@@ -419,7 +419,7 @@ function TraderSpotlight() {
   const me = store.requireUser();
   const spotlight = store
     .listUsers()
-    .filter((u) => u.id !== me.id && !store.isBlockedPair(me.id, u.id))
+    .filter((u) => !u.sampleBatchId && u.id !== me.id && !store.isBlockedPair(me.id, u.id))
     .sort((a, b) => b.trustScore - a.trustScore || b.tradesCompleted - a.tradesCompleted)[0];
   if (!spotlight) return null;
   return (

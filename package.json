@@ -19,6 +19,7 @@
     "test:migrations": "node scripts/migration-safety.mjs",
     "verify:production": "node scripts/production-smoke.mjs",
     "verify:restore": "node scripts/verify-restored-database.mjs",
+    "samples": "node --import tsx --conditions react-server scripts/sample-content.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:migrations && pnpm test:smoke && pnpm test:load && pnpm build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",

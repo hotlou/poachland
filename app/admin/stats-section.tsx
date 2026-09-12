@@ -18,6 +18,7 @@ export function StatsSection({ stats }: { stats: AdminData["stats"] }) {
   ];
   return (
     <section>
+      <p className="mb-4 text-sm text-muted-foreground">Real marketplace activity. Example content is excluded: {stats.samples.users} sample profiles, {stats.samples.listings} items, {stats.samples.deals} deals.</p>
       <div className="mb-3 flex items-center gap-2">
         <LayoutGrid size={15} className="text-accent" strokeWidth={2.5} />
         <h2 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">The state of the land</h2>
@@ -41,6 +42,12 @@ export function StatsSection({ stats }: { stats: AdminData["stats"] }) {
         <p className="mt-3 text-xs text-muted-foreground">Acceptance rate: {stats.funnel.offered ? Math.round((stats.funnel.accepted / stats.funnel.offered) * 100) : 0}% · Completion rate: {stats.funnel.accepted ? Math.round((stats.funnel.completed / stats.funnel.accepted) * 100) : 0}% · Dispute rate: {stats.funnel.accepted ? Math.round((stats.funnel.disputed / stats.funnel.accepted) * 100) : 0}%</p>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="font-display text-sm font-bold">Signed-in visits</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Members who opened a signed-in page, including browsing. Updated at most every five minutes; example accounts and support impersonation are excluded. Collection starts with this release.</p>
+          <p className="mt-3 text-sm">7 days: <strong>{stats.visits.signedIn7d}</strong> · 30 days: <strong>{stats.visits.signedIn30d}</strong></p>
+          <p className="mt-2 text-xs text-muted-foreground">New onboarded members: {stats.visits.newMembers7d} in 7 days · {stats.visits.newMembers30d} in 30 days.</p>
+        </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="font-display text-sm font-bold">Acquisition and activation</h3>
           <p className="mt-1 text-xs text-muted-foreground">Members by persisted referral attribution, plus unique members who created a listing.</p>

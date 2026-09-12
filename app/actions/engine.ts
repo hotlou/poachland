@@ -23,7 +23,7 @@ function invalidatedDomains(op: OpName): MutationDomain[] {
   if (op === "markNotificationRead" || op === "markAllNotificationsRead") return ["notifications"];
   if (["reportTarget", "blockUser", "unblockUser"].includes(op)) return ["moderation", "profiles", "listings", "messages"];
   if (op === "linkIdentity" || op === "removeIdentity") return ["profiles", "reputation"];
-  if (op.startsWith("admin")) return ["moderation", "profiles", "listings", "deals", "notifications", "partners"];
+  if (op.startsWith("admin")) return ["moderation", "profiles", "listings", "wanted", "haul", "reputation", "deals", "notifications", "partners"];
   return ["deals", "listings", "messages", "notifications", "reputation"];
 }
 
@@ -55,7 +55,7 @@ export async function fetchAdminData(): Promise<AdminData | { error: string }> {
   // Admin views require the REAL user to be an admin — you can't reach the mod
   // desk while impersonating (effective user is a non-admin then).
   const ctx = await readSessionContext();
-  if (!ctx?.realUser.isAdmin || ctx.effectiveUser.id !== ctx.realUser.id) {
+  if (!ctx?.realUser.isAdmin || ctx.realUser.status !== "active" || ctx.effectiveUser.id !== ctx.realUser.id) {
     return { error: "Moderators only" };
   }
   return buildAdminData();

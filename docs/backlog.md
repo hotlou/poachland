@@ -2,6 +2,8 @@
 
 ## Launch merchandising: clearly labeled starter activity
 
+Implemented in September 2026: see [Admin and reversible sample publishing](admin-and-sample-content.md) for the approved fixture, moderation workspace, expiry, and rollback controls. `pnpm samples` previews the production-capable batch; the older demo script below remains staging-only.
+
 Seed enough believable ultimate-frisbee marketplace activity that new visitors
 can understand Fresh Drops, search, saved matches, profiles, offers, and the Haul
 before organic supply reaches critical mass.

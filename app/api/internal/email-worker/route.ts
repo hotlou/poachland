@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { flushEmailOutbox } from "@/lib/server/email";
 import { log, logError } from "@/lib/server/logger";
 import { cleanupAbandonedUploads } from "@/lib/server/storage";
+import { expireSampleBatches } from "@/lib/server/sample-batches";
+import { getDb } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +20,9 @@ export async function GET(request: NextRequest) {
   try {
     const result = await flushEmailOutbox(50);
     const abandonedUploadsDeleted = await cleanupAbandonedUploads(100);
-    log("info", "background.worker.completed", { ...result, abandonedUploadsDeleted });
-    return NextResponse.json({ ok: true, ...result, abandonedUploadsDeleted }, { headers: { "Cache-Control": "no-store" } });
+    const sampleBatchesExpired = await expireSampleBatches(await getDb());
+    log("info", "background.worker.completed", { ...result, abandonedUploadsDeleted, sampleBatchesExpired });
+    return NextResponse.json({ ok: true, ...result, abandonedUploadsDeleted, sampleBatchesExpired }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     logError("email.worker.failed", error);
     return NextResponse.json({ ok: false }, { status: 500 });

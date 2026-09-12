@@ -29,9 +29,11 @@ import type {
 } from "../types";
 import { getDb } from "./db";
 import { blocks, haulComments, haulPosts, haulReactions, listings, partners, users } from "./schema";
+import { sampleVisible } from "./sample-visibility";
 
 export interface PublicProfile {
   id: string;
+  sampleBatchId?: string;
   username: string;
   displayName: string;
   avatar: string;
@@ -67,6 +69,7 @@ export async function getPublicProfile(
   const rows = await db
     .select({
       id: users.id,
+      sampleBatchId: users.sampleBatchId,
       username: users.username,
       displayName: users.displayName,
       avatar: users.avatar,
@@ -88,7 +91,7 @@ export async function getPublicProfile(
       deletedAt: users.deletedAt,
     })
     .from(users)
-    .where(eq(users.username, uname))
+    .where(and(eq(users.username, uname), sampleVisible(users.sampleBatchId)))
     .limit(1);
 
   const row = rows[0];
@@ -98,6 +101,7 @@ export async function getPublicProfile(
 
   return {
     id: row.id,
+    sampleBatchId: row.sampleBatchId ?? undefined,
     username: row.username,
     displayName: row.displayName,
     avatar: row.avatar,
@@ -141,7 +145,7 @@ export async function listPublicUsernames(
     })
     .from(users)
     .where(
-      and(isNotNull(users.username), eq(users.status, "active"), isNull(users.deletedAt)),
+      and(isNotNull(users.username), eq(users.status, "active"), isNull(users.deletedAt), isNull(users.sampleBatchId)),
     )
     .orderBy(desc(users.tradesCompleted), asc(users.memberSince), asc(users.id))
     .limit(limit);
@@ -158,6 +162,7 @@ export async function listPublicUsernames(
 
 const publicUserColumns = {
   id: users.id,
+  sampleBatchId: users.sampleBatchId,
   username: users.username,
   displayName: users.displayName,
   avatar: users.avatar,
@@ -201,7 +206,7 @@ export async function queryHaulPage(input: { cursor?: string; limit?: number } =
   const db = await getDb();
   const limit = Math.max(1, Math.min(Math.trunc(input.limit ?? 20), 40));
   const cursor = decodeHaulCursor(input.cursor);
-  const filters: SQL[] = [eq(haulPosts.hidden, false)];
+  const filters: SQL[] = [eq(haulPosts.hidden, false), sampleVisible(haulPosts.sampleBatchId)];
   if (cursor) filters.push(or(lt(haulPosts.createdAt, new Date(cursor.createdAt)), and(eq(haulPosts.createdAt, new Date(cursor.createdAt)), lt(haulPosts.id, cursor.id)))!);
   if (viewerId) {
     const blockRows = await db.select().from(blocks)
@@ -239,13 +244,14 @@ export async function queryHaulPage(input: { cursor?: string; limit?: number } =
   for (const c of commentRows) userIds.add(c.userId);
 
   const userRows = userIds.size
-    ? await db.select(publicUserColumns).from(users).where(inArray(users.id, [...userIds]))
+    ? await db.select(publicUserColumns).from(users).where(and(inArray(users.id, [...userIds]), isNull(users.deletedAt), sampleVisible(users.sampleBatchId)))
     : [];
   const activeUsers = new Map<string, User>();
   for (const u of userRows) {
     if (u.status !== "active" || !u.username) continue;
     activeUsers.set(u.id, {
       id: u.id,
+      sampleBatchId: u.sampleBatchId ?? undefined,
       username: u.username,
       displayName: u.displayName,
       avatar: u.avatar,
@@ -298,6 +304,7 @@ export async function queryHaulPage(input: { cursor?: string; limit?: number } =
       const comments = commentsByHaul.get(p.id) ?? [];
       return {
         id: p.id,
+        sampleBatchId: p.sampleBatchId ?? undefined,
         dealId: p.dealId,
         kind: p.kind,
         proposerId: p.proposerId,
@@ -334,6 +341,7 @@ export async function getPublicHaul(limit = 30): Promise<HaulPost[]> {
 
 export interface PublicListing {
   id: string;
+  sampleBatchId?: string;
   sellerId: string;
   type: ItemType;
   title: string;
@@ -386,7 +394,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
     })
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
-    .where(eq(listings.id, id))
+    .where(and(eq(listings.id, id), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId), sampleVisible(users.sampleBatchId)))
     .limit(1);
 
   if (!row) return null;
@@ -396,6 +404,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
 
   return {
     id: l.id,
+    sampleBatchId: l.sampleBatchId ?? undefined,
     sellerId: l.sellerId,
     type: l.type,
     title: l.title,
@@ -436,7 +445,7 @@ export async function listPublicListingIds(
     .from(listings)
     .innerJoin(users, eq(listings.sellerId, users.id))
     .where(
-      and(ne(listings.status, "removed"), eq(users.status, "active"), isNull(users.deletedAt)),
+      and(ne(listings.status, "removed"), eq(users.status, "active"), isNull(users.deletedAt), isNull(listings.hiddenAt), isNull(listings.sampleBatchId), isNull(users.sampleBatchId)),
     )
     .orderBy(desc(listings.createdAt))
     .limit(limit);

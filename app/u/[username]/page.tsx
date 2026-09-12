@@ -26,6 +26,7 @@ function safeDecode(raw: string): string {
 }
 
 function profileDescription(profile: Profile): string {
+  if (profile.sampleBatchId) return `Example profile with fictional ratings and exchanges. ${profile.bio}`;
   const stats = [
     `${profile.trustScore.toFixed(1)}★`,
     `${profile.tradesCompleted} trade${profile.tradesCompleted === 1 ? "" : "s"}`,
@@ -47,11 +48,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const title = `${profile.displayName} (@${profile.username}) — Poachland`;
+  const title = `${profile.sampleBatchId ? "Example profile · " : ""}${profile.displayName} (@${profile.username}) — Poachland`;
   const description = profileDescription(profile);
   const path = `/u/${profile.username}`;
 
-  return pageMetadata({ title, description, path, image: `${path}/opengraph-image`, type: "profile" });
+  return pageMetadata({ title, description, path, image: `${path}/opengraph-image`, type: "profile", noIndex: !!profile.sampleBatchId });
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {

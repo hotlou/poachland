@@ -34,7 +34,7 @@ function Hero() {
         The Haul
       </h1>
       <p className="text-sm md:text-base text-muted-foreground mt-3 text-balance">
-        Real trades. Real players. Celebrated by the community.
+        Jerseys and discs, passed player to player.
       </p>
     </div>
   );

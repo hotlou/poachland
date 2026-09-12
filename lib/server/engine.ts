@@ -12,6 +12,8 @@
 import "server-only";
 
 import { validateAccountModeration } from "../account-moderation";
+import { closeMemberAccount, moderateContent } from "./admin-content";
+import { manageSampleBatch } from "./sample-batches";
 
 import { and, asc, count, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { OFFER_EXPIRY_DAYS } from "../constants";
@@ -143,13 +145,13 @@ async function validateOfferListings(
   for (const id of terms.proposerListingIds) {
     const l = rows.get(id);
     if (!l || l.sellerId !== proposerId) return { error: "You can only offer your own listings" };
-    if (l.status !== "active") return { error: `"${l.title}" is not available to offer` };
+    if (l.status !== "active" || l.hiddenAt || l.sampleBatchId) return { error: `"${l.title}" is not available to offer` };
   }
   for (const id of terms.ownerListingIds) {
     const l = rows.get(id);
     if (!l || l.sellerId !== ownerId)
       return { error: "Requested items must belong to the listing owner" };
-    if (l.status !== "active") return { error: `"${l.title}" is not available` };
+    if (l.status !== "active" || l.hiddenAt || l.sampleBatchId) return { error: `"${l.title}" is not available` };
   }
   return { rows };
 }
@@ -338,7 +340,7 @@ async function openDeal(
       .for("update");
     if (!listing) return err("Listing not found");
     if (listing.sellerId === user.id) return err("You can't open a deal on your own listing");
-    if (listing.status !== "active") return err("This listing is no longer available");
+    if (listing.status !== "active" || listing.hiddenAt || listing.sampleBatchId) return err("This listing is no longer available");
     if (await isBlockedPair(tx, user.id, listing.sellerId))
       return err("You can't trade with this user");
     const [existing] = await tx
@@ -427,6 +429,9 @@ async function openDeal(
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
 const handlers: OperationHandlers = {
+  adminModerateContent: moderateContent,
+  adminCloseAccount: closeMemberAccount,
+  adminSampleBatch: manageSampleBatch,
   // ── Session / profile ──────────────────────────────────────────────────────
 
   async completeOnboarding(db, user, input) {
@@ -435,6 +440,7 @@ const handlers: OperationHandlers = {
       if (!me) return err("Not signed in");
       if (me.username || me.onboardedAt) return err("Already onboarded");
       const username = sanitizeUsername(String(input.username ?? ""));
+      if (username.startsWith("sample_")) return err("That prefix is reserved for example profiles.");
       if (username.length < 3) return err("Username must be at least 3 characters");
       const [taken] = await tx
         .select({ id: users.id })
@@ -481,7 +487,7 @@ const handlers: OperationHandlers = {
       const [{ n: onboarded }] = await tx
         .select({ n: count() })
         .from(users)
-        .where(isNotNull(users.onboardedAt));
+        .where(and(isNotNull(users.onboardedAt), sql`${users.sampleBatchId} is null`));
       if (Number(onboarded) <= FOUNDER_LIMIT) {
         await awardEventBadge(tx, me.id, "founding");
       }
@@ -498,6 +504,7 @@ const handlers: OperationHandlers = {
               eq(users.username, refName),
               isNotNull(users.onboardedAt),
               sql`${users.deletedAt} is null`,
+              sql`${users.sampleBatchId} is null`,
             ),
           )
           .limit(1);
@@ -1143,7 +1150,7 @@ const handlers: OperationHandlers = {
       const byId = new Map(lockedRows.map((l) => [l.id, l]));
       for (const id of lockedIds) {
         const l = byId.get(id);
-        if (!l || l.status !== "active")
+        if (!l || l.status !== "active" || l.hiddenAt || l.sampleBatchId)
           return err(`"${l?.title ?? "An item"}" is no longer available`);
       }
 
@@ -2256,6 +2263,7 @@ const handlers: OperationHandlers = {
     return db.transaction(async (tx) => {
       const target = await getUserRow(tx, userId);
       if (!target) return err("User not found");
+      if (target.sampleBatchId && verified) return err("Example accounts cannot be verified.");
       await tx.update(users).set({ isVerified: !!verified }).where(eq(users.id, userId));
       if (verified) {
         await notify(

@@ -1,4 +1,5 @@
 "use client";
+import { SampleBadge } from "@/components/sample-notice";
 
 /**
  * Client half of /traders: searchable public directory of every onboarded
@@ -43,6 +44,7 @@ function TraderCard({ user }: { user: User }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
           <p className="text-sm font-semibold truncate">{user.displayName}</p>
+          {user.sampleBatchId && <SampleBadge />}
           {user.isVerified && (
             <BadgeCheck size={14} className="text-accent flex-shrink-0" />
           )}

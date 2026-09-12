@@ -11,6 +11,7 @@ import {
   LISTING_TYPE_LABELS,
 } from "@/lib/constants";
 import { SaveButton } from "@/components/save-button";
+import { SampleBadge } from "@/components/sample-notice";
 
 interface ListingCardProps {
   listing: Listing;
@@ -41,6 +42,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
         />
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+          {listing.sampleBatchId && <SampleBadge />}
           {listing.isRare && (
             <span className="badge-stamp text-accent border-accent bg-background/80 backdrop-blur-sm">
               Rare
@@ -86,13 +88,13 @@ export function ListingCard({ listing, className }: ListingCardProps) {
           <span className="text-xs text-white/70 flex items-center gap-1">
             <Eye size={11} /> {listing.views}
           </span>
-          <SaveButton
+          {!listing.sampleBatchId && <SaveButton
             targetType="listing"
             targetId={listing.id}
             showCount={listing.saves}
             size={13}
             className="text-white/70 hover:text-white"
-          />
+          />}
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import type { ISOPost, ItemType } from "../types";
 import { getDb } from "./db";
 import { blocks, isoPosts, users } from "./schema";
 import { hydratePublicUser, publicUserColumns } from "./public-user";
+import { sampleVisible } from "./sample-visibility";
 
 export type WantedSort = "newest" | "most-saved";
 export type WantedQuery = {
@@ -39,7 +40,7 @@ export async function queryWantedPage(input: WantedQuery, viewerId?: string): Pr
   const sort = input.sort ?? "newest";
   const limit = Math.max(1, Math.min(Math.trunc(input.limit ?? 24), 48));
   const cursor = decodeCursor(input.cursor);
-  const filters: SQL[] = [eq(isoPosts.status, "active"), eq(users.status, "active"), isNull(users.deletedAt)];
+  const filters: SQL[] = [eq(isoPosts.status, "active"), eq(users.status, "active"), isNull(users.deletedAt), isNull(isoPosts.hiddenAt), sampleVisible(users.sampleBatchId)];
   if (input.itemType && input.itemType !== "all") filters.push(eq(isoPosts.itemType, input.itemType));
   if (viewerId) {
     filters.push(sql`not exists (select 1 from ${blocks} b where

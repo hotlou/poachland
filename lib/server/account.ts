@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import type { DealStatus } from "../types";
-import { getDb } from "./db";
+import { getDb, type Db } from "./db";
 import {
   blocks,
   deals,
@@ -145,8 +145,9 @@ export type DeleteAccountResult =
 export async function deleteAccount(
   userId: string,
   confirmUsername: string,
+  connection?: Db,
 ): Promise<DeleteAccountResult> {
-  const db = await getDb();
+  const db = connection ?? await getDb();
   return db.transaction(async (tx) => {
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
     if (!user || user.deletedAt) return { ok: false, error: "Account not found.", code: "not_found" };

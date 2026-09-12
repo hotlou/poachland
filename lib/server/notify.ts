@@ -8,11 +8,11 @@
 
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { NotificationType } from "../types";
 import { uid } from "./auth";
 import type { Db } from "./db";
-import { emailOutbox, notifications } from "./schema";
+import { emailOutbox, notifications, users } from "./schema";
 import { EMAIL_CATEGORY, emailDedupeKey } from "./email";
 
 export interface NotificationInput {
@@ -29,6 +29,10 @@ export async function insertNotifications(
   tx: Db,
   items: NotificationInput[],
 ): Promise<void> {
+  if (items.length === 0) return;
+  const eligible = await tx.select({ id: users.id }).from(users).where(and(inArray(users.id, items.map((n) => n.userId)), isNull(users.sampleBatchId)));
+  const realIds = new Set(eligible.map((u) => u.id));
+  items = items.filter((n) => realIds.has(n.userId));
   if (items.length === 0) return;
   const now = new Date();
   await tx.insert(notifications).values(

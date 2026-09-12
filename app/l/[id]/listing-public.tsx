@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import { ShareButton } from "@/components/share-button";
+import { SampleNotice } from "@/components/sample-notice";
 import { listingShareContent } from "@/lib/sharing";
 import { BadgeCheck, ChevronRight, MapPin, PackageX } from "lucide-react";
 import { PhotoGallery } from "@/components/photo-gallery";
@@ -103,6 +104,7 @@ function ListingBody({ listing }: { listing: PublicListing }) {
 
   return (
     <div className="pt-6">
+      {listing.sampleBatchId && <SampleNotice />}
       {/* Photos */}
       <div className="rounded-2xl overflow-hidden border border-border bg-surface">
         <PhotoGallery photos={listing.photos} alt={listing.title} />
@@ -252,7 +254,7 @@ function ListingBody({ listing }: { listing: PublicListing }) {
 
       {/* CTA */}
       <div className="mt-6 bg-card border border-border rounded-xl p-6 md:p-8 text-center">
-        {signedIn ? (
+        {listing.sampleBatchId ? <Link href="/browse" className={cn(pillPrimary, "px-6 py-3")}>Explore the marketplace</Link> : signedIn ? (
           <div className="flex flex-col items-center gap-3">
             <Link
               href={`/app/listings/${listing.id}`}
