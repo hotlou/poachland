@@ -1,11 +1,13 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Handshake } from "lucide-react";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Account closed — Poachland",
-  robots: { index: false },
-};
+  description: "Poachland — the ultimate frisbee gear community.",
+  noIndex: true,
+});
 
 export default function GoodbyePage() {
   return (

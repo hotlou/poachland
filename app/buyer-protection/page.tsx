@@ -1,12 +1,13 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalHeading, LegalShell } from "@/components/legal-shell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Deal Safety & Buyer Protection — Poachland",
   description: "What Poachland does, what traders must do, and how disputes work.",
-  alternates: { canonical: "/buyer-protection" },
-};
+  path: "/buyer-protection",
+});
 
 export default function BuyerProtectionPage() {
   return (

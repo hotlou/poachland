@@ -1,12 +1,13 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalHeading, LegalShell } from "@/components/legal-shell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy — Poachland",
   description: "What Poachland collects, why, and the choices you have.",
-  alternates: { canonical: "/privacy" },
-};
+  path: "/privacy",
+});
 
 const CONTACT = "broker@poachland.com";
 

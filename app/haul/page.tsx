@@ -8,6 +8,7 @@
  * client-side from the public store snapshot.
  */
 
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { getPublicHaul } from "@/lib/server/public";
 import { PublicHaul } from "./haul-client";
@@ -27,23 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const tail = count > 0 ? ` ${count} trades and counting.` : "";
   const description = `See what ultimate frisbee players are trading on Poachland — jerseys and discs swapped, celebrated by the community.${tail} Join free.`;
 
-  return {
-    title: TITLE,
-    description,
-    alternates: { canonical: "/haul" },
-    openGraph: {
-      title: TITLE,
-      description,
-      url: "/haul",
-      type: "website",
-      siteName: "Poachland",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: TITLE,
-      description,
-    },
-  };
+  return pageMetadata({ title: TITLE, description: description, path: "/haul", image: "/haul/opengraph-image" });
 }
 
 export default async function HaulPage() {

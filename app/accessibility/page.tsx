@@ -1,11 +1,12 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { LegalHeading, LegalShell } from "@/components/legal-shell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Accessibility — Poachland",
   description: "How Poachland works toward being usable by everyone.",
-  alternates: { canonical: "/accessibility" },
-};
+  path: "/accessibility",
+});
 
 const CONTACT = "broker@poachland.com";
 

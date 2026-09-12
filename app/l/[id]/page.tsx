@@ -10,59 +10,24 @@
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPublicListing, type PublicListing } from "@/lib/server/public";
-import { LISTING_TYPE_LABELS } from "@/lib/constants";
+import { getPublicListing } from "@/lib/server/public";
+import { pageMetadata } from "@/lib/metadata";
+import { listingShareContent, shorten } from "@/lib/sharing";
 import { PublicListingView } from "./listing-public";
 
-export const revalidate = 120;
+export const dynamic = "force-dynamic";
 
 type PageProps = { params: Promise<{ id: string }> };
-
-function listingDescription(l: PublicListing): string {
-  const pricePrefix =
-    l.listingType === "sell" && l.askingPrice != null
-      ? `$${l.askingPrice} · `
-      : l.listingType === "free"
-        ? "Free · "
-        : "";
-  const raw =
-    `${pricePrefix}${l.condition} ${l.team} ${l.type} — ` +
-    `${LISTING_TYPE_LABELS[l.listingType]} on Poachland. ${l.description}`;
-  const trimmed = raw.trim();
-  return trimmed.length > 200 ? `${trimmed.slice(0, 199).trimEnd()}…` : trimmed;
-}
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const l = await getPublicListing(id);
   if (!l) {
-    return {
-      title: "Listing not found — Poachland",
-      robots: { index: false },
-    };
+    return pageMetadata({ title: "Listing unavailable — Poachland", description: "This listing is no longer public. Discover more ultimate frisbee gear on Poachland.", noIndex: true });
   }
 
-  const title = `${l.title} — Poachland`;
-  const description = listingDescription(l);
-  const path = `/l/${l.id}`;
-
-  return {
-    title,
-    description,
-    alternates: { canonical: path },
-    openGraph: {
-      title,
-      description,
-      url: path,
-      type: "website",
-      siteName: "Poachland",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
-  };
+  const content = listingShareContent(l);
+  return pageMetadata({ title: `${l.title} — Poachland`, description: shorten(content.text, 220), path: content.path, image: content.imagePath, imageAlt: `${l.title} — ${l.condition}${l.size ? `, size ${l.size}` : ""}` });
 }
 
 export default async function PublicListingPage({ params }: PageProps) {

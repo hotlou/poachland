@@ -10,6 +10,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Dynamic OG renderers read bundled photos from disk in serverless deployments.
+  outputFileTracingIncludes: {
+    "/l/*/opengraph-image": ["./public/images/**/*", "./public/placeholder*.jpg"],
+    "/u/*/opengraph-image": ["./public/images/**/*", "./public/placeholder*.jpg"],
+    "/vendors/*/opengraph-image": ["./public/images/**/*", "./public/placeholder*.jpg"],
+  },
   async headers() {
     return [{
       source: "/(.*)",
