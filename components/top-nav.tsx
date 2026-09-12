@@ -32,7 +32,7 @@ export function TopNav() {
         <Link href="/app" className="font-display font-bold text-lg tracking-tight text-accent">
           Poachland
         </Link>
-        <nav className="flex items-center gap-1">
+        <nav aria-label="Main navigation" className="flex items-center gap-1">
           {LINKS.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
             const badge = href === "/app/inbox" ? unreadMessages : 0;
@@ -40,6 +40,7 @@ export function TopNav() {
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-medium transition-colors",
                   active
@@ -61,6 +62,8 @@ export function TopNav() {
         <div className="flex-1" />
         <Link
           href="/app/create"
+          aria-label="Post a listing"
+          aria-current={pathname.startsWith("/app/create") ? "page" : undefined}
           className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-foreground px-4 py-1.5 text-[13.5px] font-semibold hover:bg-accent/90 transition-colors shadow-sm"
         >
           <PlusCircle size={15} /> Post

@@ -1,0 +1,17 @@
+/* Semantic details shared by the public marketplace and signed-in board.
+   Core palette and font mappings remain in globals.css. */
+:root {
+  --note-surface: #fdf6e3;
+  --note-border: oklch(0.924 0.12 95.746 / 0.7);
+  --note-shadow: 0 4px 6px -1px oklch(0.279 0.077 45.635 / 0.1), 0 2px 4px -2px oklch(0.279 0.077 45.635 / 0.1);
+  --card-hover-shadow: 0 8px 28px oklch(0.3 0.02 80 / 0.14);
+  --scrollbar-thumb: oklch(0.75 0.01 88);
+}
+
+.dark {
+  --note-surface: #1a1a18;
+  --note-border: var(--border);
+  --note-shadow: 0 4px 6px -1px oklch(0 0 0 / 0.4), 0 2px 4px -2px oklch(0 0 0 / 0.4);
+  --card-hover-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+  --scrollbar-thumb: oklch(0.3 0 0);
+}

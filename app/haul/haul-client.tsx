@@ -61,10 +61,10 @@ function EmptyWall() {
         No hauls on the wall yet.
       </h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Be the first to complete a trade and show it off.
+        Completed trades belong here. Find your next jersey or disc to get started.
       </p>
-      <Link href="/login" className={cn(pillPrimary, "px-6 py-3")}>
-        Join free
+      <Link href="/browse" className={cn(pillPrimary, "px-6 py-3")}>
+        Browse the crate
       </Link>
     </div>
   );
@@ -153,6 +153,7 @@ function Wall() {
           {loadingMore ? "Loading…" : "Load more"}
         </button>
       )}
+      <JoinCta />
     </div>
   );
 }
@@ -170,10 +171,7 @@ export function PublicHaul() {
         {!hydrated ? (
           <HaulSkeleton />
         ) : (
-          <>
-            <Wall />
-            <JoinCta />
-          </>
+          <Wall />
         )}
       </main>
     </div>

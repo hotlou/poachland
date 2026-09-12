@@ -50,8 +50,9 @@ function Pill({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
+        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-[background-color,color,border-color]",
         active
           ? "bg-accent text-accent-foreground border-accent shadow-sm"
           : "bg-card text-muted-foreground border-border hover:text-foreground",
@@ -126,7 +127,7 @@ function ListingMiniCard({ listing }: { listing: Listing }) {
         <img
           src={listing.photos[0] || "/placeholder.jpg"}
           alt={listing.title}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute top-2 right-2">
           <span
@@ -161,18 +162,28 @@ function ListingMiniCard({ listing }: { listing: Listing }) {
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 
-function EmptyResults() {
+function EmptyResults({ filtered, onClear }: { filtered: boolean; onClear: () => void }) {
+  const store = useStore();
+  const signedIn = !!store.sessionMe;
   return (
-    <div className="py-16 text-center">
-      <h2 className="font-display font-bold text-xl tracking-tight mb-1">
-        Nothing matches yet.
+    <div className="py-10 text-center">
+      <h2 className="font-display font-bold text-xl tracking-tight mb-2">
+        {filtered ? "No gear matches those filters." : "The crate is waiting for its first drop."}
       </h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Loosen the filters, or join to post what you&apos;re hunting for.
+        {filtered
+          ? "Try another search or clear the filters to see all available gear."
+          : "Have a spare jersey or disc? Give another player a chance to find it."}
       </p>
-      <Link href="/login" className={cn(pillPrimary, "px-6 py-3")}>
-        Join free
-      </Link>
+      {filtered ? (
+        <button type="button" onClick={onClear} className={cn(pillPrimary, "px-6 py-3")}>
+          Clear filters
+        </button>
+      ) : (
+        <Link href={signedIn ? "/app/create" : "/login"} className={cn(pillPrimary, "px-6 py-3")}>
+          {signedIn ? "List your gear" : "Join to list your gear"}
+        </Link>
+      )}
     </div>
   );
 }
@@ -221,10 +232,12 @@ function Results({
   query,
   itemType,
   listingType,
+  onClear,
 }: {
   query: string;
   itemType: "all" | ItemType;
   listingType: "all" | ListingType;
+  onClear: () => void;
 }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
@@ -247,7 +260,7 @@ function Results({
 
   if (loading) return <BrowseSkeleton />;
 
-  if (listings.length === 0) return <EmptyResults />;
+  if (listings.length === 0) return <EmptyResults filtered={!!query.trim() || itemType !== "all" || listingType !== "all"} onClear={onClear} />;
 
   return (
     <>
@@ -277,6 +290,7 @@ function Results({
           {loadingMore ? "Loading…" : "Load more"}
         </button>
       )}
+      <div className="mt-8"><JoinCta /></div>
     </>
   );
 }
@@ -315,6 +329,7 @@ export function PublicBrowse() {
               <button
                 type="button"
                 aria-label="Clear search"
+                className="inline-flex size-6 items-center justify-center"
                 onClick={() => setQuery("")}
               >
                 <X
@@ -324,7 +339,7 @@ export function PublicBrowse() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Item type" className="flex flex-wrap gap-2">
             {ITEM_TYPE_CHIPS.map((c) => (
               <Pill
                 key={c.value}
@@ -335,7 +350,7 @@ export function PublicBrowse() {
               </Pill>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Listing type" className="flex flex-wrap gap-2">
             {LISTING_TYPE_CHIPS.map((c) => (
               <Pill
                 key={c.value}
@@ -356,10 +371,8 @@ export function PublicBrowse() {
               query={query}
               itemType={itemType}
               listingType={listingType}
+              onClear={() => { setQuery(""); setItemType("all"); setListingType("all"); }}
             />
-            <div className="mt-4">
-              <JoinCta />
-            </div>
           </>
         )}
       </main>

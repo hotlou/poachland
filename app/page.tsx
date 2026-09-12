@@ -1,15 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowLeftRight,
-  ArrowRight,
-  Flag,
-  Gift,
-  Handshake,
-  Radar,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useHydrated, useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
 import { CONDITION_COLORS, LISTING_TYPE_LABELS } from "@/lib/constants";
@@ -19,8 +11,6 @@ import { cn } from "@/lib/utils";
 
 const pillPrimary =
   "inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-semibold rounded-full shadow-sm hover:opacity-90 transition-opacity";
-const pillSecondary =
-  "inline-flex items-center justify-center gap-2 bg-card text-foreground border border-border text-sm font-semibold rounded-full shadow-sm hover:border-accent/50 hover:text-accent transition-colors";
 
 /** Top-bar nav: text link + join pill when signed out, enter pill when signed in. */
 function HeaderNav() {
@@ -49,55 +39,21 @@ function HeaderNav() {
   );
 }
 
-/** Primary CTA: joins/signs in when logged out, enters the app when logged in. */
-function PrimaryCta({ className }: { className: string }) {
+/** Posting needs an account; browsing stays public. */
+function PostingCta({ wanted = false }: { wanted?: boolean }) {
   const store = useStore();
   const ready = useHydrated();
   const signedIn = ready && !!store.sessionMe;
   return (
-    <Link href={signedIn ? "/app" : "/login"} className={className}>
-      Start poaching <ArrowRight size={16} />
+    <Link
+      href={signedIn ? (wanted ? "/app/wanted/create" : "/app/create") : "/login"}
+      className={cn(pillPrimary, "px-5 py-3")}
+    >
+      {wanted
+        ? (signedIn ? "Post a wanted request" : "Join to post a request")
+        : (signedIn ? "List your gear" : "Join to list your gear")}
+      <ArrowRight size={16} />
     </Link>
-  );
-}
-
-// ── Live sections (rendered only after hydration) ────────────────────────────
-
-function StatsStrip() {
-  const store = useStore();
-  const stats = store.adminStats();
-  const items = [
-    { label: "Collectors", value: String(stats.users) },
-    { label: "Active listings", value: String(stats.activeListings) },
-    { label: "Trades completed", value: String(stats.dealsCompleted) },
-    { label: "Fees", value: "$0" },
-  ];
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-6">
-      {items.map(({ label, value }) => (
-        <div key={label} className="flex flex-col items-center text-center">
-          <span className="font-display font-black text-3xl tracking-tight leading-none">
-            {value}
-          </span>
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mt-2">
-            {label}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatsSkeleton() {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-6">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex flex-col items-center gap-2.5">
-          <div className="h-7 w-10 rounded bg-secondary animate-pulse" />
-          <div className="h-2.5 w-14 rounded bg-secondary animate-pulse" />
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -106,9 +62,14 @@ function CrateStrip() {
   const listings = store.listListings({ sort: "newest" }).slice(0, 8);
   if (listings.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
-        Crate&apos;s empty. Be the first to poach it.
-      </p>
+      <div className="border-l-2 border-accent pl-5 py-2 sm:py-4">
+        <h3 className="font-semibold text-lg">Make the first drop.</h3>
+        <p className="text-sm text-muted-foreground mt-2 mb-5 max-w-md leading-relaxed">
+          The crate is waiting for its first listing. That spare team jersey or
+          tournament disc could be another player&apos;s next find.
+        </p>
+        <PostingCta />
+      </div>
     );
   }
   return (
@@ -116,7 +77,7 @@ function CrateStrip() {
       {listings.map((listing) => (
         <Link
           key={listing.id}
-          href={`/app/listings/${listing.id}`}
+          href={`/l/${listing.id}`}
           className="flex-shrink-0 w-36 lg:w-auto rounded-xl overflow-hidden border border-border bg-card card-lift"
         >
           <div className="relative aspect-square bg-surface">
@@ -178,9 +139,14 @@ function WantedPreview() {
   const posts = store.listISOPosts({ sort: "most-saved" }).slice(0, 3);
   if (posts.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-xl">
-        No hunts posted yet. Be the first to poach it.
-      </p>
+      <div className="bg-note-surface border border-note-border rounded-sm p-5 sm:p-6">
+        <h3 className="font-semibold text-lg">Looking for a particular jersey or disc?</h3>
+        <p className="text-sm text-muted-foreground mt-2 mb-5 max-w-md leading-relaxed">
+          No requests yet. Start the board with the team, size, or stamp you&apos;re
+          after, and let other players know what to look for.
+        </p>
+        <PostingCta wanted />
+      </div>
     );
   }
   return (
@@ -188,7 +154,7 @@ function WantedPreview() {
       {posts.map((post) => (
         <Link
           key={post.id}
-          href="/app/wanted"
+          href="/wanted"
           className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 card-lift"
         >
           <div className="w-8 h-8 rounded-full overflow-hidden border border-border flex-shrink-0">
@@ -235,209 +201,87 @@ function WantedSkeleton() {
   );
 }
 
-function TraderCountLine() {
-  const store = useStore();
-  const { users } = store.adminStats();
-  return (
-    <p className="text-muted-foreground text-sm mb-6">
-      Join {users} traders who actually care about this stuff.
-    </p>
-  );
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
-
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-lg md:max-w-3xl lg:max-w-4xl">
-        {/* Header */}
-        <header className="flex items-center justify-between px-5 py-4">
+      <div className="mx-auto max-w-lg md:max-w-3xl lg:max-w-5xl">
+        <header className="flex items-center justify-between gap-3 px-5 py-4">
           <span className="font-display font-black text-xl tracking-tight text-accent">
             Poachland
           </span>
           <HeaderNav />
         </header>
 
-        {/* Hero */}
-        <section id="main-content" tabIndex={-1} className="px-5 pt-12 pb-10 md:pt-16">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="badge-stamp text-accent border-accent">
-                Ultimate frisbee only
-              </span>
-              <span className="badge-stamp text-pop border-pop">
-                Free to list
-              </span>
-            </div>
-            <h1 className="font-display font-black text-5xl md:text-6xl leading-[1.05] tracking-tight mb-5">
-              Trade jerseys.
-              <br />
-              <span className="text-accent">Collect discs.</span>
-              <br />
-              Trust each other.
+        <main id="main-content" tabIndex={-1}>
+          <section className="px-5 pt-8 pb-9 md:pt-14 md:pb-12">
+            <p className="text-sm font-medium text-accent mb-3">The ultimate frisbee swap meet</p>
+            <h1 className="font-display font-black text-4xl sm:text-5xl md:text-6xl leading-[1.08] tracking-tight max-w-2xl">
+              Good gear.<br />
+              <span className="text-accent">Next player.</span>
             </h1>
-            <p className="text-muted-foreground text-base leading-relaxed mb-8 text-pretty max-w-md mx-auto">
-              A marketplace built by players, for players. List your gear, find
-              rare stuff, propose trades. No fees, no middleman.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
-              <Link
-                href="/browse"
-                className={cn(pillSecondary, "px-6 py-3")}
-              >
-                Browse the crate
+            <div className="mt-5 flex flex-col gap-5 md:flex-row md:items-end md:justify-between md:gap-10">
+              <p className="text-muted-foreground text-base leading-relaxed max-w-md">
+                Trade jerseys, collect discs, and pass your spare gear to someone
+                who&apos;ll play in it. Built by players. Free to list.
+              </p>
+              <Link href="/browse" className={cn(pillPrimary, "px-6 py-3 self-start md:shrink-0")}>
+                Browse the crate <ArrowRight size={16} />
               </Link>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Live stats under a hairline */}
-        <section className="px-5">
-          <div className="border-t border-border pt-7 pb-9">
-            <Hydrated fallback={<StatsSkeleton />}>
-              <StatsStrip />
-            </Hydrated>
-          </div>
-        </section>
-
-        {/* Fresh drops — live newest listings */}
-        <section className="px-5 py-8 border-t border-border">
-          <div className="flex items-end justify-between mb-5">
-            <div>
-              <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
-                What&apos;s in the crate
-              </p>
-              <div className="flex items-center gap-2.5">
-                <h2 className="font-display font-bold text-2xl tracking-tight">
-                  Fresh drops
-                </h2>
-                <span className="badge-pill bg-sunny text-sunny-foreground">
-                  rare finds daily
-                </span>
-              </div>
-            </div>
-            <Link
-              href="/app/browse"
-              className="text-sm text-accent font-semibold flex-shrink-0 pb-1"
-            >
-              See all
-            </Link>
-          </div>
-          <Hydrated fallback={<CrateSkeleton />}>
-            <CrateStrip />
-          </Hydrated>
-        </section>
-
-        {/* Features */}
-        <section className="px-5 py-9 border-t border-border">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
-            How it works
-          </p>
-          <h2 className="font-display font-bold text-2xl tracking-tight mb-6">
-            Built for the community
-          </h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            {[
-              {
-                icon: ArrowLeftRight,
-                title: "Multi-round negotiation",
-                desc: "Offer items, sweeten with cash, counter until it's fair. Every deal is a conversation, not a checkout.",
-              },
-              {
-                icon: Gift,
-                title: "Free-item claims",
-                desc: "Clearing out the closet? Post it free and pick which teammate-in-spirit gets it.",
-              },
-              {
-                icon: Radar,
-                title: "Wanted board with auto-matching",
-                desc: "Post an ISO and get pinged the second a matching listing hits the crate.",
-              },
-              {
-                icon: ShieldCheck,
-                title: "Trust scores & earned badges",
-                desc: "Every completed deal gets rated. Scores and badges are public — and earned, never bought.",
-              },
-              {
-                icon: Handshake,
-                title: "Both-sides confirmation",
-                desc: "A deal only completes when both traders confirm their end arrived. No ghosting.",
-              },
-              {
-                icon: Flag,
-                title: "Community moderation",
-                desc: "Report shady listings, dispute bad deals. Mods keep the land clean.",
-              },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="bg-card border border-border rounded-xl p-4 md:p-5 flex gap-4 items-start md:flex-col md:gap-3.5"
-              >
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent-dim flex items-center justify-center">
-                  <Icon size={19} className="text-accent" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm mb-0.5">{title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {desc}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Wanted board preview */}
-        <section className="px-5 py-9 border-t border-border">
-          <div className="flex items-end justify-between mb-5">
-            <div>
-              <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
-                The hunt is on
-              </p>
-              <h2 className="font-display font-bold text-2xl tracking-tight">
-                The wanted board
-              </h2>
-            </div>
-            <Link
-              href="/app/wanted"
-              className="text-sm text-accent font-semibold flex-shrink-0 pb-1"
-            >
-              View all
-            </Link>
-          </div>
-          <Hydrated fallback={<WantedSkeleton />}>
-            <WantedPreview />
-          </Hydrated>
-        </section>
-
-        {/* CTA footer */}
-        <section className="px-5 pt-9 pb-12 border-t border-border">
-          <div className="bg-card border border-border rounded-xl p-7 md:p-10 text-center">
-            <h2 className="font-display font-black text-3xl tracking-tight mb-2 text-balance">
-              What are you hunting?
-            </h2>
-            <Hydrated
-              fallback={
-                <p className="text-muted-foreground text-sm mb-6">
-                  Join the traders who actually care about this stuff.
-                </p>
-              }
-            >
-              <TraderCountLine />
-            </Hydrated>
-            <div className="flex flex-col items-center gap-3">
-              <PrimaryCta className={cn(pillPrimary, "px-6 py-3")} />
-              <Link
-                href="/browse"
-                className="text-xs text-muted-foreground hover:text-accent underline underline-offset-4 transition-colors"
-              >
-                Browse the crate first
+          <section aria-labelledby="fresh-drops" className="px-5 py-7 md:py-9 border-t border-border">
+            <div className="flex items-baseline justify-between gap-4 mb-5">
+              <h2 id="fresh-drops" className="font-display font-bold text-2xl tracking-tight">Fresh drops</h2>
+              <Link href="/browse" className="text-sm text-accent font-semibold shrink-0 py-2">
+                See all
               </Link>
             </div>
-          </div>
-        </section>
+            <Hydrated fallback={<CrateSkeleton />}>
+              <CrateStrip />
+            </Hydrated>
+          </section>
+
+          <section aria-labelledby="wanted-board" className="px-5 py-8 md:py-10 border-t border-border">
+            <div className="flex items-baseline justify-between gap-4 mb-5">
+              <h2 id="wanted-board" className="font-display font-bold text-2xl tracking-tight">The wanted board</h2>
+              <Link href="/wanted" className="text-sm text-accent font-semibold shrink-0 py-2">
+                View all
+              </Link>
+            </div>
+            <Hydrated fallback={<WantedSkeleton />}>
+              <WantedPreview />
+            </Hydrated>
+          </section>
+
+          <section aria-labelledby="how-trading-works" className="px-5 pt-8 pb-12 border-t border-border md:grid md:grid-cols-[1fr_1.5fr] md:gap-12">
+            <div>
+              <h2 id="how-trading-works" className="font-display font-bold text-2xl tracking-tight">A trade starts with a conversation.</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-3 mb-4">
+                Check a player&apos;s ratings and earned badges. Agree on the details
+                together, and keep the conversation in Poachland.
+              </p>
+              <Link href="/buyer-protection" className="text-sm text-accent font-semibold underline underline-offset-4">
+                Read the trading safety guide
+              </Link>
+            </div>
+            <ol className="mt-7 md:mt-0 divide-y divide-border">
+              {[
+                { title: "Put it in the crate", description: "List a jersey or disc to trade, sell, or give away. Hunting for something specific? Post a wanted request and get notified about matches." },
+                { title: "Work out a fair swap", description: "Offer gear, add cash, or send a counteroffer. For a free item, the owner chooses who gets it." },
+                { title: "Confirm it arrived", description: "Both players confirm delivery to complete the deal. Leave a rating, share your haul, and report a problem if you need help." },
+              ].map(({ title, description }, index) => (
+                <li key={title} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                  <span className="text-accent font-semibold tabular-nums pt-0.5" aria-hidden="true">{index + 1}.</span>
+                  <div>
+                    <h3 className="text-base font-semibold">{title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mt-1">{description}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </main>
 
         {/* Footer */}
         <footer className="px-5 pb-10 text-center text-xs text-muted-foreground">

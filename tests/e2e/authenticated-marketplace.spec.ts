@@ -16,7 +16,7 @@ async function signUp(page: import("@playwright/test").Page, email: string, user
   await expect(page.getByText("Account live")).toBeVisible();
 }
 
-test("new trader onboards, posts a first listing, and sees duplicate protection", async ({ page }, testInfo) => {
+test("new trader posts a publicly discoverable listing with duplicate protection", async ({ page, browser }, testInfo) => {
   const suffix = `${testInfo.project.name}-${testInfo.workerIndex}-${Date.now()}`.replace(/[^a-z0-9]/gi, "").toLowerCase();
   const email = `e2e-${suffix}@example.test`;
   const username = `e2e${suffix}`.slice(0, 28);
@@ -56,6 +56,19 @@ test("new trader onboards, posts a first listing, and sees duplicate protection"
   await completeListing();
   await expect(page.getByText(/looks like a duplicate/i)).toBeVisible();
   await expect(page).toHaveURL(/\/app\/create/);
+
+  const visitorContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+  try {
+    const visitor = await visitorContext.newPage();
+    await visitor.goto("/");
+    const listing = visitor.getByRole("region", { name: "Fresh drops" }).getByRole("link", { name: new RegExp(title) });
+    await expect(listing).toHaveAttribute("href", /^\/l\//);
+    await listing.click();
+    await expect(visitor).toHaveURL(/\/l\//);
+    await expect(visitor.getByRole("heading", { name: title })).toBeVisible();
+  } finally {
+    await visitorContext.close();
+  }
 });
 
 test("two traders complete an offer and fulfillment lifecycle", async ({ browser }, testInfo) => {
@@ -67,8 +80,8 @@ test("two traders complete an offer and fulfillment lifecycle", async ({ browser
   const seller = await sellerContext.newPage();
   const buyer = await buyerContext.newPage();
   const observer = await observerContext.newPage();
-  const sellerName = `sell${suffix}`.slice(0, 28);
-  const buyerName = `buy${suffix}`.slice(0, 28);
+  const sellerName = `sell${suffix.slice(-16)}`;
+  const buyerName = `buy${suffix.slice(-16)}`;
   const title = `Lifecycle Disc ${suffix}`;
 
   try {
@@ -82,6 +95,7 @@ test("two traders complete an offer and fulfillment lifecycle", async ({ browser
     await seller.getByRole("button", { name: "Stock photo" }).first().click();
     await seller.getByRole("button", { name: /post listing/i }).click();
     await expect(seller.getByRole("heading", { name: title })).toBeVisible();
+    await expect(seller).toHaveURL(/\/app\/listings\//);
     const listingUrl = seller.url();
 
     await signUp(buyer, `buyer-${suffix}@example.test`, buyerName);
@@ -150,12 +164,14 @@ test("an accepted deal can be disputed and is visible to both parties", async ({
     await seller.getByLabel("Asking price").fill("45");
     await seller.getByRole("button", { name: "Stock photo" }).first().click();
     await seller.getByRole("button", { name: /post listing/i }).click();
+    await expect(seller).toHaveURL(/\/app\/listings\//);
     const listingUrl = seller.url();
 
     await signUp(buyer, `dispute-buyer-${suffix}@example.test`, `db${suffix}`.slice(0, 28));
     await buyer.goto(listingUrl);
     await buyer.getByRole("button", { name: /buy for \$45/i }).click();
     await buyer.getByRole("button", { name: /send \$45 offer/i }).click();
+    await expect(buyer).toHaveURL(/\/app\/trades\//);
     const dealUrl = buyer.url();
 
     await seller.goto(dealUrl);
@@ -168,11 +184,11 @@ test("an accepted deal can be disputed and is visible to both parties", async ({
     await buyer.getByPlaceholder("Describe what went wrong").fill(reason);
     await buyer.getByRole("button", { name: /open dispute/i }).click();
     await expect(buyer.getByText(/under review by moderators/i)).toBeVisible();
-    await expect(buyer.getByText(reason)).toBeVisible();
+    await expect(buyer.getByText(`“${reason}”`, { exact: true })).toBeVisible();
 
     await seller.goto(dealUrl);
     await expect(seller.getByText(/under review by moderators/i)).toBeVisible();
-    await expect(seller.getByText(reason)).toBeVisible();
+    await expect(seller.getByText(`“${reason}”`, { exact: true })).toBeVisible();
     await expect(seller.getByRole("button", { name: /mark shipped/i })).toHaveCount(0);
   } finally {
     await sellerContext.close();
@@ -199,12 +215,14 @@ test("an accepted deal can be cancelled and releases its listing", async ({ brow
     await seller.getByLabel("Asking price").fill("60");
     await seller.getByRole("button", { name: "Stock photo" }).first().click();
     await seller.getByRole("button", { name: /post listing/i }).click();
+    await expect(seller).toHaveURL(/\/app\/listings\//);
     const listingUrl = seller.url();
 
     await signUp(buyer, `cancel-buyer-${suffix}@example.test`, `cb${suffix}`.slice(0, 28));
     await buyer.goto(listingUrl);
     await buyer.getByRole("button", { name: /buy for \$60/i }).click();
     await buyer.getByRole("button", { name: /send \$60 offer/i }).click();
+    await expect(buyer).toHaveURL(/\/app\/trades\//);
     const dealUrl = buyer.url();
 
     await seller.goto(dealUrl);

@@ -58,7 +58,7 @@ export default function WantedBoardPage() {
           </Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Item type" className="flex flex-wrap gap-2">
             {(
               [
                 { key: "all", label: "All", icon: null },
@@ -69,6 +69,7 @@ export default function WantedBoardPage() {
               <button
                 key={key}
                 type="button"
+                aria-pressed={filter === key}
                 onClick={() => setFilter(key)}
                 className={cn(
                   "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
@@ -82,7 +83,7 @@ export default function WantedBoardPage() {
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Sort order" className="flex flex-wrap gap-2">
             {(
               [
                 { key: "newest", label: "Newest" },
@@ -92,6 +93,7 @@ export default function WantedBoardPage() {
               <button
                 key={key}
                 type="button"
+                aria-pressed={sort === key}
                 onClick={() => setSort(key)}
                 className={cn(
                   "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
@@ -134,7 +136,7 @@ function BoardSkeleton() {
         <div
           key={i}
           className={cn(
-            "bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm h-36 animate-pulse mb-5 break-inside-avoid",
+            "bg-note-surface border border-note-border rounded-sm h-36 animate-pulse mb-5 break-inside-avoid",
             ROTATIONS[i % ROTATIONS.length],
             i > 2 && "hidden md:block",
           )}
@@ -274,7 +276,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
           <div
             key={post.id}
             className={cn(
-              "relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4 shadow-md shadow-amber-950/10 dark:shadow-black/40 mb-5 break-inside-avoid",
+              "relative bg-note-surface border border-note-border rounded-sm p-4 shadow-note mb-5 break-inside-avoid",
               ROTATIONS[i % ROTATIONS.length],
             )}
           >
@@ -341,7 +343,7 @@ function Board({ filter, sort }: { filter: Filter; sort: Sort }) {
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-amber-200/60 dark:border-border/70">
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-note-border">
               <SaveButton
                 targetType="iso"
                 targetId={post.id}
