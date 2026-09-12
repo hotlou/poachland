@@ -7,6 +7,7 @@
  * the public store snapshot.
  */
 
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { getPublicPartners } from "@/lib/server/public";
 import { PublicShop } from "./shop-client";
@@ -26,23 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const tail = count > 0 ? ` ${count} brands and counting.` : "";
   const description = `Jersey makers, disc brands, and gear companies that back the ultimate community. Shop direct.${tail}`;
 
-  return {
-    title: TITLE,
-    description,
-    alternates: { canonical: "/shop" },
-    openGraph: {
-      title: TITLE,
-      description,
-      url: "/shop",
-      type: "website",
-      siteName: "Poachland",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: TITLE,
-      description,
-    },
-  };
+  return pageMetadata({ title: TITLE, description: description, path: "/shop", image: "/shop/opengraph-image" });
 }
 
 export default async function ShopPage() {

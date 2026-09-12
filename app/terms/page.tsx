@@ -1,12 +1,13 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalHeading, LegalShell } from "@/components/legal-shell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms of Service — Poachland",
   description: "The rules of the road for trading on Poachland.",
-  alternates: { canonical: "/terms" },
-};
+  path: "/terms",
+});
 
 const CONTACT = "broker@poachland.com";
 

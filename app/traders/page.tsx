@@ -5,29 +5,16 @@
  * public store snapshot.
  */
 
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { TradersDirectory } from "./traders-client";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Traders — Poachland",
-  description:
-    "Meet the collectors trading ultimate frisbee jerseys and discs on Poachland. Trust scores, badges, and completed trades — all public, all earned.",
-  alternates: { canonical: "/traders" },
-  openGraph: {
-    title: "Traders — Poachland",
-    description:
-      "Meet the collectors trading ultimate frisbee jerseys and discs on Poachland.",
-    url: "/traders",
-    type: "website",
-    siteName: "Poachland",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Traders — Poachland",
-    description:
-      "Meet the collectors trading ultimate frisbee jerseys and discs on Poachland.",
-  },
-};
+  description: "Meet the collectors trading ultimate frisbee jerseys and discs on Poachland. Explore public profiles, ratings, and completed trades.",
+  path: "/traders",
+  image: "/traders/opengraph-image",
+});
 
 export default function TradersPage() {
   return <TradersDirectory />;

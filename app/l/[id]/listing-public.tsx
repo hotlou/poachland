@@ -9,6 +9,8 @@
  */
 
 import Link from "next/link";
+import { ShareButton } from "@/components/share-button";
+import { listingShareContent } from "@/lib/sharing";
 import { BadgeCheck, ChevronRight, MapPin, PackageX } from "lucide-react";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
@@ -107,9 +109,10 @@ function ListingBody({ listing }: { listing: PublicListing }) {
       </div>
 
       {/* Title */}
-      <h1 className="font-display font-bold text-2xl tracking-tight mt-5">
-        {listing.title}
-      </h1>
+      <div className="mt-5 flex items-start justify-between gap-3">
+        <h1 className="font-display font-bold text-2xl tracking-tight">{listing.title}</h1>
+        <ShareButton content={listingShareContent(listing)} label="Share listing" iconOnly className="w-11 shrink-0 p-0" />
+      </div>
 
       {/* Stamp chips + item/team */}
       <div className="flex items-center gap-2 flex-wrap mt-3">

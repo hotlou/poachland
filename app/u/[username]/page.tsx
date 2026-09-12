@@ -7,12 +7,13 @@
  * page is rendered client-side from the public store snapshot.
  */
 
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublicProfile, type PublicProfile as Profile } from "@/lib/server/public";
 import { PublicProfile } from "./public-profile";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type PageProps = { params: Promise<{ username: string }> };
 
@@ -50,23 +51,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = profileDescription(profile);
   const path = `/u/${profile.username}`;
 
-  return {
-    title,
-    description,
-    alternates: { canonical: path },
-    openGraph: {
-      title,
-      description,
-      url: path,
-      type: "profile",
-      siteName: "Poachland",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
-  };
+  return pageMetadata({ title, description, path, image: `${path}/opengraph-image`, type: "profile" });
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {

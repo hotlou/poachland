@@ -1,11 +1,12 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { LegalHeading, LegalShell } from "@/components/legal-shell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Community Guidelines — Poachland",
   description: "Poachland's marketplace conduct and enforcement standards.",
-  alternates: { canonical: "/community-guidelines" },
-};
+  path: "/community-guidelines",
+});
 
 export default function CommunityGuidelinesPage() {
   return (

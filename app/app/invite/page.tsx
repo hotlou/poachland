@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Gift, Share2, Sprout, Users } from "lucide-react";
+import { Copy, Gift, Sprout, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store-context";
+import { ShareButton } from "@/components/share-button";
+import { publicUrl } from "@/lib/sharing";
 import { Hydrated } from "@/components/hydrated";
 
 function InviteBody() {
@@ -14,9 +16,8 @@ function InviteBody() {
   const memberNumber = session?.memberNumber ?? 0;
   const isFounder = me.badges.some((b) => b.type === "founding");
 
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "https://poachland.com";
-  const link = `${origin}/?ref=${me.username}`;
+  const invitePath = `/?ref=${encodeURIComponent(me.username)}`;
+  const link = publicUrl(invitePath);
 
   const copy = () => {
     if (!navigator.clipboard) {
@@ -27,19 +28,6 @@ function InviteBody() {
       () => toast.success("Invite link copied"),
       () => toast.error("Couldn't copy — grab it from the box"),
     );
-  };
-  const share = () => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: "Join me on Poachland",
-          text: "Trade ultimate frisbee jerseys & discs with me on Poachland — no fees.",
-          url: link,
-        })
-        .catch(() => {});
-    } else {
-      copy();
-    }
   };
 
   return (
@@ -88,13 +76,7 @@ function InviteBody() {
           <Copy size={13} /> Copy
         </button>
       </div>
-      <button
-        type="button"
-        onClick={share}
-        className="mt-3 w-full inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground text-sm font-display font-semibold rounded-full px-5 py-2.5 shadow-sm hover:opacity-90 transition-opacity"
-      >
-        <Share2 size={15} /> Share your invite
-      </button>
+      <ShareButton label="Share your invite" className="mt-3 w-full border-accent bg-accent text-accent-foreground" content={{ title: "Join me on Poachland", text: "Trade ultimate frisbee jerseys & discs with me on Poachland — free to join, free to list.", path: invitePath }} />
 
       {/* Stats */}
       <div className="mt-6 grid grid-cols-2 gap-3">

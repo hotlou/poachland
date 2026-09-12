@@ -1,3 +1,4 @@
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
@@ -14,20 +15,9 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://poachland.com"),
-  title: "Poachland — The Ultimate Frisbee Marketplace",
-  description:
-    "Buy, sell, and trade ultimate frisbee jerseys and discs. Community-built, trust-first.",
-  generator: "v0.app",
+  ...pageMetadata({ title: "Poachland — The Ultimate Frisbee Marketplace", description: "Buy, sell, and trade ultimate frisbee jerseys and discs. Free to join. Free to list." }),
   manifest: "/manifest.json",
   keywords: ["ultimate frisbee", "jerseys", "discs", "trade", "collector"],
-  openGraph: {
-    title: "Poachland",
-    description: "The ultimate frisbee collector marketplace.",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-  },
 };
 
 export const viewport: Viewport = {

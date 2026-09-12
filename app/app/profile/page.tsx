@@ -9,7 +9,6 @@ import {
   CalendarDays,
   ChevronRight,
   History,
-  Link2,
   MapPin,
   Package,
   Pencil,
@@ -19,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store-context";
+import { ShareButton } from "@/components/share-button";
 import { Hydrated } from "@/components/hydrated";
 import { IdentityChips } from "@/components/identity-chips";
 import { ListingCard } from "@/components/listing-card";
@@ -234,17 +234,6 @@ function ProfileContent() {
     sellerId: me.id,
     statuses: ["active", "pending", "traded", "sold", "claimed"],
   });
-
-  const shareProfile = async () => {
-    try {
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/u/${me.username}`,
-      );
-      toast.success("Public link copied");
-    } catch {
-      toast.error("Couldn't copy the link");
-    }
-  };
 
   const bio = me.bio ? (
     <p className="text-sm text-muted-foreground leading-relaxed">{me.bio}</p>
@@ -510,13 +499,7 @@ function ProfileContent() {
 
       {/* Footer actions */}
       <div className="px-4 md:px-6 pb-6 md:pb-8 flex flex-col md:flex-row gap-2">
-        <button
-          type="button"
-          onClick={shareProfile}
-          className="md:flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-foreground hover:border-accent transition-colors"
-        >
-          <Link2 size={15} /> Share profile
-        </button>
+        <ShareButton label="Share profile" className="md:flex-1" content={{ title: `${me.displayName} on Poachland`, text: `Check out @${me.username}'s ultimate frisbee gear on Poachland. Trade jerseys, collect discs, and find your next pickup.`, path: `/u/${encodeURIComponent(me.username)}`, imagePath: `/u/${encodeURIComponent(me.username)}/opengraph-image` }} />
         <Link
           href="/app/saved"
           className="md:flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full border border-border bg-card text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"

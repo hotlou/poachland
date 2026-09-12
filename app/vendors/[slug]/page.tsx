@@ -6,12 +6,13 @@
  * client-side from the public store snapshot.
  */
 
+import { pageMetadata } from "@/lib/metadata";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublicPartner } from "@/lib/server/public";
 import { VendorDetail } from "./vendor-client";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -40,23 +41,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     `${p.name} — gear for the ultimate community, on Poachland.`;
   const path = `/vendors/${p.slug}`;
 
-  return {
-    title,
-    description,
-    alternates: { canonical: path },
-    openGraph: {
-      title,
-      description,
-      url: path,
-      type: "website",
-      siteName: "Poachland",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
-  };
+  return pageMetadata({ title, description, path, image: `${path}/opengraph-image`, type: "website" });
 }
 
 export default async function VendorPage({ params }: PageProps) {
