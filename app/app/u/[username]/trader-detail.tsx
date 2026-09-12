@@ -289,6 +289,7 @@ function PublicProfile({ user }: { user: User }) {
 
   return (
     <>
+      {user.managedByUserId && <p className="px-5 py-3 text-sm text-muted-foreground">Admin-managed inventory. This profile represents gear managed by a Poachland moderator.</p>}
       {user.sampleBatchId && <div className="mx-4 md:mx-6"><SampleNotice label="Example profile and ratings" /></div>}
       {isSelf && (
         <div className="mx-4 md:mx-6 mt-4 bg-accent/10 border border-accent/40 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">

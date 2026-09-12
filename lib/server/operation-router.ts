@@ -18,6 +18,7 @@ export async function routeOperation<K extends OpName>(
   user: SessionUser,
   op: K,
   input: OpMap[K],
+  actingAdmin?: SessionUser,
 ): Promise<OperationResult> {
   return trace.getTracer("poachland.marketplace").startActiveSpan(`marketplace.${op}`, async (span): Promise<OperationResult> => {
     span.setAttributes({
@@ -38,17 +39,32 @@ export async function routeOperation<K extends OpName>(
       }
 
       const db = await getDb();
-      if (user.sampleBatchId) return { ok: false, error: "Example accounts cannot sign in or perform marketplace actions." };
-      if (!op.startsWith("admin") && await referencesSampleContent(db, input)) {
+      if (actingAdmin && (!actingAdmin.isAdmin || actingAdmin.status !== "active" || actingAdmin.deletedAt || actingAdmin.sampleBatchId || user.isAdmin || actingAdmin.id === user.id)) {
+        return { ok: false, error: "An active moderator session is required to act as another account." };
+      }
+      if (user.managedByUserId && !actingAdmin) return { ok: false, error: "Managed inventory requires an active moderator session." };
+      const editingSample = !!actingAdmin && !!(user.sampleBatchId || user.managedByUserId) && ["createListing", "updateListing", "removeListing", "updateProfile"].includes(op);
+      if (op === "markListingViewed" && actingAdmin) return { ok: true };
+      if (user.sampleBatchId && !editingSample) return { ok: false, error: "Example accounts support moderator profile and listing edits only. Example trades and ratings cannot become real activity." };
+      if (!op.startsWith("admin") && !editingSample && await referencesSampleContent(db, input)) {
         if (op === "markListingViewed") return { ok: true };
         return { ok: false, error: "This is example content. You can browse and share it, but cannot contact, save, react, or make an offer on it." };
       }
       if (["proposeTrade", "makeBuyOffer", "claimListing", "getOrCreateThread"].includes(op) && await referencesHiddenListing(db, input)) {
         return { ok: false, error: "This listing is not available." };
       }
-      const result = op.startsWith("admin") ? await db.transaction(async (tx) => {
+      const result = op.startsWith("admin") || actingAdmin ? await db.transaction(async (tx) => {
         const result = await handler(tx, user, input);
         if (!result.ok) return result;
+        if (actingAdmin) {
+          const values = input as Record<string, unknown>;
+          const targetId = [values.id, values.listingId, values.dealId, values.threadId].find((v): v is string => typeof v === "string") ?? user.id;
+          await recordAdminAudit(tx, actingAdmin, `actAs.${op}`, { id: targetId }, {
+            actingAsUserId: user.id, actingAsUsername: user.username,
+            note: `Moderator @${actingAdmin.username} performed ${op} as @${user.username}.`,
+          });
+          return result;
+        }
         if (["adminModerateContent", "adminCloseAccount", "adminSampleBatch"].includes(op)) return result;
         const values = input as Record<string, unknown>;
         const targetId = ["batchId", "userId", "listingId", "reportId", "dealId", "identityId", "id"]

@@ -170,6 +170,86 @@ try {
   await check("account erasure refuses moderator deletion", async () => {
     rejected(await executeOp(admin, "adminCloseAccount", { userId: admin.id, confirm: admin.username, note }));
   });
+  await check("Act as authorizes active moderators, isolates edits, and audits the real actor", async () => {
+    const { startImpersonation, stopImpersonation } = await import("../lib/server/auth.ts");
+    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    await db.insert(s.sessions).values([
+      { id: "admin-act-session", userId: admin.id, expiresAt: new Date(Date.now() + 60_000) },
+      { id: "member-act-session", userId: member.id, expiresAt: new Date(Date.now() + 60_000) },
+      { id: "expired-act-session", userId: admin.id, expiresAt: new Date(Date.now() - 1000) },
+    ]);
+    rejected(await startImpersonation("member-act-session", "u_samplev1nora"));
+    rejected(await startImpersonation("expired-act-session", "u_samplev1nora"));
+    rejected(await startImpersonation("admin-act-session", admin.id));
+    ok(await startImpersonation("admin-act-session", "u_samplev1nora"));
+    const ctx = await getSessionContext("admin-act-session");
+    assert.equal(ctx.realUser.id, admin.id); assert.equal(ctx.effectiveUser.id, "u_samplev1nora");
+    rejected(await executeOp(ctx.effectiveUser, "updateListing", { id: lid, patch: { title: "Unauthorized" } }));
+    rejected(await executeOp(ctx.effectiveUser, "adminSampleBatch", input("delete"), ctx.realUser));
+    rejected(await executeOp(ctx.effectiveUser, "commentHaul", { id: "hc_samplewrite", haulId: "h_samplev1s1", body: "Invented reaction" }, ctx.realUser));
+    rejected(await executeOp(ctx.effectiveUser, "updateListing", { id: realListing.id, patch: { title: "Wrong owner" } }, ctx.realUser));
+    ok(await executeOp(ctx.effectiveUser, "updateListing", { id: lid, patch: { title: "My saved gear details" } }, ctx.realUser));
+    ok(await executeOp(ctx.effectiveUser, "updateProfile", { patch: { bio: "Preparing my actual gear inventory." } }, ctx.realUser));
+    const source = fixture.listings.find((l) => l.id === lid);
+    ok(await executeOp(ctx.effectiveUser, "createListing", { id: "l_adminnewgear", input: { ...source, title: "Additional gear draft", photos: ["/images/jersey-1.jpg"] } }, ctx.realUser));
+    assert.equal((await db.select().from(s.listings).where(eq(s.listings.id, "l_adminnewgear")))[0].sampleBatchId, SAMPLE_BATCH_ID);
+    const audits = await db.select().from(s.adminAuditEvents).where(eq(s.adminAuditEvents.action, "actAs.updateListing"));
+    assert.equal(audits.at(-1).actorUserId, admin.id); assert.equal(audits.at(-1).metadata.actingAsUserId, ctx.effectiveUser.id);
+    ok(await executeOp(admin, "adminSampleBatch", input("hide")));
+    assert.ok(await queryMarketplaceListing(lid, ctx.effectiveUser.id));
+    assert.ok((await buildSnapshot(ctx.effectiveUser.id)).listings.some((l) => l.id === lid));
+    assert.equal(await queryMarketplaceListing(lid, member.id), null);
+    await db.update(s.users).set({ isAdmin: false }).where(eq(s.users.id, admin.id));
+    assert.equal((await getSessionContext("admin-act-session")).effectiveUser.id, admin.id);
+    await db.update(s.users).set({ isAdmin: true }).where(eq(s.users.id, admin.id));
+    await stopImpersonation("admin-act-session");
+    assert.equal((await getSessionContext("admin-act-session")).effectiveUser.id, admin.id);
+    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+  });
+  await check("real inventory requires owned photos and never inherits fictional reputation", async () => {
+    const { publishManagedInventory } = await import("../lib/server/managed-inventory.ts");
+    const { PoachStore } = await import("../lib/engine.ts");
+    const targetId = "u_samplev1nora";
+    const publish = { listingId: lid, username: "ownedgear", displayName: "Actual gear closet", location: "Minneapolis, MN", ownsGear: true };
+    rejected(await publishManagedInventory(db, member, targetId, publish));
+    rejected(await publishManagedInventory(db, admin, targetId, { ...publish, ownsGear: false }));
+    rejected(await publishManagedInventory(db, admin, targetId, publish));
+    rejected(await publishManagedInventory(db, admin, targetId, { ...publish, listingId: "l_samplev1s1n" }));
+    const photo = "https://test.public.blob.vercel-storage.com/uploads/actual-gear.jpg";
+    await db.update(s.listings).set({ photos: [photo], title: "My own club jersey", description: "Actual item details supplied by its owner." }).where(eq(s.listings.id, lid));
+    await db.insert(s.objectUploads).values({ id: "upload-owned-gear", ownerUserId: member.id, objectKey: "uploads/actual-gear.jpg", publicUrl: photo, contentType: "image/jpeg", byteSize: 1024 });
+    await assert.rejects(() => publishManagedInventory(db, admin, targetId, publish), /belongs to another account/);
+    assert.equal((await db.select().from(s.users).where(eq(s.users.id, targetId)))[0].sampleBatchId, SAMPLE_BATCH_ID);
+    await db.update(s.objectUploads).set({ ownerUserId: targetId }).where(eq(s.objectUploads.id, "upload-owned-gear"));
+    ok(await publishManagedInventory(db, admin, targetId, publish));
+    const [owner] = await db.select().from(s.users).where(eq(s.users.id, targetId));
+    assert.equal(owner.sampleBatchId, null); assert.equal(owner.managedByUserId, admin.id);
+    assert.equal(owner.ratingsCount, 0); assert.equal(owner.tradesCompleted, 0); assert.equal(owner.trustScore, 0);
+    assert.deepEqual(owner.history, []); assert.deepEqual(owner.badges, []);
+    assert.match(owner.bio, /managed by @adminsamples/);
+    assert.equal((await getPublicListing(lid)).sampleBatchId, undefined);
+    assert.equal((await getPublicListing(lid)).seller.managedByUserId, admin.id);
+    assert.equal((await getPublicProfile("ownedgear")).tradesCompleted, 0);
+    await recomputeReputation(db, owner.id);
+    const snapshot = await buildSnapshot(null);
+    const client = new PoachStore(false, snapshot);
+    assert.equal(client.ratingSummary(targetId).count, 0); assert.equal(client.ratingsFor(targetId).length, 0);
+    assert.equal((await buildAdminData()).stats.users, 2);
+    assert.equal((await getAdminMemberDetail(targetId)).completedDeals, 0);
+    assert.equal((await getAdminMemberDetail(targetId)).ratingsReceived, 0);
+    rejected(await executeOp(owner, "updateProfile", { patch: { bio: "Direct session forbidden" } }));
+    await db.insert(s.sessions).values({ id: "managed-root-forbidden", userId: owner.id, expiresAt: new Date(Date.now() + 60_000) });
+    assert.equal(await getSessionContext("managed-root-forbidden"), null);
+    await recordProductEvent(db, { name: "listing_created", userId: owner.id, subjectType: "listing", subjectId: lid });
+    assert.equal((await db.select().from(s.productEvents).where(eq(s.productEvents.userId, owner.id))).length, 0);
+    ok(await executeOp(member, "getOrCreateThread", { threadId: "t_ownedcontact", otherUserId: owner.id }));
+    ok(await executeOp(admin, "adminSampleBatch", input("delete")));
+    assert.ok(await getPublicListing(lid)); assert.ok(await getPublicProfile("ownedgear"));
+    assert.equal((await db.select().from(s.ratings)).length, 0);
+    assert.equal((await db.select().from(s.listings).where(eq(s.listings.sellerId, targetId))).length, 1);
+    rejected(await executeOp(admin, "adminSampleBatch", input("publish")));
+    assert.ok(await getPublicListing(lid), "re-seeding must not overwrite real inventory");
+  });
   console.log(`SAMPLE ADMIN SMOKE: all ${passed} checks passed.`);
 } finally {
   await rm(dir, { recursive: true, force: true });

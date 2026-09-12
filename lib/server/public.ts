@@ -34,6 +34,7 @@ import { sampleVisible } from "./sample-visibility";
 export interface PublicProfile {
   id: string;
   sampleBatchId?: string;
+  managedByUserId?: string;
   username: string;
   displayName: string;
   avatar: string;
@@ -70,6 +71,7 @@ export async function getPublicProfile(
     .select({
       id: users.id,
       sampleBatchId: users.sampleBatchId,
+      managedByUserId: users.managedByUserId,
       username: users.username,
       displayName: users.displayName,
       avatar: users.avatar,
@@ -102,6 +104,7 @@ export async function getPublicProfile(
   return {
     id: row.id,
     sampleBatchId: row.sampleBatchId ?? undefined,
+    managedByUserId: row.managedByUserId ?? undefined,
     username: row.username,
     displayName: row.displayName,
     avatar: row.avatar,
@@ -145,7 +148,7 @@ export async function listPublicUsernames(
     })
     .from(users)
     .where(
-      and(isNotNull(users.username), eq(users.status, "active"), isNull(users.deletedAt), isNull(users.sampleBatchId)),
+      and(isNotNull(users.username), eq(users.status, "active"), isNull(users.deletedAt), isNull(users.sampleBatchId), isNull(users.managedByUserId)),
     )
     .orderBy(desc(users.tradesCompleted), asc(users.memberSince), asc(users.id))
     .limit(limit);
@@ -163,6 +166,7 @@ export async function listPublicUsernames(
 const publicUserColumns = {
   id: users.id,
   sampleBatchId: users.sampleBatchId,
+  managedByUserId: users.managedByUserId,
   username: users.username,
   displayName: users.displayName,
   avatar: users.avatar,
@@ -252,6 +256,7 @@ export async function queryHaulPage(input: { cursor?: string; limit?: number } =
     activeUsers.set(u.id, {
       id: u.id,
       sampleBatchId: u.sampleBatchId ?? undefined,
+      managedByUserId: u.managedByUserId ?? undefined,
       username: u.username,
       displayName: u.displayName,
       avatar: u.avatar,
@@ -361,6 +366,7 @@ export interface PublicListing {
   status: ListingStatus;
   createdAt: string;
   seller: {
+    managedByUserId?: string;
     username: string;
     displayName: string;
     avatar: string;
@@ -389,6 +395,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
       trustScore: users.trustScore,
       tradesCompleted: users.tradesCompleted,
       isVerified: users.isVerified,
+      managedByUserId: users.managedByUserId,
       sellerStatus: users.status,
       sellerDeletedAt: users.deletedAt,
     })
@@ -424,6 +431,7 @@ export async function getPublicListing(id: string): Promise<PublicListing | null
     status: l.status,
     createdAt: l.createdAt.toISOString(),
     seller: {
+      managedByUserId: row.managedByUserId ?? undefined,
       username: row.username,
       displayName: row.displayName,
       avatar: row.avatar,

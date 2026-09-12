@@ -43,6 +43,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
           {listing.sampleBatchId && <SampleBadge />}
+          {!listing.sampleBatchId && listing.seller.managedByUserId && <span className="rounded-full bg-background px-2 py-1 text-xs font-medium text-foreground">Admin-managed inventory</span>}
           {listing.isRare && (
             <span className="badge-stamp text-accent border-accent bg-background/80 backdrop-blur-sm">
               Rare

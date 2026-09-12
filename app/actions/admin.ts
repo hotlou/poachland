@@ -41,3 +41,15 @@ export async function fetchAdminAudit(page = 1, targetId?: string) {
   ]);
   return { items: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })), page: boundedPage, total: total.n };
 }
+
+export async function publishRealInventory(input: import("@/lib/server/managed-inventory").PublishInventoryInput) {
+  const ctx = await readSessionContext();
+  if (!ctx || ctx.realUser.id === ctx.effectiveUser.id) return { ok: false as const, error: "Use Act as from Admin first." };
+  try {
+    const { publishManagedInventory } = await import("@/lib/server/managed-inventory");
+    return await publishManagedInventory(await getDb(), ctx.realUser, ctx.effectiveUser.id, input);
+  } catch (error) {
+    console.error("[admin] publish inventory failed", error);
+    return { ok: false as const, error: "Publication was rolled back. Check that every photo was uploaded while acting as this account and try again." };
+  }
+}

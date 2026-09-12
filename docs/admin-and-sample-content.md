@@ -89,3 +89,23 @@ External services may keep previously fetched previews. Fresh requests receive t
 `node scripts/sample-admin-smoke.mjs` exercises authorization, confirmation, idempotency, relationship guards, real-metric exclusion, public-query disclosure, snapshot/deep-link hiding, expiry, rating recomputation, moderation, purge rollback, audit persistence, and preservation of real sentinel data in an isolated PGlite database.
 
 `tests/e2e/admin-samples.spec.ts` covers the actual admin publication/moderation/removal flow, public sample pages, share text and PNG previews, member inspection, and an accessibility check. The standard quality, migration, smoke/load, and desktop/mobile test gates apply before release.
+
+## Act as and owner-supplied inventory
+
+In **Admin → Members**, use **Act as** beside any non-admin account, including the example profiles. The app opens that member’s profile. Edit their profile, create listings, or open an active listing and choose **Edit**. Photo uploads belong to the account you are acting as. The banner identifies both accounts, warns that changes are live, and offers **Exit** to return to Admin. Start, stop, and successful marketplace mutations are recorded against the real moderator in Audit log. An expired, demoted, or inactive moderator cannot retain this access. Credentials and self-service deletion are unavailable during Act as; use Admin’s account controls after exiting.
+
+Example accounts initially permit only profile and listing edits. New items remain in their example batch, capped at 200 listing records across the six profiles. Owners can privately edit these items even when the batch is hidden or expired; public visibility rules remain in force.
+
+To sell or trade actual gear under a separate inventory profile:
+
+1. Act as the example account, replace an active item’s details and every photo, and save. Alternatively, create an item while acting as that account.
+2. On its listing page, use **Publish as real inventory**. Supply an inventory handle, profile name, and your actual shipping location. Confirm ownership and the accuracy of the saved details and photos.
+3. Publication requires uploaded photos belonging to that account and an active, unhidden item with no deal or offer history. The item becomes available for real messages and offers. The profile is marked **Admin-managed inventory**, with a biography identifying its moderator. Manage its inbox and deals through Act as.
+
+Publication detaches that item and profile from the example batch. It clears the fictional biography, playing history, avatar, badges, rating totals, and trade totals. Original example deals, ratings, Haul posts, and other example items keep their batch labels; they never contribute to the inventory profile’s real reputation. Managed profiles do not count as organic members or organic product-event actors. Real items and actual completed transactions still count as inventory and trade activity.
+
+Hide or delete remaining examples with the batch controls. Published real inventory survives those operations and can be hidden, removed, or moderated individually in **Content**. After a converted batch is permanently deleted, the original fixture cannot be recreated over retained inventory profiles.
+
+### Deployment and rollback for Act as
+
+Migration `0022_redundant_paladin.sql` adds one nullable user column; it rewrites no existing content. The previous production artifact is `dpl_UgAWeCemTNjKsQhUymV4Epv1UDnm` ([deployment](https://v0-poachland-ggxsqtqqe-hotlous-projects.vercel.app)), commit `1c29c26bc2926b1f606a8ee329a9376c796fd64b`. Rollback leaves the additive column in place. If any profiles have been converted, hide their inventory before rolling back: the previous UI does not display the managed-inventory attribution. No examples are converted automatically by this deployment.

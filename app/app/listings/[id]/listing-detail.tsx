@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 
 import { ShareButton } from "@/components/share-button";
+import { PublishInventory } from "@/components/publish-inventory";
 import { SampleNotice } from "@/components/sample-notice";
 import { listingShareContent } from "@/lib/sharing";
 import { Hydrated } from "@/components/hydrated";
@@ -350,6 +351,7 @@ function ListingDetail({ id }: { id: string }) {
                     <BadgeCheck size={14} className="text-accent flex-shrink-0" />
                   )}
                   <p className="text-xs text-muted-foreground">@{seller.username}</p>
+                  {seller.managedByUserId && <p className="text-xs text-muted-foreground">Admin-managed inventory</p>}
                 </div>
                 <div className="mt-1">
                   <TrustScore
@@ -372,6 +374,8 @@ function ListingDetail({ id }: { id: string }) {
               <ChevronRight size={16} className="text-muted-foreground mt-1 flex-shrink-0" />
             </Link>
           </div>
+
+          <PublishInventory listing={listing} />
 
           {/* Report */}
           {!isOwner && !listing.sampleBatchId && <ReportButton listingId={listing.id} />}
@@ -607,6 +611,7 @@ function ActionRow({ listing, isOwner }: { listing: Listing; isOwner: boolean })
   const store = useStore();
   const activeDeal = isOwner ? null : store.activeDealForListing(listing.id);
 
+  if (listing.sampleBatchId && isOwner && store.sessionMe?.impersonatedByAdmin) return <OwnerActions listing={listing} />;
   if (listing.sampleBatchId) return <SampleNotice />;
 
   if (listing.hiddenAt) return (

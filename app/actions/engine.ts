@@ -34,7 +34,8 @@ export async function dispatchOp<K extends OpName>(
   const ctx = await readSessionContext();
   if (!ctx) return { ok: false, error: "Sign in to do that" };
   try {
-    const result = await executeOp(ctx.effectiveUser, op, input);
+    const result = await executeOp(ctx.effectiveUser, op, input,
+      ctx.realUser.id !== ctx.effectiveUser.id ? ctx.realUser : undefined);
     // Email delivery is deliberately absent here: the independently scheduled
     // worker owns all claiming/retry behavior, so request traffic never gates
     // or delays delivery.

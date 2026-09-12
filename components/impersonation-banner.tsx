@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { stopUsingAs } from "@/app/actions/auth";
@@ -22,23 +23,23 @@ export function ImpersonationBanner() {
     if (exiting) return;
     setExiting(true);
     try {
-      await stopUsingAs();
-    } finally {
-      // Full navigation: re-bootstraps the store as the admin again.
+      const result = await stopUsingAs();
+      if (!result.ok) { toast.error("Could not exit. Please try again."); return; }
       window.location.replace(`${window.location.origin}/admin`);
-    }
+    } catch { toast.error("Could not exit. Please try again."); }
+    finally { setExiting(false); }
   };
 
   return (
     <div className="w-full bg-amber-500 text-amber-950">
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
         <AlertTriangle size={16} className="shrink-0" strokeWidth={2.5} />
-        <p className="min-w-0 flex-1 font-medium truncate">
-          Viewing as{" "}
+        <p className="min-w-0 flex-1 font-medium">
+          Acting as{" "}
           <span className="font-bold">@{me.username}</span>
           <span className="font-normal">
             {" "}
-            — moderator @{me.impersonatedByAdmin}
+            — changes are live · moderator @{me.impersonatedByAdmin}
           </span>
         </p>
         <button

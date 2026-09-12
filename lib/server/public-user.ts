@@ -3,6 +3,7 @@ import { users } from "./schema";
 
 export const publicUserColumns = {
   sampleBatchId: users.sampleBatchId,
+  managedByUserId: users.managedByUserId,
   id: users.id, username: users.username, displayName: users.displayName, avatar: users.avatar,
   bio: users.bio, location: users.location, favoriteTeams: users.favoriteTeams, history: users.history,
   gallery: users.gallery, memberSince: users.memberSince, isVerified: users.isVerified, badges: users.badges,
@@ -14,6 +15,7 @@ export const publicUserColumns = {
 export function hydratePublicUser(row: Record<keyof typeof publicUserColumns, unknown>): User {
   return {
     sampleBatchId: row.sampleBatchId ? String(row.sampleBatchId) : undefined,
+    managedByUserId: row.managedByUserId ? String(row.managedByUserId) : undefined,
     id: String(row.id), username: String(row.username), displayName: String(row.displayName), avatar: String(row.avatar),
     bio: String(row.bio), location: String(row.location), favoriteTeams: row.favoriteTeams as string[],
     history: row.history as User["history"], gallery: row.gallery as User["gallery"],

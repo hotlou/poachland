@@ -66,11 +66,11 @@ export async function recomputeReputation(tx: Db, userId: string): Promise<void>
     .select({ n: count() })
     .from(deals)
     .where(and(eq(deals.status, "completed"), user.sampleBatchId ? eq(deals.sampleBatchId, user.sampleBatchId) : isNull(deals.sampleBatchId), or(eq(deals.proposerId, userId), eq(deals.ownerId, userId))));
-  const [{ n: listingCount }] = await tx.select({ n: count() }).from(listings).where(eq(listings.sellerId, userId));
+  const [{ n: listingCount }] = await tx.select({ n: count() }).from(listings).where(and(eq(listings.sellerId, userId), user.sampleBatchId ? eq(listings.sampleBatchId, user.sampleBatchId) : isNull(listings.sampleBatchId)));
   const [{ n: givenAway }] = await tx
     .select({ n: count() })
     .from(deals)
-    .where(and(eq(deals.status, "completed"), eq(deals.kind, "claim"), eq(deals.ownerId, userId)));
+    .where(and(eq(deals.status, "completed"), eq(deals.kind, "claim"), eq(deals.ownerId, userId), user.sampleBatchId ? eq(deals.sampleBatchId, user.sampleBatchId) : isNull(deals.sampleBatchId)));
   const [{ n: isoCount }] = await tx.select({ n: count() }).from(isoPosts).where(eq(isoPosts.userId, userId));
 
   const shippingRatings = userRatings.map((rating) => rating.shippingSpeed);

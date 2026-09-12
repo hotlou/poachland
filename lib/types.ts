@@ -76,6 +76,7 @@ export interface HistoryEntry {
 
 export interface UserRecord {
   id: string;
+  managedByUserId?: string;
   sampleBatchId?: string;
   username: string;
   displayName: string;
@@ -213,6 +214,7 @@ export interface FulfillmentState {
 }
 
 export interface DealRecord {
+  sampleBatchId?: string;
   id: string;
   kind: DealKind;
   /** The listing the deal was opened on (belongs to ownerId). */

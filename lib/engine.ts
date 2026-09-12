@@ -467,7 +467,7 @@ export class PoachStore {
 
   ratingsFor(userId: string): HydratedRating[] {
     return this.state.ratings
-      .filter((r) => r.toUserId === userId)
+      .filter((r) => r.toUserId === userId && (this.rawUser(userId)?.sampleBatchId ? r.sampleBatchId === this.rawUser(userId)?.sampleBatchId : !r.sampleBatchId))
       .map((r) => this.hydrateRating(r))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
@@ -489,7 +489,7 @@ export class PoachStore {
   }
 
   ratingSummary(userId: string): RatingSummary {
-    const ratings = this.state.ratings.filter((r) => r.toUserId === userId);
+    const ratings = this.state.ratings.filter((r) => r.toUserId === userId && (this.rawUser(userId)?.sampleBatchId ? r.sampleBatchId === this.rawUser(userId)?.sampleBatchId : !r.sampleBatchId));
     const user = this.rawUser(userId);
     return ratingSummaryFrom(ratings, {
       baselineRatingCount: user?.baselineRatingCount ?? 0,
@@ -506,13 +506,13 @@ export class PoachStore {
     user.tradesCompleted =
       user.baselineTrades +
       this.state.deals.filter(
-        (d) => d.status === "completed" && (d.proposerId === userId || d.ownerId === userId),
+        (d) => d.status === "completed" && (user.sampleBatchId ? d.sampleBatchId === user.sampleBatchId : !d.sampleBatchId) && (d.proposerId === userId || d.ownerId === userId),
       ).length;
     this.awardBadges(user);
   }
 
   private awardBadges(user: UserRecord) {
-    const ratings = this.state.ratings.filter((r) => r.toUserId === user.id);
+    const ratings = this.state.ratings.filter((r) => r.toUserId === user.id && (user.sampleBatchId ? r.sampleBatchId === user.sampleBatchId : !r.sampleBatchId));
     const shipRatings = ratings.map((r) => r.shippingSpeed);
     const stats: BadgeStats = {
       tradesCompleted: user.tradesCompleted,
@@ -528,9 +528,9 @@ export class PoachStore {
         ? shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length
         : 0,
       shippingCount: shipRatings.length,
-      listingCount: this.state.listings.filter((l) => l.sellerId === user.id).length,
+      listingCount: this.state.listings.filter((l) => l.sellerId === user.id && (user.sampleBatchId ? l.sampleBatchId === user.sampleBatchId : !l.sampleBatchId)).length,
       givenAway: this.state.deals.filter(
-        (d) => d.status === "completed" && d.kind === "claim" && d.ownerId === user.id,
+        (d) => d.status === "completed" && d.kind === "claim" && d.ownerId === user.id && (user.sampleBatchId ? d.sampleBatchId === user.sampleBatchId : !d.sampleBatchId),
       ).length,
       isoCount: this.state.isoPosts.filter((p) => p.userId === user.id).length,
     };
