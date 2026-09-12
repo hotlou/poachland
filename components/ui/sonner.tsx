@@ -14,6 +14,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
+          // Sonner's default light success text falls below 4.5:1 at 13px.
+          '--success-text': resolvedTheme === 'dark' ? '#86efac' : '#166534',
         } as React.CSSProperties
       }
       {...props}
