@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import './tokens.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -75,7 +76,7 @@
   --surface: oklch(0.13 0 0);
   --surface-raised: oklch(0.16 0 0);
   --foreground: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.6 0 0);
+  --muted-foreground: oklch(0.65 0 0);
 
   --card: oklch(0.13 0 0);
   --card-foreground: oklch(0.96 0 0);
@@ -133,6 +134,9 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-note-surface: var(--note-surface);
+  --color-note-border: var(--note-border);
+  --shadow-note: var(--note-shadow);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -175,6 +179,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html, body {
+    overflow-x: clip;
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     /* Whisper of paper grain — flea-market texture */
@@ -183,6 +190,8 @@
   h1, h2, h3 {
     font-family: var(--font-display), var(--font-sans);
     letter-spacing: -0.025em;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -279,14 +288,10 @@ select:focus-visible,
 }
 .card-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px oklch(0.3 0.02 80 / 0.14);
-}
-.dark .card-lift:hover {
-  box-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+  box-shadow: var(--card-hover-shadow);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.75 0.01 88); border-radius: 4px; }
-.dark ::-webkit-scrollbar-thumb { background: oklch(0.3 0 0); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }

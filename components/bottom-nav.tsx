@@ -25,7 +25,7 @@ export function BottomNav() {
     : 0;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border">
+    <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border">
       <div className="flex items-center justify-around h-16 px-2 max-w-lg mx-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== "/app" && pathname.startsWith(href));
@@ -35,15 +35,20 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              aria-label={isPost ? "Post a listing" : undefined}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
                 isActive && !isPost ? "text-accent" : "text-muted-foreground",
               )}
             >
               {isPost ? (
-                <span className="flex items-center justify-center w-11 h-11 rounded-full bg-accent text-accent-foreground shadow-lg">
-                  <Icon size={22} strokeWidth={2.5} />
-                </span>
+                <>
+                  <span className="flex items-center justify-center w-9 h-9 rounded-full bg-accent text-accent-foreground shadow-sm">
+                    <Icon size={22} strokeWidth={2.5} />
+                  </span>
+                  <span className="text-[10px] font-medium tracking-wide">Post</span>
+                </>
               ) : (
                 <>
                   <span className="relative">

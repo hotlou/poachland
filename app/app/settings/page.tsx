@@ -726,7 +726,7 @@ function SettingsContent() {
           with people who actually get it. No fees, no cut, no middleman —
           trust is the product, and you build it one clean deal at a time.
         </p>
-        <p className="text-[11px] text-muted-foreground/60 mt-4 text-center">
+        <p className="text-[11px] text-muted-foreground mt-4 text-center">
           Poachland v1.0
         </p>
       </section>

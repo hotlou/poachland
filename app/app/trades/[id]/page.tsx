@@ -164,9 +164,9 @@ function DealRoom({ id }: { id: string }) {
   if (!deal) {
     return (
       <div className="px-6 py-20 text-center">
-        <p className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
+        <h1 className="font-display font-bold tracking-tight text-xl text-foreground mb-2">
           No deal here
-        </p>
+        </h1>
         <p className="text-sm text-muted-foreground mb-6">
           This deal doesn&apos;t exist — or it never got off the ground.
         </p>

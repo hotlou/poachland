@@ -44,8 +44,9 @@ function Pill({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors",
+        "px-3.5 py-1.5 rounded-full text-[13px] font-medium border transition-[background-color,color,border-color]",
         active
           ? "bg-accent text-accent-foreground border-accent shadow-sm"
           : "bg-card text-muted-foreground border-border hover:text-foreground",
@@ -98,7 +99,7 @@ function NoteCard({ post, index }: { post: ISOPost; index: number }) {
   return (
     <div
       className={cn(
-        "relative bg-[#fdf6e3] border border-amber-200/70 dark:bg-[#1a1a18] dark:border-border rounded-sm p-4 card-lift",
+        "relative bg-note-surface border border-note-border rounded-sm p-4 card-lift",
         index % 2 === 0 ? "rotate-[0.4deg]" : "-rotate-[0.4deg]",
       )}
     >
@@ -147,18 +148,28 @@ function NoteCard({ post, index }: { post: ISOPost; index: number }) {
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
 
-function EmptyBoard() {
+function EmptyBoard({ filtered, onClear }: { filtered: boolean; onClear: () => void }) {
+  const store = useStore();
+  const signedIn = !!store.sessionMe;
   return (
-    <div className="py-16 text-center">
-      <h2 className="font-display font-bold text-xl tracking-tight mb-1">
-        No active hunts here.
+    <div className="py-10 text-center">
+      <h2 className="font-display font-bold text-xl tracking-tight mb-2">
+        {filtered ? "No hunts for this gear yet." : "Be the first to pin a request."}
       </h2>
       <p className="text-sm text-muted-foreground mb-6">
-        Nobody&apos;s posted for this yet. Join to be the first to call it out.
+        {filtered
+          ? "Clear the filter to see what else players are looking for."
+          : "Tell the community which team, size, or stamp you’re chasing."}
       </p>
-      <Link href="/login" className={cn(pillPrimary, "px-6 py-3")}>
-        Join free
-      </Link>
+      {filtered ? (
+        <button type="button" onClick={onClear} className={cn(pillPrimary, "px-6 py-3")}>
+          Clear filter
+        </button>
+      ) : (
+        <Link href={signedIn ? "/app/wanted/create" : "/login"} className={cn(pillPrimary, "px-6 py-3")}>
+          {signedIn ? "Post a wanted request" : "Join to post a request"}
+        </Link>
+      )}
     </div>
   );
 }
@@ -203,7 +214,7 @@ function JoinCta() {
 
 /* ── Board ───────────────────────────────────────────────────────────────── */
 
-function Board({ itemType }: { itemType: "all" | ItemType }) {
+function Board({ itemType, onClear }: { itemType: "all" | ItemType; onClear: () => void }) {
   const [posts, setPosts] = useState<ISOPost[]>([]);
   const [nextCursor, setNextCursor] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -222,7 +233,7 @@ function Board({ itemType }: { itemType: "all" | ItemType }) {
 
   if (loading) return <BoardSkeleton />;
 
-  if (posts.length === 0) return <EmptyBoard />;
+  if (posts.length === 0) return <EmptyBoard filtered={itemType !== "all"} onClear={onClear} />;
 
   return (
     <>
@@ -250,6 +261,7 @@ function Board({ itemType }: { itemType: "all" | ItemType }) {
           {loadingMore ? "Loading…" : "Load more"}
         </button>
       )}
+      <div className="mt-8"><JoinCta /></div>
     </>
   );
 }
@@ -271,7 +283,7 @@ export function PublicWanted() {
         <Hero />
 
         {/* Item-type filter */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div role="group" aria-label="Item type" className="flex flex-wrap gap-2 mb-6">
           {ITEM_TYPE_CHIPS.map((c) => (
             <Pill
               key={c.value}
@@ -287,10 +299,7 @@ export function PublicWanted() {
           <BoardSkeleton />
         ) : (
           <>
-            <Board itemType={itemType} />
-            <div className="mt-6">
-              <JoinCta />
-            </div>
+            <Board itemType={itemType} onClear={() => setItemType("all")} />
           </>
         )}
       </main>

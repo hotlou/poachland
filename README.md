@@ -60,7 +60,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 
 - **Framework:** Next.js 16 (App Router)
 - **UI:** React 19, TypeScript, Tailwind CSS v4, shadcn/ui
-- **Fonts:** Barlow Condensed (display), Inter (body) via `next/font/google`
+- **Fonts:** Geist (display and body) via `next/font/google`
 - **Icons:** lucide-react
 - **Data:** Postgres (Neon in production, embedded PGlite for local dev) via Drizzle ORM
 - **Auth:** custom magic-link flow (Resend for email delivery) + optional passwords (scrypt), Postgres-backed sessions

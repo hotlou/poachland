@@ -72,6 +72,10 @@ test("@a11y authenticated marketplace surfaces have no WCAG A/AA violations", as
     await page.goto(route);
     await expect(page.locator("#main-content")).toBeVisible();
     await page.locator(".animate-pulse").first().waitFor({ state: "detached" });
+    await expect(page.getByRole("link", { name: "Post a listing", exact: true })).toBeVisible();
+    if (route === "/app/create") {
+      await expect(page.getByRole("link", { name: "Post a listing", exact: true })).toHaveAttribute("aria-current", "page");
+    }
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .exclude("[data-sonner-toaster]")
@@ -81,6 +85,22 @@ test("@a11y authenticated marketplace surfaces have no WCAG A/AA violations", as
       id: violation.id,
       impact: violation.impact,
       targets: violation.nodes.flatMap((node) => node.target),
+    }))).toEqual([]);
+  }
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  for (const route of ["/", "/wanted", "/app/wanted"]) {
+    await page.goto(route);
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await page.locator(".animate-pulse").first().waitFor({ state: "detached" });
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .exclude("[data-sonner-toaster]")
+      .analyze();
+    expect(results.violations.map((violation) => ({
+      route,
+      theme: "dark",
+      id: violation.id,
+      nodes: violation.nodes.map((node) => ({ target: node.target, detail: node.failureSummary })),
     }))).toEqual([]);
   }
 });
