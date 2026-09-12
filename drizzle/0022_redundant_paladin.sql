@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "managed_by_user_id" text;

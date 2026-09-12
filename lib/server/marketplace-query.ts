@@ -57,7 +57,7 @@ export function hydrateMarketplaceListing(row: typeof listings.$inferSelect, use
 export async function queryMarketplaceListing(id: string, viewerId?: string): Promise<Listing | null> {
   if (!id || id.length > 80) return null;
   const db = await getDb();
-  const filters: SQL[] = [eq(listings.id, id), eq(users.status, "active"), isNull(users.deletedAt), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId), sampleVisible(users.sampleBatchId)];
+  const filters: SQL[] = [eq(listings.id, id), eq(users.status, "active"), isNull(users.deletedAt), or(viewerId ? eq(listings.sellerId, viewerId) : sql`false`, and(isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId), sampleVisible(users.sampleBatchId)))!];
   if (viewerId) {
     filters.push(or(ne(listings.status, "removed"), eq(listings.sellerId, viewerId))!);
   } else {

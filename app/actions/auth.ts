@@ -15,7 +15,7 @@ import {
 import {
   clearSessionCookie,
   readSessionCookie,
-  readSessionUser,
+  readSessionContext,
   setSessionCookie,
 } from "@/lib/server/session";
 import { canonicalOrigin, isE2ETestRuntime } from "@/lib/env";
@@ -77,8 +77,10 @@ export async function updatePassword(
   currentPassword?: string,
 ): Promise<SetPasswordResult> {
   try {
-    const user = await readSessionUser();
-    if (!user) return { ok: false, error: "Sign in first." };
+    const ctx = await readSessionContext();
+    if (!ctx) return { ok: false, error: "Sign in first." };
+    if (ctx.realUser.id !== ctx.effectiveUser.id) return { ok: false, error: "Exit Act as before changing credentials or deleting an account. Use Admin for account removal." };
+    const user = ctx.effectiveUser;
     return await setPassword(user.id, newPassword, currentPassword);
   } catch (error) {
     console.error("[auth] updatePassword failed:", error);
@@ -122,8 +124,10 @@ export async function deleteMyAccount(
 ): Promise<{ ok: true } | { ok: false; error: string; code?: string }> {
   try {
     const { deleteAccount } = await import("@/lib/server/account");
-    const user = await readSessionUser();
-    if (!user) return { ok: false, error: "Sign in first." };
+    const ctx = await readSessionContext();
+    if (!ctx) return { ok: false, error: "Sign in first." };
+    if (ctx.realUser.id !== ctx.effectiveUser.id) return { ok: false, error: "Exit Act as before changing credentials or deleting an account. Use Admin for account removal." };
+    const user = ctx.effectiveUser;
     const res = await deleteAccount(user.id, confirmUsername ?? "");
     if (res.ok) await clearSessionCookie();
     return res;

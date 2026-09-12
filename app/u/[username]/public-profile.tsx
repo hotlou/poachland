@@ -320,6 +320,7 @@ function ProfileBody({ user }: { user: User }) {
 
   return (
     <>
+      {user.managedByUserId && <p className="px-5 py-3 text-sm text-muted-foreground">Admin-managed inventory. This profile represents gear managed by a Poachland moderator.</p>}
       {user.sampleBatchId && <div className="px-5"><SampleNotice label="Example profile and ratings" /></div>}
       <div className="flex justify-end px-5 pt-3"><ShareButton label="Share profile" content={{ title: `${user.sampleBatchId ? "Example profile · " : ""}${user.displayName}`, text: `${user.sampleBatchId ? "Example profile with fictional ratings and exchanges. " : ""}${user.bio}`, path: `/u/${user.username}`, imagePath: `/u/${user.username}/opengraph-image` }} /></div>
       {/* Hero */}

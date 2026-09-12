@@ -234,6 +234,7 @@ function ListingBody({ listing }: { listing: PublicListing }) {
                 <BadgeCheck size={14} className="text-accent flex-shrink-0" />
               )}
               <p className="text-xs text-muted-foreground">@{seller.username}</p>
+              {seller.managedByUserId && <p className="text-xs text-muted-foreground">Admin-managed inventory</p>}
             </div>
             <div className="mt-1">
               <TrustScore

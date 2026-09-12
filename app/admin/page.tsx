@@ -137,7 +137,7 @@ function UsersSection({
     if (res.ok) {
       toast.success(`Now using Poachland as @${user.username}`);
       // Full navigation so the impersonated session bootstraps cleanly.
-      window.location.replace(`${window.location.origin}/app`);
+      window.location.replace(`${window.location.origin}/app/profile`);
     } else {
       toast.error(res.error);
     }
@@ -199,6 +199,7 @@ function UsersSection({
                 )}
                 <UserStatusChip user={u} />
                 {u.sampleBatchId && <span className="badge-stamp">Example</span>}
+                {u.managedByUserId && <span className="badge-stamp">Managed inventory</span>}
                 {u.isAdmin && (
                   <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[13px] font-medium text-muted-foreground shrink-0">
                     Mod
@@ -232,6 +233,7 @@ function UsersSection({
                 aria-label={`Verify ${u.username}`}
               />
             </label>
+            {!u.isAdmin && <Button variant="outline" size="sm" aria-label={`Act as @${u.username}`} onClick={() => void impersonate(u)}>Act as</Button>}
             {!u.isAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -265,14 +267,13 @@ function UsersSection({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="flex-col items-start gap-0.5"
-                    disabled={!!u.sampleBatchId}
                     onSelect={() => void impersonate(u)}
                   >
                     <span className="flex items-center gap-2">
-                      <UserCog /> Use as @{u.username}
+                      <UserCog /> Act as @{u.username}
                     </span>
                     <span className="pl-6 text-[11px] text-muted-foreground">
-                      View the app exactly as they see it. Exit anytime from the banner.
+                      Edit and act as this member. Changes are live and audited. Exit from the banner.
                     </span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>

@@ -13,7 +13,7 @@ import "server-only";
 
 import { validateAccountModeration } from "../account-moderation";
 import { closeMemberAccount, moderateContent } from "./admin-content";
-import { manageSampleBatch } from "./sample-batches";
+import { MAX_SAMPLE_LISTINGS, manageSampleBatch } from "./sample-batches";
 
 import { and, asc, count, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm";
 import { OFFER_EXPIRY_DAYS } from "../constants";
@@ -96,6 +96,7 @@ import {
   reports,
   saves,
   savedSearches,
+  sampleBatches,
   sessions,
   threads,
   users,
@@ -115,8 +116,9 @@ export async function executeOp<K extends OpName>(
   user: SessionUser,
   op: K,
   input: OpMap[K],
+  actingAdmin?: SessionUser,
 ): Promise<Res> {
-  return routeOperation(handlers, user, op, input);
+  return routeOperation(handlers, user, op, input, actingAdmin);
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -487,7 +489,7 @@ const handlers: OperationHandlers = {
       const [{ n: onboarded }] = await tx
         .select({ n: count() })
         .from(users)
-        .where(and(isNotNull(users.onboardedAt), sql`${users.sampleBatchId} is null`));
+        .where(and(isNotNull(users.onboardedAt), sql`${users.sampleBatchId} is null and ${users.managedByUserId} is null`));
       if (Number(onboarded) <= FOUNDER_LIMIT) {
         await awardEventBadge(tx, me.id, "founding");
       }
@@ -504,7 +506,7 @@ const handlers: OperationHandlers = {
               eq(users.username, refName),
               isNotNull(users.onboardedAt),
               sql`${users.deletedAt} is null`,
-              sql`${users.sampleBatchId} is null`,
+              sql`${users.sampleBatchId} is null and ${users.managedByUserId} is null`,
             ),
           )
           .limit(1);
@@ -540,6 +542,7 @@ const handlers: OperationHandlers = {
       const set: Partial<typeof users.$inferInsert> = {};
       if (patch.username !== undefined) {
         const username = sanitizeUsername(String(patch.username));
+        if (username.startsWith("sample_") && !me.sampleBatchId) return err("That prefix is reserved for example profiles.");
         if (username.length < 3) return err("Username must be at least 3 characters");
         const [taken] = await tx
           .select({ id: users.id })
@@ -651,8 +654,15 @@ const handlers: OperationHandlers = {
         row,
       ));
       if (duplicate) return err("This looks like a duplicate of one of your active listings");
+      if (user.sampleBatchId) {
+        const [batch] = await tx.select().from(sampleBatches).where(eq(sampleBatches.id, user.sampleBatchId)).for("update");
+        if (!batch || batch.state === "deleted") return err("This example batch has been deleted.");
+        const [{ n }] = await tx.select({ n: count() }).from(listings).where(eq(listings.sampleBatchId, batch.id));
+        if (n >= MAX_SAMPLE_LISTINGS) return err("This example batch has reached its 200-listing limit.");
+      }
       const now = new Date();
       const record = {
+        sampleBatchId: user.sampleBatchId,
         id,
         sellerId: user.id,
         type: input.type,
@@ -682,6 +692,7 @@ const handlers: OperationHandlers = {
       };
       await tx.insert(listings).values(record);
       await claimImageUploads(tx, user.id, photos);
+      if (user.sampleBatchId) return ok(record.id);
       await pushActivity(
         tx,
         "new_listing",

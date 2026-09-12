@@ -82,6 +82,7 @@ export const sampleBatches = pgTable("sample_batches", {
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
+  managedByUserId: text("managed_by_user_id"),
   lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),
   email: text("email").notNull().unique(), // stored lowercased
   username: text("username").unique(), // NULL until onboarding completes

@@ -245,7 +245,7 @@ export async function verifyMagicLink(
   }
 
   if (!user) return { ok: false, error: "Could not sign you in. Try again." };
-  if (user.sampleBatchId || user.deletedAt) return { ok: false, error: "This account cannot sign in." };
+  if (user.sampleBatchId || user.managedByUserId || user.deletedAt) return { ok: false, error: "This account cannot sign in." };
 
   // Promote on every login so adding an email to ADMIN_EMAILS later works.
   if (isAdminEmail && !user.isAdmin) {
@@ -312,7 +312,7 @@ export async function signInWithPassword(
   const genericError =
     "That email + password combo didn't work. No password set yet? Sign in with a magic link, then add one in Settings.";
 
-  if (!user || !user.passwordHash || user.sampleBatchId || user.deletedAt) return { ok: false, error: genericError };
+  if (!user || !user.passwordHash || user.sampleBatchId || user.managedByUserId || user.deletedAt) return { ok: false, error: genericError };
 
   if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
     return {
@@ -454,7 +454,7 @@ export async function getSessionContext(
     return null;
   }
   // A deleted account is gone — treat any lingering session as signed out.
-  if (row.user.deletedAt || row.user.sampleBatchId) {
+  if (row.user.deletedAt || row.user.sampleBatchId || row.user.managedByUserId) {
     await db.delete(sessions).where(eq(sessions.id, sessionId));
     return null;
   }
@@ -478,9 +478,9 @@ export async function getSessionContext(
 
   // Honor "use as" only for a live admin impersonating a non-admin.
   const impersonateId = row.session.impersonatingUserId;
-  if (impersonateId && realUser.isAdmin && impersonateId !== realUser.id) {
+  if (impersonateId && realUser.isAdmin && realUser.status === "active" && impersonateId !== realUser.id) {
     const [target] = await db.select().from(users).where(eq(users.id, impersonateId));
-    if (target && !target.isAdmin && !target.sampleBatchId && !target.deletedAt) {
+    if (target && !target.isAdmin && !target.deletedAt) {
       return {
         realUser,
         effectiveUser: await liftExpiredSuspension(db, target),
@@ -507,26 +507,28 @@ export async function startImpersonation(
   targetUserId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = await getDb();
-  const [row] = await db
-    .select({ session: sessions, user: users })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.id, sessionId));
-  if (!row) return { ok: false, error: "Not signed in" };
-  if (!row.user.isAdmin) return { ok: false, error: "Moderators only" };
-  if (targetUserId === row.user.id) return { ok: false, error: "That's you" };
-  const [target] = await db.select().from(users).where(eq(users.id, targetUserId));
-  if (!target) return { ok: false, error: "User not found" };
-  if (target.sampleBatchId || target.deletedAt) return { ok: false, error: "Example and deleted accounts cannot be impersonated." };
-  if (target.isAdmin) return { ok: false, error: "Can't use as another moderator" };
-  await db
-    .update(sessions)
-    .set({ impersonatingUserId: targetUserId })
-    .where(eq(sessions.id, sessionId));
-  await recordAdminAudit(db, row.user, "adminStartImpersonation", { type: "user", id: target.id }, {
-    targetUsername: target.username,
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ session: sessions, user: users })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(eq(sessions.id, sessionId));
+    if (!row || row.session.expiresAt.getTime() <= Date.now()) return { ok: false, error: "Not signed in" };
+    if (!row.user.isAdmin || row.user.deletedAt || row.user.status !== "active" || row.user.sampleBatchId) return { ok: false, error: "Active moderators only" };
+    if (targetUserId === row.user.id) return { ok: false, error: "That's you" };
+    const [target] = await tx.select().from(users).where(eq(users.id, targetUserId));
+    if (!target) return { ok: false, error: "User not found" };
+    if (target.deletedAt) return { ok: false, error: "Deleted accounts cannot be used." };
+    if (target.isAdmin) return { ok: false, error: "Can't use as another moderator" };
+    await tx
+      .update(sessions)
+      .set({ impersonatingUserId: targetUserId })
+      .where(eq(sessions.id, sessionId));
+    await recordAdminAudit(tx, row.user, "adminStartImpersonation", { type: "user", id: target.id }, {
+      targetUsername: target.username,
+    });
+    return { ok: true };
   });
-  return { ok: true };
 }
 
 export async function stopImpersonation(sessionId: string): Promise<void> {

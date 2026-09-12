@@ -97,18 +97,19 @@ export async function getAdminMemberDetail(id: string): Promise<AdminMemberDetai
   const db = await getDb();
   const [user] = await db.select().from(users).where(eq(users.id, id));
   if (!user) return null;
+  const contentScope = user.sampleBatchId ? sql`sample_batch_id = ${user.sampleBatchId}` : sql`sample_batch_id is null`;
   const counts = await db.execute(sql`select
-    (select count(*)::int from listings where seller_id = ${id}) as listings,
-    (select count(*)::int from listings where seller_id = ${id} and status = 'active' and hidden_at is null) as active,
-    (select count(*)::int from deals where (proposer_id = ${id} or owner_id = ${id}) and status = 'completed') as completed,
-    (select count(*)::int from deals where (proposer_id = ${id} or owner_id = ${id}) and status in ('open','accepted','disputed')) as flight,
+    (select count(*)::int from listings where seller_id = ${id} and ${contentScope}) as listings,
+    (select count(*)::int from listings where seller_id = ${id} and ${contentScope} and status = 'active' and hidden_at is null) as active,
+    (select count(*)::int from deals where (proposer_id = ${id} or owner_id = ${id}) and status = 'completed' and ${contentScope}) as completed,
+    (select count(*)::int from deals where (proposer_id = ${id} or owner_id = ${id}) and status in ('open','accepted','disputed') and ${contentScope}) as flight,
     (select count(*)::int from messages where sender_id = ${id} and kind = 'text') as messages,
-    (select count(*)::int from ratings where to_user_id = ${id} and hidden_at is null) as ratings,
+    (select count(*)::int from ratings where to_user_id = ${id} and hidden_at is null and ${contentScope}) as ratings,
     (select count(*)::int from reports where target_type = 'user' and target_id = ${id}) as reports`) as { rows: Record<string, number>[] };
   const c = counts.rows[0] as Record<string, number>;
   const events = await db.execute(sql`select name, count(*)::int as count from product_events where user_id = ${id} group by name order by name`) as { rows: { name: string; count: number }[] };
   const recent = await db.execute(sql`select name, created_at, subject_id from product_events where user_id = ${id} order by created_at desc limit 20`) as { rows: { name: string; created_at: Date | string; subject_id: string | null }[] };
-  return { id, username: user.username, sampleBatchId: user.sampleBatchId, joinedAt: user.memberSince.toISOString(), lastActiveAt: user.lastActiveAt?.toISOString() ?? null,
+  return { id, username: user.username, sampleBatchId: user.sampleBatchId, managedByUserId: user.managedByUserId, joinedAt: user.memberSince.toISOString(), lastActiveAt: user.lastActiveAt?.toISOString() ?? null,
     listings: Number(c.listings), activeListings: Number(c.active), completedDeals: Number(c.completed), inFlightDeals: Number(c.flight), messagesSent: Number(c.messages), ratingsReceived: Number(c.ratings), reportsReceived: Number(c.reports),
     events: events.rows as { name: string; count: number }[], recentEvents: (recent.rows as { name: string; created_at: Date | string; subject_id: string | null }[]).map((r) => ({ name: r.name, createdAt: new Date(r.created_at).toISOString(), subjectId: r.subject_id })),
   };

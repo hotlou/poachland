@@ -220,9 +220,10 @@ function EditForm({ listing }: { listing: Listing }) {
 
         {/* Title */}
         <section>
-          <FieldLabel>Listing title</FieldLabel>
+          <FieldLabel htmlFor="edit-listing-title">Listing title</FieldLabel>
           <input
             type="text"
+            id="edit-listing-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={

@@ -92,6 +92,7 @@ function toUserRecord(row: UserRow): UserRecord {
   return {
     id: row.id,
     sampleBatchId: row.sampleBatchId ?? undefined,
+    managedByUserId: row.managedByUserId ?? undefined,
     username: row.username ?? "",
     displayName: row.displayName,
     avatar: row.avatar,
@@ -175,6 +176,7 @@ function toOffer(row: OfferRow): Offer {
 
 function toDealRecord(row: DealRow, offerRows: OfferRow[]): DealRecord {
   return {
+    sampleBatchId: row.sampleBatchId ?? undefined,
     id: row.id,
     kind: row.kind,
     listingId: row.listingId,
@@ -597,13 +599,13 @@ export async function buildSnapshot(
   const viewerRow = viewerId ? userRows.find((u) => u.id === viewerId) ?? null : null;
   const viewerIsAdmin = !!viewerRow?.isAdmin;
   const [referralResult] = viewerId
-    ? await db.select({ value: sql<number>`count(*)::int` }).from(users).where(and(eq(users.referredBy, viewerId), isNull(users.sampleBatchId)))
+    ? await db.select({ value: sql<number>`count(*)::int` }).from(users).where(and(eq(users.referredBy, viewerId), isNull(users.sampleBatchId), isNull(users.managedByUserId)))
     : [{ value: 0 }];
   const referralCount = Number(referralResult?.value ?? 0);
   const viewerOnboarded = viewerRow?.onboardedAt?.getTime();
   const [memberResult] = viewerOnboarded
     ? await db.select({ value: sql<number>`count(*)::int` }).from(users)
-        .where(sql`${users.sampleBatchId} is null and ${users.onboardedAt} is not null and ${users.onboardedAt} <= ${new Date(viewerOnboarded)}`)
+        .where(sql`${users.sampleBatchId} is null and ${users.managedByUserId} is null and ${users.onboardedAt} is not null and ${users.onboardedAt} <= ${new Date(viewerOnboarded)}`)
     : [{ value: 0 }];
   const memberNumber = Number(memberResult?.value ?? 0);
   const me: SessionMe | null = viewerRow
@@ -660,7 +662,7 @@ export async function buildSnapshot(
   // completed deals and the ratings they left still render.
   for (const u of userRows) {
     if (u.deletedAt && u.id !== viewerId) hidden.add(u.id);
-    if (u.sampleBatchId && !visibleBatches.has(u.sampleBatchId)) hidden.add(u.id);
+    if (u.id !== viewerId && u.sampleBatchId && !visibleBatches.has(u.sampleBatchId)) hidden.add(u.id);
   }
   const related = new Set<string>();
   if (viewerId) {
@@ -755,7 +757,7 @@ export async function buildSnapshot(
       .map(toUserRecord),
     listings: listingRows.filter((l) =>
       (!l.hiddenAt || l.sellerId === viewerId || privateDealListingIds.has(l.id)) &&
-      (!l.sampleBatchId || visibleBatches.has(l.sampleBatchId)) && userVisible(l.sellerId)
+      (l.sellerId === viewerId || !l.sampleBatchId || visibleBatches.has(l.sampleBatchId)) && userVisible(l.sellerId)
     ).map(toListingRecord),
     isoPosts: isoRows.filter((p) => !p.hiddenAt && !hidden.has(p.userId)).map(toISORecord),
     deals: dealRows.map((d) => toDealRecord(d, offersByDeal.get(d.id) ?? [])),
@@ -883,7 +885,7 @@ export async function buildAdminData(): Promise<AdminData> {
   const identityQueue = identityRows.filter(
     (i) => i.status === "pending" || i.status === "unverified",
   );
-  const realUsers = userRows.filter((u) => !u.sampleBatchId && !u.deletedAt);
+  const realUsers = userRows.filter((u) => !u.sampleBatchId && !u.managedByUserId && !u.deletedAt);
   const [sampleCounts] = await db.select({
     listings: sql<number>`(select count(*)::int from listings where sample_batch_id is not null)`,
     deals: sql<number>`(select count(*)::int from deals where sample_batch_id is not null)`,

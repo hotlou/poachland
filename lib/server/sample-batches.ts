@@ -7,6 +7,8 @@ import type { Db } from "./db";
 import { recordAdminAudit } from "./audit";
 import { deals, haulComments, haulPosts, haulReactions, listings, messages, notifications, offers, ratings, sampleBatches, sessions, threads, users } from "./schema";
 
+export const MAX_SAMPLE_LISTINGS = 200;
+
 export type SampleAction = "publish" | "hide" | "delete";
 
 export function samplePlan(anchor = new Date()) {
@@ -26,7 +28,7 @@ async function purgeBatch(tx: Db, batchId: string) {
   const ownedListings = await tx.select({ id: listings.id }).from(listings).where(eq(listings.sampleBatchId, batchId)).for("update");
   const ownedDeals = await tx.select({ id: deals.id }).from(deals).where(eq(deals.sampleBatchId, batchId)).for("update");
   const uids = ownedUsers.map((u) => u.id), lids = ownedListings.map((l) => l.id), dids = ownedDeals.map((d) => d.id);
-  if (uids.length > 6 || lids.length > 21 || dids.length > 6) throw new Error("Batch exceeds its approved manifest; review before deleting.");
+  if (uids.length > 6 || lids.length > MAX_SAMPLE_LISTINGS || dids.length > 6) throw new Error("Batch exceeds its approved manifest; review before deleting.");
   if (uids.length) {
     const [outsideDeal] = await tx.select({ id: deals.id }).from(deals).where(and(
       sql`${deals.sampleBatchId} is distinct from ${batchId}`,
@@ -67,7 +69,8 @@ async function purgeBatch(tx: Db, batchId: string) {
   await tx.delete(listings).where(eq(listings.sampleBatchId, batchId));
   if (uids.length) {
     await tx.delete(notifications).where(inArray(notifications.userId, uids));
-    await tx.delete(sessions).where(or(inArray(sessions.userId, uids), inArray(sessions.impersonatingUserId, uids)));
+    await tx.update(sessions).set({ impersonatingUserId: null }).where(inArray(sessions.impersonatingUserId, uids));
+    await tx.delete(sessions).where(inArray(sessions.userId, uids));
   }
   await tx.delete(users).where(eq(users.sampleBatchId, batchId));
 }
@@ -91,9 +94,13 @@ export async function manageSampleBatch(db: Db, actor: SessionUser, input: { act
         await purgeBatch(tx, batch.id);
         await tx.update(sampleBatches).set({ state: "deleted", archivedAt: now, archivalReason: input.note.trim() }).where(eq(sampleBatches.id, batch.id));
       } else {
-        const [exists] = await tx.select({ id: users.id }).from(users).where(eq(users.sampleBatchId, batch.id)).limit(1);
+        const [existingUser] = await tx.select({ id: users.id }).from(users).where(eq(users.sampleBatchId, batch.id)).limit(1);
+        const [existingDeal] = await tx.select({ id: deals.id }).from(deals).where(eq(deals.sampleBatchId, batch.id)).limit(1);
+        const exists = existingUser || existingDeal;
         if (!exists) {
           const data = buildSampleContent(now);
+          const [retained] = await tx.select({ id: users.id }).from(users).where(inArray(users.id, data.users.map((u) => u.id))).limit(1);
+          if (retained) throw new Error("Real content now uses these profiles. This batch cannot be recreated after deletion.");
           await tx.insert(users).values(data.users.map((u) => ({ ...u, memberSince: new Date(u.memberSince), onboardedAt: new Date(u.memberSince),
             email: `${u.username}@samples.invalid`, emailPrefs: { deals: false, messages: false, community: false, account: false } })));
           await tx.insert(listings).values(data.listings.map((l) => ({ ...l, createdAt: new Date(l.createdAt), updatedAt: new Date(l.updatedAt), hiddenAt: null })));

@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
     if (body.type === "poachland.upload-completed") {
       if (!hasTrustedMutationOrigin(request)) return NextResponse.json({ error: "Untrusted request origin" }, { status: 403 });
       const context = await readSessionContext();
-      if (!context || context.realUser.id !== context.effectiveUser.id) return NextResponse.json({ error: "Sign in to upload" }, { status: 401 });
-      const imageUrl = await verifyAndRecordBlobUpload(context.realUser.id, String(body.url ?? ""));
+      if (!context || context.effectiveUser.status !== "active" || (context.realUser.id !== context.effectiveUser.id && (!context.realUser.isAdmin || context.realUser.status !== "active"))) return NextResponse.json({ error: "Sign in to upload" }, { status: 401 });
+      const imageUrl = await verifyAndRecordBlobUpload(context.effectiveUser.id, String(body.url ?? ""));
       return NextResponse.json({ imageUrl }, { headers: { "Cache-Control": "no-store" } });
     }
 
@@ -31,11 +31,11 @@ export async function POST(request: NextRequest) {
       getSignedToken: async (pathname, clientPayload) => {
         if (!hasTrustedMutationOrigin(request)) throw new Error("Untrusted request origin");
         const context = await readSessionContext();
-        if (!context || context.realUser.id !== context.effectiveUser.id) throw new Error("Sign in to upload");
+        if (!context || context.effectiveUser.status !== "active" || (context.realUser.id !== context.effectiveUser.id && (!context.realUser.isAdmin || context.realUser.status !== "active"))) throw new Error("Sign in to upload");
         const input = JSON.parse(clientPayload ?? "null") as { contentType?: unknown; byteSize?: unknown } | null;
         if (!input) throw new Error("Upload metadata required");
         const declared = validateBlobUploadRequest(pathname, input.contentType, input.byteSize);
-        const metadata: UploadMetadata = { userId: context.realUser.id, pathname, ...declared };
+        const metadata: UploadMetadata = { userId: context.effectiveUser.id, pathname, ...declared };
         return {
           token: await issueSignedToken({
             pathname,

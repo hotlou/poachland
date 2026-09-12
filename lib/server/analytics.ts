@@ -1,7 +1,7 @@
 import "server-only";
 
 import { uid } from "./auth";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, or } from "drizzle-orm";
 import type { Db } from "./db";
 import { productEvents, users } from "./schema";
 import { referencesSampleContent } from "./sample-guard";
@@ -26,7 +26,7 @@ export async function recordProductEvent(
   },
 ): Promise<void> {
   if (event.userId) {
-    const [sample] = await tx.select({ id: users.id }).from(users).where(and(eq(users.id, event.userId), isNotNull(users.sampleBatchId))).limit(1);
+    const [sample] = await tx.select({ id: users.id }).from(users).where(and(eq(users.id, event.userId), or(isNotNull(users.sampleBatchId), isNotNull(users.managedByUserId)))).limit(1);
     if (sample) return;
   }
   if (event.subjectId && await referencesSampleContent(tx, { id: event.subjectId })) return;
