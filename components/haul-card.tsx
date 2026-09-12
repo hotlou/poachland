@@ -1,4 +1,5 @@
 "use client";
+import { SampleBadge } from "@/components/sample-notice";
 
 /**
  * HaulCard — one shared completed trade on The Haul (community wall).
@@ -173,7 +174,7 @@ export function HaulCard({
   const router = useRouter();
   const me = store.currentUser();
   const session = store.sessionMe;
-  const canInteract = !readOnly && !!me;
+  const canInteract = !readOnly && !!me && !post.sampleBatchId;
 
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -241,12 +242,13 @@ export function HaulCard({
     <article className="rounded-2xl border border-border bg-card p-4 card-lift">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
+        {post.sampleBatchId && <SampleBadge label="Example trade" />}
         <span className="badge-stamp text-accent border-accent">{DEAL_KIND_LABELS[post.kind]}</span>
         {heist && (
           <span className="badge-stamp text-pop border-pop">🏴‍☠️ Certified Heist</span>
         )}
         <span className="text-[11px] text-muted-foreground ml-auto">{timeAgo(post.createdAt)}</span>
-        {(isParty || isAdmin) && (
+        {(isParty || isAdmin) && !post.sampleBatchId && (
           <div className="relative -my-1">
             <button
               type="button"
@@ -312,12 +314,12 @@ export function HaulCard({
       )}
 
       {/* Reactions */}
-      <div className="mt-3">
+      {!post.sampleBatchId && <div className="mt-3">
         <ReactionBar post={post} onReact={react} />
-      </div>
+      </div>}
 
       {/* Comments */}
-      <div className="mt-3 pt-3 border-t border-border">
+      <div className={`mt-3 pt-3 border-t border-border ${post.sampleBatchId ? "hidden" : ""}`}>
         {compact ? (
           <Link
             href="/app/haul"

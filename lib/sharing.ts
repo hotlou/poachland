@@ -3,7 +3,7 @@ import { money } from "./format";
 import type { Listing } from "./types";
 
 export type ShareContent = { title: string; text: string; path: string; imagePath?: string };
-export type ShareListing = Pick<Listing, "id" | "title" | "team" | "type" | "size" | "condition" | "listingType" | "askingPrice" | "tradeFor" | "shippingPreference" | "description" | "status">;
+export type ShareListing = Pick<Listing, "id" | "sampleBatchId" | "title" | "team" | "type" | "size" | "condition" | "listingType" | "askingPrice" | "tradeFor" | "shippingPreference" | "description" | "status">;
 
 export function publicUrl(path: string): string {
   // Use the configured public origin and an explicit path, not the browser's current URL.
@@ -30,16 +30,17 @@ export function listingShareContent(listing: ShareListing): ShareContent {
   const active = listing.status === "active";
   const trade = active && (listing.listingType === "trade" || listing.listingType === "trade+cash") && listing.tradeFor;
   return {
-    title: listing.title,
+    title: `${listing.sampleBatchId ? "Example listing · " : ""}${listing.title}`,
     path: `/l/${encodeURIComponent(listing.id)}`,
     imagePath: `/l/${encodeURIComponent(listing.id)}/opengraph-image`,
     text: [
+      listing.sampleBatchId && "Example listing — fictional item and transaction history. Not available to buy or trade.",
       `${listing.title} — ${listingTerms(listing)} on Poachland`,
       details,
       trade && `Looking for: ${shorten(listing.tradeFor!, 160)}`,
       active && shipping,
       listing.description && shorten(listing.description, 200),
-      active ? "Check it out on Poachland." : "This listing is no longer open to offers. Browse more gear on Poachland.",
+      listing.sampleBatchId ? "Preview the marketplace on Poachland." : active ? "Check it out on Poachland." : "This listing is no longer open to offers. Browse more gear on Poachland.",
     ].filter(Boolean).join("\n"),
   };
 }

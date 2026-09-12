@@ -1,4 +1,6 @@
 "use client";
+import { SampleBadge, SampleNotice } from "@/components/sample-notice";
+import { ShareButton } from "@/components/share-button";
 
 /**
  * Public trader profile — the SEO-facing, signed-out-friendly version of
@@ -215,6 +217,7 @@ function RecentRatings({ user }: { user: User }) {
                 key={r.id}
                 className="bg-card border border-border rounded-xl p-3"
               >
+                {r.sampleBatchId && <div className="mb-2"><SampleBadge label="Example rating" /></div>}
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <Link
                     href={`/u/${r.fromUser.username}`}
@@ -317,6 +320,8 @@ function ProfileBody({ user }: { user: User }) {
 
   return (
     <>
+      {user.sampleBatchId && <div className="px-5"><SampleNotice label="Example profile and ratings" /></div>}
+      <div className="flex justify-end px-5 pt-3"><ShareButton label="Share profile" content={{ title: `${user.sampleBatchId ? "Example profile · " : ""}${user.displayName}`, text: `${user.sampleBatchId ? "Example profile with fictional ratings and exchanges. " : ""}${user.bio}`, path: `/u/${user.username}`, imagePath: `/u/${user.username}/opengraph-image` }} /></div>
       {/* Hero */}
       <div className="px-5 pt-7 pb-5 border-b border-border">
         <div className="flex items-start gap-4 md:gap-6">
@@ -436,7 +441,7 @@ function ProfileBody({ user }: { user: User }) {
       </section>
 
       <RecentRatings user={user} />
-      <JoinCta user={user} />
+      {!user.sampleBatchId && <JoinCta user={user} />}
     </>
   );
 }

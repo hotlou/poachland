@@ -19,7 +19,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb, type Db } from "./db";
 import { recordAdminAudit } from "./audit";
 import { underRateLimit } from "./rate-limit";
@@ -84,6 +84,7 @@ export async function requestMagicLink(
   if (!email) {
     return { ok: false, error: "Please enter a valid email address." };
   }
+  if (email.endsWith("@samples.invalid")) return { ok: false, error: "Example accounts cannot sign in." };
 
   const db = await getDb();
   const now = new Date();
@@ -244,6 +245,7 @@ export async function verifyMagicLink(
   }
 
   if (!user) return { ok: false, error: "Could not sign you in. Try again." };
+  if (user.sampleBatchId || user.deletedAt) return { ok: false, error: "This account cannot sign in." };
 
   // Promote on every login so adding an email to ADMIN_EMAILS later works.
   if (isAdminEmail && !user.isAdmin) {
@@ -310,7 +312,7 @@ export async function signInWithPassword(
   const genericError =
     "That email + password combo didn't work. No password set yet? Sign in with a magic link, then add one in Settings.";
 
-  if (!user || !user.passwordHash) return { ok: false, error: genericError };
+  if (!user || !user.passwordHash || user.sampleBatchId || user.deletedAt) return { ok: false, error: genericError };
 
   if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
     return {
@@ -452,7 +454,7 @@ export async function getSessionContext(
     return null;
   }
   // A deleted account is gone — treat any lingering session as signed out.
-  if (row.user.deletedAt) {
+  if (row.user.deletedAt || row.user.sampleBatchId) {
     await db.delete(sessions).where(eq(sessions.id, sessionId));
     return null;
   }
@@ -469,12 +471,16 @@ export async function getSessionContext(
   }
 
   const realUser = await liftExpiredSuspension(db, row.user);
+  if (!row.session.impersonatingUserId) {
+    await db.update(users).set({ lastActiveAt: now }).where(and(eq(users.id, realUser.id),
+      sql`(${users.lastActiveAt} is null or ${users.lastActiveAt} < ${new Date(now.getTime() - 300_000)})`));
+  }
 
   // Honor "use as" only for a live admin impersonating a non-admin.
   const impersonateId = row.session.impersonatingUserId;
   if (impersonateId && realUser.isAdmin && impersonateId !== realUser.id) {
     const [target] = await db.select().from(users).where(eq(users.id, impersonateId));
-    if (target && !target.isAdmin) {
+    if (target && !target.isAdmin && !target.sampleBatchId && !target.deletedAt) {
       return {
         realUser,
         effectiveUser: await liftExpiredSuspension(db, target),
@@ -511,6 +517,7 @@ export async function startImpersonation(
   if (targetUserId === row.user.id) return { ok: false, error: "That's you" };
   const [target] = await db.select().from(users).where(eq(users.id, targetUserId));
   if (!target) return { ok: false, error: "User not found" };
+  if (target.sampleBatchId || target.deletedAt) return { ok: false, error: "Example and deleted accounts cannot be impersonated." };
   if (target.isAdmin) return { ok: false, error: "Can't use as another moderator" };
   await db
     .update(sessions)

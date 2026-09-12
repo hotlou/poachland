@@ -21,6 +21,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       PGLITE_PATH: ".pglite-e2e",
+      ADMIN_EMAILS: "e2e-admin@example.test",
       ...(process.env.CI
         ? { POACHLAND_E2E_MODE: "1" }
         : { WATCHPACK_POLLING: "true" }),

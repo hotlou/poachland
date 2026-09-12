@@ -24,10 +24,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         <div style={{ display: "flex", fontSize: 23, color: c.muted, marginTop: 22 }}>{details}</div>
         <div style={{ display: "flex", marginTop: 28 }}><div style={{ display: "flex", padding: "12px 22px", background: listing.status === "active" ? c.green : c.ink, color: c.cream, borderRadius: 8, fontSize: 34, fontWeight: 700 }}>{listingTerms(listing)}</div></div>
       </div>
-      <div style={{ display: "flex", color: c.green, fontSize: 20, borderTop: "2px solid #d7dccf", paddingTop: 18 }}>Ultimate gear. Passed player to player.</div>
+      <div style={{ display: "flex", color: c.green, fontSize: 20, borderTop: "2px solid #d7dccf", paddingTop: 18 }}>{listing.sampleBatchId ? "EXAMPLE LISTING · Not available to trade" : "Ultimate gear. Passed player to player."}</div>
     </div>
     <div style={{ display: "flex", width: 550, background: c.green, padding: "32px", flexDirection: "column", justifyContent: "space-between" }}>
-      <div style={{ display: "flex", color: c.cream, fontSize: 17, letterSpacing: 2, justifyContent: "space-between" }}><span>FROM THE CRATE</span><span>{listing.type.toUpperCase()}</span></div>
+      <div style={{ display: "flex", color: c.cream, fontSize: 17, letterSpacing: 2, justifyContent: "space-between" }}><span>{listing.sampleBatchId ? "SAMPLE ILLUSTRATION" : "FROM THE CRATE"}</span><span>{listing.type.toUpperCase()}</span></div>
       <div style={{ display: "flex", width: 486, height: 450, alignItems: "center", justifyContent: "center", borderRadius: 12, overflow: "hidden", background: src ? "#e8e6df" : c.green }}>
         {src ? <img src={src} alt="" width={486} height={450} style={{ objectFit: "contain" }} /> : <GearMark jersey={listing.type === "jersey"} />}
       </div>

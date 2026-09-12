@@ -68,8 +68,21 @@ export type { EmailCategory, EmailPrefs };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
+export const sampleBatches = pgTable("sample_batches", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  state: text("state").$type<"published" | "hidden" | "deleted">().notNull().default("hidden"),
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true, mode: "date" }),
+  archivalReason: text("archival_reason"),
+  createdBy: text("created_by").notNull(),
+}, (t) => [index("sample_batches_expiry_idx").on(t.state, t.expiresAt)]);
+
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
+  sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
+  lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),
   email: text("email").notNull().unique(), // stored lowercased
   username: text("username").unique(), // NULL until onboarding completes
   displayName: text("display_name").notNull(),
@@ -119,6 +132,9 @@ export const listings = pgTable(
   "listings",
   {
     id: text("id").primaryKey(),
+    sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
+    moderationReason: text("moderation_reason"),
     sellerId: text("seller_id")
       .notNull()
       .references(() => users.id),
@@ -169,6 +185,7 @@ export const listings = pgTable(
 
 export const isoPosts = pgTable("iso_posts", {
   id: text("id").primaryKey(),
+  hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
@@ -193,6 +210,7 @@ export const deals = pgTable(
   "deals",
   {
     id: text("id").primaryKey(),
+    sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
     kind: text("kind").$type<DealKind>().notNull(),
     listingId: text("listing_id").notNull(),
     proposerId: text("proposer_id")
@@ -307,6 +325,8 @@ export const ratings = pgTable(
   "ratings",
   {
     id: text("id").primaryKey(),
+    sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
     dealId: text("deal_id").notNull(),
     fromUserId: text("from_user_id").notNull(),
     toUserId: text("to_user_id").notNull(),
@@ -611,6 +631,7 @@ export const haulPosts = pgTable(
   "haul_posts",
   {
     id: text("id").primaryKey(),
+    sampleBatchId: text("sample_batch_id").references(() => sampleBatches.id),
     dealId: text("deal_id").notNull().unique(), // one post per deal
     kind: text("kind").$type<DealKind>().notNull(),
     proposerId: text("proposer_id")

@@ -5,6 +5,7 @@ import type { Condition, ItemType, Listing, ListingType } from "../types";
 import { getDb } from "./db";
 import { blocks, listings, users } from "./schema";
 import { hydratePublicUser, publicUserColumns } from "./public-user";
+import { sampleVisible } from "./sample-visibility";
 
 export type ListingSort = "newest" | "most-saved" | "most-viewed" | "price-low" | "price-high";
 export type MarketplaceQuery = {
@@ -41,6 +42,7 @@ export type MarketplacePage = { items: Listing[]; nextCursor?: string };
 
 export function hydrateMarketplaceListing(row: typeof listings.$inferSelect, user: Record<keyof typeof publicUserColumns, unknown>): Listing {
   return {
+    sampleBatchId: row.sampleBatchId ?? undefined, hiddenAt: row.hiddenAt?.toISOString(),
     id: row.id, sellerId: row.sellerId, type: row.type, title: row.title, team: row.team,
     year: row.year ?? undefined, division: row.division ?? undefined, level: row.level, size: row.size ?? undefined,
     condition: row.condition, listingType: row.listingType, askingPrice: row.askingPrice ?? undefined,
@@ -55,7 +57,7 @@ export function hydrateMarketplaceListing(row: typeof listings.$inferSelect, use
 export async function queryMarketplaceListing(id: string, viewerId?: string): Promise<Listing | null> {
   if (!id || id.length > 80) return null;
   const db = await getDb();
-  const filters: SQL[] = [eq(listings.id, id), eq(users.status, "active"), isNull(users.deletedAt)];
+  const filters: SQL[] = [eq(listings.id, id), eq(users.status, "active"), isNull(users.deletedAt), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId), sampleVisible(users.sampleBatchId)];
   if (viewerId) {
     filters.push(or(ne(listings.status, "removed"), eq(listings.sellerId, viewerId))!);
   } else {
@@ -78,7 +80,7 @@ export async function queryMarketplacePage(input: MarketplaceQuery): Promise<Mar
   const sort = input.sort ?? "newest";
   const limit = Math.max(1, Math.min(Math.trunc(input.limit ?? 24), 48));
   const cursor = decodeCursor(input.cursor);
-  const filters: SQL[] = [eq(listings.status, "active"), eq(users.status, "active"), isNull(users.deletedAt)];
+  const filters: SQL[] = [eq(listings.status, "active"), eq(users.status, "active"), isNull(users.deletedAt), isNull(listings.hiddenAt), sampleVisible(listings.sampleBatchId), sampleVisible(users.sampleBatchId)];
   if (input.itemType && input.itemType !== "all") filters.push(eq(listings.type, input.itemType));
   if (input.listingType && input.listingType !== "all") filters.push(eq(listings.listingType, input.listingType));
   if (input.conditions?.length) filters.push(inArray(listings.condition, input.conditions));

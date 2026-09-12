@@ -17,6 +17,7 @@ node_modules/
 .next/
 .pglite/
 .pglite-smoke/
+.pglite-e2e/
 coverage/
 playwright-report/
 test-results/

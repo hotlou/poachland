@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const content = listingShareContent(l);
-  return pageMetadata({ title: `${l.title} — Poachland`, description: shorten(content.text, 220), path: content.path, image: content.imagePath, imageAlt: `${l.title} — ${l.condition}${l.size ? `, size ${l.size}` : ""}` });
+  return pageMetadata({ title: `${content.title} — Poachland`, description: shorten(content.text, 220), path: content.path, image: content.imagePath, noIndex: !!l.sampleBatchId, imageAlt: `${content.title} — ${l.condition}${l.size ? `, size ${l.size}` : ""}` });
 }
 
 export default async function PublicListingPage({ params }: PageProps) {

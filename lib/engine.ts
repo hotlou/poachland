@@ -571,6 +571,7 @@ export class PoachStore {
     const statuses = filter.statuses ?? ["active"];
     const q = filter.query?.trim().toLowerCase();
     let results = this.state.listings.filter((l) => {
+      if (l.hiddenAt) return false;
       if (!statuses.includes(l.status)) return false;
       if (filter.sellerId && l.sellerId !== filter.sellerId) return false;
       if (!filter.sellerId && !filter.includeBlocked && me && this.isBlockedPair(me.id, l.sellerId))

@@ -10,5 +10,5 @@ export default async function Image({ params }: { params: Promise<{ username: st
   if (!profile) return ogResponse(() => <BrandCard />, null, true);
   const photo = await loadOgPhoto(profile.avatar);
   const stats = [profile.ratingsCount > 0 ? `${profile.trustScore.toFixed(1)} / 5 rating` : "New trader", `${profile.tradesCompleted} completed trades`, profile.location].filter(Boolean).join(" · ");
-  return ogResponse((src) => <BrandCard eyebrow={`MEET @${profile.username}`} title={profile.displayName} description={profile.bio || "Trade ultimate gear. Build your collection. Find your people."} footer={stats} photo={src} />, photo, true);
+  return ogResponse((src) => <BrandCard eyebrow={profile.sampleBatchId ? "EXAMPLE PROFILE" : `MEET @${profile.username}`} title={profile.displayName} description={profile.bio || "Trade ultimate gear. Build your collection. Find your people."} footer={profile.sampleBatchId ? "Fictional profile, ratings, and exchanges." : stats} photo={src} />, photo, true);
 }

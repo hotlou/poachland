@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"><defs><filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="16" stdDeviation="12" flood-color="#3d463b" flood-opacity=".15"/></filter></defs><rect width="800" height="600" fill="#ebe8dc"/><path d="M0 500h800M70 0v500M730 0v500" stroke="#d8d6c9" stroke-width="1"/><g filter="url(#shadow)">
+    <path d="M310 89 231 125 176 226 247 256 280 195 284 454Q401 475 516 454L520 195 553 256 624 226 569 125 490 89 453 81Q449 123 400 126 351 123 347 81Z" fill="#eee9d8" stroke="#333b32" stroke-opacity=".2" stroke-width="2"/>
+    <path d="M347 82q3 42 53 44 50-2 53-44m-170 116 10 232m225-232-11 232m-220 8q112 15 223 0" fill="none" stroke="#285941" stroke-opacity=".32" stroke-width="3"/>
+    <path d="m315 113-26 75m196-75 29 75" stroke="#285941" stroke-opacity=".2" stroke-width="2"/>
+    <text x="400" y="244" text-anchor="middle" fill="#285941" font-family="Arial" font-size="27" letter-spacing="3">CROSSWIND</text>
+    <path d="m377 289 24-36 23 36m-45 12h43" fill="none" stroke="#285941" stroke-width="5"/>
+    <text x="400" y="397" text-anchor="middle" fill="#285941" font-family="Arial" font-size="16" letter-spacing="4">L</text></g><rect y="525" width="800" height="75" fill="#f5f2e8"/><text x="38" y="569" fill="#2b5b3b" font-family="Arial" font-size="20" font-weight="bold">Poachland ↗</text><text x="760" y="568" text-anchor="end" fill="#625f52" font-family="Arial" font-size="16" letter-spacing="2">SAMPLE ILLUSTRATION</text></svg>

@@ -1,4 +1,5 @@
 "use client";
+import { SampleBadge } from "@/components/sample-notice";
 
 /**
  * Public browse — the SEO-facing, signed-out-friendly view of /app/browse.
@@ -141,6 +142,7 @@ function ListingMiniCard({ listing }: { listing: Listing }) {
         </div>
       </div>
       <div className="p-3">
+        {listing.sampleBatchId && <div className="mb-2"><SampleBadge label="Example listing" /></div>}
         <h3 className="text-sm font-semibold text-foreground line-clamp-1 leading-tight">
           {listing.title}
         </h3>

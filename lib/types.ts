@@ -76,6 +76,7 @@ export interface HistoryEntry {
 
 export interface UserRecord {
   id: string;
+  sampleBatchId?: string;
   username: string;
   displayName: string;
   avatar: string;
@@ -108,6 +109,8 @@ export type User = UserRecord;
 
 export interface ListingRecord {
   id: string;
+  sampleBatchId?: string;
+  hiddenAt?: string;
   sellerId: string;
   type: ItemType;
   title: string;
@@ -278,6 +281,7 @@ export interface Thread extends ThreadRecord {
 
 export interface Rating {
   id: string;
+  sampleBatchId?: string;
   dealId: string;
   fromUserId: string;
   toUserId: string;
@@ -480,6 +484,7 @@ export interface HaulComment extends HaulCommentRecord {
 
 export interface HaulPostRecord {
   id: string;
+  sampleBatchId?: string;
   dealId: string;
   kind: DealKind;
   proposerId: string;

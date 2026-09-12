@@ -95,8 +95,12 @@ export interface AdminData {
     suspendedUntil?: string;
     moderationNote?: string;
     isAdmin: boolean;
+    lastActiveAt?: string;
+    deletedAt?: string;
   })[];
   stats: {
+    samples: { users: number; listings: number; deals: number };
+    visits: { signedIn7d: number; signedIn30d: number; newMembers7d: number; newMembers30d: number };
     users: number;
     verifiedUsers: number;
     listings: number;
@@ -276,6 +280,9 @@ export interface OpMap {
   linkIdentity: { id: string; provider: IdentityProvider; handle: string; url?: string };
   removeIdentity: { id: string };
   // admin (require isAdmin)
+  adminModerateContent: { kind: import("../admin-types").ContentKind; id: string; action: import("../admin-types").ContentAction; confirm?: string; note: string };
+  adminCloseAccount: { userId: string; confirm: string; note: string };
+  adminSampleBatch: { action: "publish" | "hide" | "delete"; batchId: string; confirm: string; days?: number; note: string };
   adminResolveReport: { reportId: string; action: "dismiss" | "remove-listing" | "warn-user"; note: string };
   adminResolveDispute: { dealId: string; outcome: "cancelled" | "completed"; note: string };
   adminSetUserVerified: { userId: string; verified: boolean };

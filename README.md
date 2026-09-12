@@ -54,7 +54,7 @@ A mobile-first web app where ultimate frisbee players list, discover, and comple
 - `/app/profile`, `/app/profile/edit`, `/app/u/[username]` — profiles
 - `/app/saved` — saved items
 - `/app/settings` — account, linked identities, blocked traders
-- `/admin` — moderation dashboard
+- `/admin` — moderation workspace: usage, samples, content, members, review queues, partners, and audit history. See [Admin and reversible sample publishing](docs/admin-and-sample-content.md).
 
 ## Tech stack
 

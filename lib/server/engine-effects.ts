@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, or, sql } from "drizzle-orm";
+import { and, count, eq, isNull, or, sql } from "drizzle-orm";
 import { BADGE_BY_TYPE, qualifyingBadges, type BadgeStats } from "../badges";
 import { ratingSummaryFrom } from "../reputation";
 import type { BadgeType, MessageKind } from "../types";
@@ -60,12 +60,12 @@ export async function pushActivity(
 export async function recomputeReputation(tx: Db, userId: string): Promise<void> {
   const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
   if (!user) return;
-  const userRatings = await tx.select().from(ratings).where(eq(ratings.toUserId, userId));
+  const userRatings = await tx.select().from(ratings).where(and(eq(ratings.toUserId, userId), isNull(ratings.hiddenAt), user.sampleBatchId ? eq(ratings.sampleBatchId, user.sampleBatchId) : isNull(ratings.sampleBatchId)));
   const summary = ratingSummaryFrom(userRatings, user);
   const [{ n: completedInvolving }] = await tx
     .select({ n: count() })
     .from(deals)
-    .where(and(eq(deals.status, "completed"), or(eq(deals.proposerId, userId), eq(deals.ownerId, userId))));
+    .where(and(eq(deals.status, "completed"), user.sampleBatchId ? eq(deals.sampleBatchId, user.sampleBatchId) : isNull(deals.sampleBatchId), or(eq(deals.proposerId, userId), eq(deals.ownerId, userId))));
   const [{ n: listingCount }] = await tx.select({ n: count() }).from(listings).where(eq(listings.sellerId, userId));
   const [{ n: givenAway }] = await tx
     .select({ n: count() })
@@ -91,10 +91,11 @@ export async function recomputeReputation(tx: Db, userId: string): Promise<void>
     isoCount: Number(isoCount),
   };
 
-  const badges = [...user.badges];
+  const qualifying = qualifyingBadges(stats);
+  const badges = user.sampleBatchId ? [] : user.badges.filter((b) => !["trusted", "flawless", "quick-shipper"].includes(b.type) || qualifying.includes(b.type));
   const notifications: Parameters<typeof insertNotifications>[1] = [];
   const has = (type: BadgeType) => badges.some((badge) => badge.type === type);
-  for (const type of qualifyingBadges(stats)) {
+  for (const type of user.sampleBatchId ? [] : qualifying) {
     if (has(type)) continue;
     badges.push({ id: uid("b"), label: BADGE_BY_TYPE[type].label, type });
     notifications.push({

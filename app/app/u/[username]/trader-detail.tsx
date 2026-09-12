@@ -1,4 +1,5 @@
 "use client";
+import { SampleNotice, SampleBadge } from "@/components/sample-notice";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -237,7 +238,7 @@ function PublicProfile({ user }: { user: User }) {
     <p className="text-sm text-muted-foreground leading-relaxed">{user.bio}</p>
   ) : null;
 
-  const actions = !isSelf ? (
+  const actions = !isSelf && !user.sampleBatchId ? (
     <div className="flex gap-2">
       <button
         type="button"
@@ -288,6 +289,7 @@ function PublicProfile({ user }: { user: User }) {
 
   return (
     <>
+      {user.sampleBatchId && <div className="mx-4 md:mx-6"><SampleNotice label="Example profile and ratings" /></div>}
       {isSelf && (
         <div className="mx-4 md:mx-6 mt-4 bg-accent/10 border border-accent/40 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
           <p className="text-xs text-foreground">
@@ -545,6 +547,7 @@ function PublicProfile({ user }: { user: User }) {
               const overall = (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
               return (
                 <div key={r.id} className="bg-card border border-border rounded-xl p-3">
+                  {r.sampleBatchId && <div className="mb-2"><SampleBadge label="Example rating" /></div>}
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <Link
                       href={`/app/u/${r.fromUser.username}`}

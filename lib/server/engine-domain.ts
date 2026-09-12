@@ -10,7 +10,7 @@ import { validImageReference } from "./storage";
 const DAY_MS = 86_400_000;
 
 export const isClientId = (id: unknown): id is string =>
-  typeof id === "string" && CLIENT_ID_PATTERN.test(id);
+  typeof id === "string" && CLIENT_ID_PATTERN.test(id) && !id.includes("_samplev1");
 
 /** Slice to four opaque object/stock URLs; uploaded binary data is never accepted. */
 export function capPhotos(raw: unknown): string[] | null {
