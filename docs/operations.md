@@ -92,3 +92,11 @@ rotate them immediately after suspected exposure.
 `instrumentation.ts` registers the application with OpenTelemetry as `poachland-marketplace`. Marketplace mutations emit spans named `marketplace.<operation>` with operation outcome and non-PII actor identifiers; framework, database-adjacent, and outbound fetch spans are captured by the deployment runtime. Configure a Vercel trace drain or OpenTelemetry-compatible integration in production and verify a test trace before promotion.
 
 Create alerts for two consecutive external health-check failures, 5xx rate above 1% for five minutes, p95 request latency above 1.5 seconds for five minutes, database pool use above 80%, any email dead letter, ready email age above 15 minutes, failed upload cleanup, and failed/missing backups. Route alerts to the on-call channel and exercise one synthetic alert during every staging release review.
+
+## Community verification and Instagram operations
+
+Use Admin → Verification for staff check decisions and evidence review. Use Admin → Instagram for draft generation, approval, scheduling, and the publishing pause control. The [feature/setup spec](community-trust-and-instagram.md) defines the vouch policy, required server configuration, free Meta account setup, and reversal procedures.
+
+The existing authenticated email worker now also refreshes trust eligibility and runs the bounded social queue. Its optional community work reports `communityWorkOk`; investigate `trust.worker.failed` or `social.worker.failed` logs if false. Email delivery and upload cleanup are kept independent from failures in those optional tasks.
+
+Before enabling Instagram: confirm the correct connected account and permissions, opt in actual content owners, preview a real-content draft, unpause, and approve one post. Verify the returned media ID against the account before enabling automatic daily/weekly approval. If an outcome is ambiguous, inspect Instagram and resolve the queue item manually; never clear its recorded publish attempt to force a retry. Pause cannot remove a post already accepted by Instagram.

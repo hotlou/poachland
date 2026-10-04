@@ -4,6 +4,8 @@ import { flushEmailOutbox } from "@/lib/server/email";
 import { log, logError } from "@/lib/server/logger";
 import { cleanupAbandonedUploads } from "@/lib/server/storage";
 import { expireSampleBatches } from "@/lib/server/sample-batches";
+import { processSocialPublishing } from "@/lib/server/social-publishing";
+import { recomputeTrust } from "@/lib/server/trust";
 import { getDb } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +23,14 @@ export async function GET(request: NextRequest) {
     const result = await flushEmailOutbox(50);
     const abandonedUploadsDeleted = await cleanupAbandonedUploads(100);
     const sampleBatchesExpired = await expireSampleBatches(await getDb());
-    log("info", "background.worker.completed", { ...result, abandonedUploadsDeleted, sampleBatchesExpired });
-    return NextResponse.json({ ok: true, ...result, abandonedUploadsDeleted, sampleBatchesExpired }, { headers: { "Cache-Control": "no-store" } });
+    // Isolate optional community work from email delivery and upload cleanup.
+    let communityWorkOk = true;
+    try { await recomputeTrust(await getDb()); }
+    catch (error) { communityWorkOk = false; logError("trust.worker.failed", error); }
+    try { await processSocialPublishing(); }
+    catch (error) { communityWorkOk = false; logError("social.worker.failed", error); }
+    log("info", "background.worker.completed", { ...result, abandonedUploadsDeleted, sampleBatchesExpired, communityWorkOk });
+    return NextResponse.json({ ok: true, ...result, abandonedUploadsDeleted, sampleBatchesExpired, communityWorkOk }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     logError("email.worker.failed", error);
     return NextResponse.json({ ok: false }, { status: 500 });

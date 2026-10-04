@@ -1,10 +1,10 @@
 # Marketplace sample content proposal
 
-Prepared September 12, 2026. Draft content for a separate demo dataset; nothing in this document has been inserted into the marketplace.
+Fixture proposed September 12, 2026; usage policy updated October 3, 2026. The implemented dataset is reserved for private admin testing. Its authoritative record definitions are in `lib/sample-content.ts`.
 
 **All people, listings, exchanges, and ratings below are fictional examples.** The named gear collections and event stamps are invented design concepts, not claims about real clubs, tournaments, manufacturers, or merchandise. Dates and measurements are fixture details, not verified history.
 
-Use this pack to review the marketplace, profiles, the Haul, and sharing. For a public demo, show “Sample profile,” “Example trade,” and “Example rating” beside the relevant content. Carry that disclosure into share text and preview images so it survives outside the site. For actual marketplace inventory, use items someone owns and can fulfill; real completed exchanges and participant-written ratings can then replace the examples.
+Use this pack to inspect marketplace fields, layouts, moderation, and privacy from admin tools or an authorized Act as session. Examples are never public marketplace inventory. Public sample listing/profile URLs return 404, and their OG routes return the generic brand image without fixture details. For public inventory, use items someone owns and can fulfill; completed exchanges and participant-written ratings must come from actual activity.
 
 ## The proposed set
 
@@ -15,11 +15,11 @@ Use this pack to review the marketplace, profiles, the Haul, and sharing. For a 
 - One additional pending listing and one removed listing for availability and privacy checks.
 - No fabricated verification, historical reputation baseline, referrals, views, saves, or reactions. Compute demo totals from these records alone.
 
-This is content planning, not an import format. The existing staging seeder is not a production importer. Production-safe sample flags, disclosures, exclusion from metrics, and cleanup remain separate implementation work, as described in [the launch merchandising backlog](backlog.md).
+This document describes content, not an import format. Use **Admin → Samples → Prepare private examples** or the audited `prepare` CLI action in [the admin runbook](admin-and-sample-content.md). The implementation keeps the dataset private, excludes fictional activity from real metrics and verification, and supports bounded cleanup. The legacy `publish` action is a compatibility alias for private preparation and cannot expose these records.
 
 ## Six profiles
 
-The display names below are fictional. Suggested sample handles make their purpose apparent even when a profile URL is copied. Use initials or a close-up of the demo gear for avatars; no invented player portraits or implied team membership.
+The display names below are fictional. Sample handles identify their purpose in the admin workspace; copied public profile URLs do not reveal the fictional profiles. Use initials or a close-up of the demo gear for avatars; no invented player portraits or implied team membership.
 
 | ID | Display name / handle | Location | Bio |
 | --- | --- | --- | --- |
@@ -45,7 +45,7 @@ These are expected display values derived from the swaps and ratings below, neve
 | Dev | 2 | 1 | 4.7 |
 | Kit | 1 | 1 | 5.0 |
 
-All baselines start at zero. All `isVerified` values are false. Any milestone badges shown in the demo must follow the normal rules and remain visibly part of the sample profile. None of these values belongs in live trust scores or marketplace success totals.
+All baselines start at zero. All `isVerified` values are false. Example profiles cannot receive a community blue check, issue vouches, or act as social verification evidence. Any other fixture badges stay within the private workspace. None of these values belongs in live trust scores or marketplace success totals.
 
 ## Five completed swap scenarios
 
@@ -219,17 +219,17 @@ Photo brief: Front, rim, underside. Avoid showing a real person’s phone number
 
 ## Two additional state checks
 
-- **P1 — Pending:** Tess’s “Crosswind blue alternate — M,” Good, a free listing with recipient-paid shipping. Tess has selected Kit’s claim; the accepted deal awaits shipment and completion. No item or purchase payment travels from Kit to Tess. Expected share state: Pending, no active offer CTA, no ratings or Haul post.
-- **X1 — Removed:** Dev’s “Second Pull black practice top — L,” Good, formerly a $20 sale. This fixture should disappear from public browsing, have no usable share control, and produce generic metadata without its former title or photo. Do not create a transaction for it.
+- **P1 — Pending:** Tess’s “Crosswind blue alternate — M,” Good, a free listing with recipient-paid shipping. Tess has selected Kit’s claim; the accepted deal awaits shipment and completion. No item or purchase payment travels from Kit to Tess. Expected private owner state: Pending, no active offer CTA, no ratings or Haul post. Public URLs and previews reveal no fixture details.
+- **X1 — Removed:** Dev’s “Second Pull black practice top — L,” Good, formerly a $20 sale. This fixture remains unavailable to trade, has no usable share control, and produces generic public metadata without its former title or photo. All other fictional records are equally excluded from public browsing. Do not create a transaction for it.
 
-Keep failed-photo and extremely long-title fixtures in a separate QA set. The visible marketplace should use ordinary content; the separate cases verify resilience.
+Keep failed-photo and extremely long-title fixtures in a separate private QA set. The public marketplace uses real inventory; the private cases verify resilience.
 
 ## Sharing and photography review
 
-Use A1 for a jersey trade, A2 for a priced disc, A3 for trade plus cash, A6 for free local pickup, and A8 for free with postage. Check S1 for a completed listing and P1 for pending. Check X1 for the public-safe removed fallback. Preview a profile with one rating and another with two.
+Use A1 for private jersey-trade editing, A2 for a priced disc, A3 for trade plus cash, A6 for free local pickup, and A8 for free with postage. S1 and P1 cover completed and pending states. Public listing/profile requests must remain unavailable and OG images must match the missing-record brand fallback for every example, including after an admin changes its title or photos.
 
-For a public demo, the proposed share opening is **“Example listing · Second Pull reversible — white / forest, L.”** Keep a small, legible “Example listing” label inside the OG image, plus the title, image, condition, size, and terms. A disclosure on the destination page alone is lost when someone sees only the preview. This labeling is a proposed requirement, not behavior already implemented by the current ShareButton.
+To test an actual public listing and rich share preview, act as the inventory profile and replace an active item with gear you own: accurate details and newly uploaded photographs. Then use **Publish as real inventory**. This explicitly detaches only the item and its inventory profile from the sample batch. The profile is identified as admin-managed and inherits no fictional ratings, history, avatar, or trade totals. Remaining examples stay private. A blue check is unavailable to this managed inventory profile; verify the actual owner’s personal account separately.
 
-The photos will determine whether the set feels convincing. Use actual photographed garments and discs with accurate descriptions: front/back, tag, measurements, and disclosed wear. Allow different surfaces and ordinary daylight, while keeping the item readable. Do not attach unrelated stock gear to a listing whose description claims specific branding, damage, provenance, or condition. For fictional artwork, label the visual as an illustration. Avoid generated player headshots and invented action photography implying real team participation.
+Actual inventory needs photos of the exact item being offered. Use actual photographed garments and discs with accurate descriptions: front/back, tag, measurements, and disclosed wear. Allow different surfaces and ordinary daylight, while keeping the item readable. Do not attach unrelated stock gear to a listing whose description claims specific branding, damage, provenance, or condition. For fictional artwork, label the visual as an illustration. Avoid generated player headshots and invented action photography implying real team participation.
 
-To turn this into an unlabeled live marketplace launch, replace the examples with a small founding group’s actual gear and consented profiles. Let the five exchanges happen, then request short factual reviews from the participants. The drafts above can guide the fields and visual treatment; they are not quotes to attribute to those people.
+To populate the live marketplace, use your own gear or a small founding group’s actual gear and consented profiles. Let the five exchanges happen, then request short factual reviews from the participants. The drafts above can guide the fields and visual treatment; they are not quotes to attribute to those people.

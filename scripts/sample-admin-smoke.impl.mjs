@@ -21,7 +21,6 @@ const { queryAdminContent, getAdminMemberDetail } = await import("../lib/server/
 const { recordProductEvent } = await import("../lib/server/analytics.ts");
 const { recomputeReputation } = await import("../lib/server/engine-effects.ts");
 const { getSessionContext } = await import("../lib/server/auth.ts");
-const { listingShareContent } = await import("../lib/sharing.ts");
 const db = await getDb();
 let passed = 0;
 const check = async (name, fn) => { await fn(); passed++; console.log(`PASS ${name}`); };
@@ -38,14 +37,14 @@ const lid = "l_samplev1a1";
 
 try {
   await check("authorization and typed confirmation leave data unchanged", async () => {
-    rejected(await executeOp(member, "adminSampleBatch", input("publish")));
-    rejected(await manageSampleBatch(db, member, input("publish")));
-    rejected(await executeOp(admin, "adminSampleBatch", { ...input("publish"), confirm: "publish" }));
+    rejected(await executeOp(member, "adminSampleBatch", input("prepare")));
+    rejected(await manageSampleBatch(db, member, input("prepare")));
+    rejected(await executeOp(admin, "adminSampleBatch", { ...input("prepare"), confirm: "publish" }));
     assert.equal((await db.select().from(s.sampleBatches)).length, 0);
   });
-  await check("publish is bounded, internally consistent, and idempotent", async () => {
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+  await check("private preparation is bounded, internally consistent, and idempotent", async () => {
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
     assert.equal((await db.select().from(s.users)).length, 8);
     assert.equal((await db.select().from(s.listings)).length, 22);
     assert.equal((await db.select().from(s.deals)).length, 6);
@@ -56,14 +55,28 @@ try {
       assert.equal(row.ratingsCount, u.ratingsCount); assert.equal(row.tradesCompleted, u.tradesCompleted); assert.equal(row.trustScore, u.trustScore);
     }
   });
-  await check("public discovery and shares disclose examples; sitemap excludes them", async () => {
-    assert.equal((await queryMarketplacePage({ limit: 48 })).items.filter((l) => l.sampleBatchId).length, 8);
-    assert.equal((await queryHaulPage()).items.length, 5);
-    assert.ok((await getPublicProfile("sample_sparelight")).sampleBatchId);
-    assert.match(listingShareContent(await getPublicListing(lid)).text, /Example listing/);
-    assert.equal(await getPublicListing("l_samplev1x1"), null);
-    assert.equal((await listPublicListingIds()).some((l) => l.id === lid), false);
-    assert.equal((await listPublicUsernames()).some((u) => u.username.startsWith("sample_")), false);
+  await check("prepared examples stay private across discovery, deep links, and legacy publication", async () => {
+    const assertPrivate = async () => {
+      assert.equal((await queryMarketplacePage({ limit: 48 })).items.filter((l) => l.sampleBatchId).length, 0);
+      assert.equal((await queryHaulPage()).items.length, 0);
+      assert.equal(await getPublicProfile("sample_sparelight"), null);
+      assert.equal(await getPublicListing(lid), null);
+      assert.equal(await getPublicListing("l_samplev1x1"), null);
+      assert.equal(await queryMarketplaceListing(lid, member.id), null);
+      const snapshot = await buildSnapshot(null);
+      assert.equal(snapshot.listings.some((l) => l.sampleBatchId), false);
+      assert.equal(snapshot.users.some((u) => u.sampleBatchId), false);
+      assert.equal(snapshot.ratings.some((r) => r.sampleBatchId), false);
+      assert.equal((await listPublicListingIds()).some((l) => l.id === lid), false);
+      assert.equal((await listPublicUsernames()).some((u) => u.username.startsWith("sample_")), false);
+    };
+    assert.equal((await db.select().from(s.sampleBatches))[0].state, "hidden");
+    await assertPrivate();
+    await db.update(s.sampleBatches).set({ state: "published" }).where(eq(s.sampleBatches.id, SAMPLE_BATCH_ID));
+    await assertPrivate();
+    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    assert.equal((await db.select().from(s.sampleBatches))[0].state, "hidden", "legacy action must not reopen public visibility");
+    await assertPrivate();
   });
   await check("real actions cannot create sample relationships or reputation", async () => {
     for (const [op, payload] of [
@@ -89,7 +102,7 @@ try {
     assert.equal(await getSessionContext("sample-session-forbidden"), null);
     rejected(await executeOp(admin, "adminSetUserVerified", { userId: "u_samplev1nora", verified: true }));
   });
-  await check("hide and restore preserve state and prevent public deep-link leakage", async () => {
+  await check("archive and restore keep examples private and preserve moderation", async () => {
     ok(await executeOp(admin, "adminModerateContent", { kind: "listing", id: lid, action: "hide", note }));
     assert.equal(await getPublicListing(lid), null);
     assert.equal(await queryMarketplaceListing(lid, member.id), null);
@@ -98,18 +111,18 @@ try {
     assert.equal(await getPublicProfile("sample_sparelight"), null);
     assert.equal((await queryHaulPage()).items.length, 0);
     assert.equal((await queryMarketplacePage({})).items.filter((l) => l.sampleBatchId).length, 0);
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
     assert.equal(await getPublicListing(lid), null, "republish must not undo item moderation");
     ok(await executeOp(admin, "adminModerateContent", { kind: "listing", id: lid, action: "restore", note }));
-    assert.ok(await getPublicListing(lid));
+    assert.equal(await getPublicListing(lid), null, "restoring an example never publishes it");
   });
-  await check("expiry hides all public reads before cron runs", async () => {
+  await check("archival runs once and samples are private before cron", async () => {
     await db.update(s.sampleBatches).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(s.sampleBatches.id, SAMPLE_BATCH_ID));
     assert.equal(await getPublicListing(lid), null); assert.equal(await getPublicProfile("sample_sparelight"), null);
     assert.equal((await buildSnapshot(null)).users.some((u) => u.sampleBatchId), false);
     assert.equal((await queryHaulPage()).items.length, 0);
     assert.equal(await expireSampleBatches(db), 1); assert.equal(await expireSampleBatches(db), 0);
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
   });
   await check("admin search, visibility filters, and member details cover records", async () => {
     const data = await queryAdminContent({ kind: "listing", scope: "sample" });
@@ -121,9 +134,9 @@ try {
   });
   await check("rating moderation recomputes example scores and isolates real reputation", async () => {
     ok(await executeOp(admin, "adminModerateContent", { kind: "rating", id: "r_samplev17", action: "hide", note }));
-    assert.equal((await getPublicProfile("sample_sparelight")).trustScore, 5);
+    assert.equal((await db.select().from(s.users).where(eq(s.users.id, "u_samplev1nora")))[0].trustScore, 5);
     ok(await executeOp(admin, "adminModerateContent", { kind: "rating", id: "r_samplev17", action: "restore", note }));
-    assert.equal((await getPublicProfile("sample_sparelight")).trustScore, 4.8);
+    assert.equal((await db.select().from(s.users).where(eq(s.users.id, "u_samplev1nora")))[0].trustScore, 4.8);
     await db.insert(s.ratings).values({ id: "r_crosssample", sampleBatchId: SAMPLE_BATCH_ID, dealId: "d_samplev1s5", fromUserId: "u_samplev1eli", toUserId: member.id, communication: 5, shippingSpeed: 5, itemAccuracy: 5, wouldTradeAgain: true });
     await recomputeReputation(db, member.id);
     assert.equal((await db.select().from(s.users).where(eq(s.users.id, member.id)))[0].ratingsCount, 0);
@@ -134,13 +147,13 @@ try {
     rejected(await executeOp(admin, "adminModerateContent", { kind: "listing", id: "l_samplev1s1n", action: "delete", confirm: "DELETE l_samplev1s1n", note }));
     ok(await executeOp(admin, "adminModerateContent", { kind: "listing", id: "l_samplev1a8", action: "delete", confirm: "DELETE l_samplev1a8", note }));
     assert.equal(await getPublicListing("l_samplev1a8"), null);
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
     assert.equal(await getPublicListing("l_samplev1a8"), null, "republish does not recreate individually deleted items");
   });
   await check("batch purge refuses outside relationships and rolls back", async () => {
     await db.insert(s.threads).values({ id: "t_outsidebatch", participantIds: [member.id, "u_samplev1nora"] });
     rejected(await executeOp(admin, "adminSampleBatch", input("delete")));
-    assert.ok(await getPublicProfile("sample_sparelight"));
+    assert.equal((await db.select().from(s.users).where(eq(s.users.id, "u_samplev1nora"))).length, 1);
     assert.equal((await db.select().from(s.deals)).length, 6);
     await db.delete(s.threads).where(eq(s.threads.id, "t_outsidebatch"));
   });
@@ -172,7 +185,7 @@ try {
   });
   await check("Act as authorizes active moderators, isolates edits, and audits the real actor", async () => {
     const { startImpersonation, stopImpersonation } = await import("../lib/server/auth.ts");
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
     await db.insert(s.sessions).values([
       { id: "admin-act-session", userId: admin.id, expiresAt: new Date(Date.now() + 60_000) },
       { id: "member-act-session", userId: member.id, expiresAt: new Date(Date.now() + 60_000) },
@@ -189,6 +202,7 @@ try {
     rejected(await executeOp(ctx.effectiveUser, "commentHaul", { id: "hc_samplewrite", haulId: "h_samplev1s1", body: "Invented reaction" }, ctx.realUser));
     rejected(await executeOp(ctx.effectiveUser, "updateListing", { id: realListing.id, patch: { title: "Wrong owner" } }, ctx.realUser));
     ok(await executeOp(ctx.effectiveUser, "updateListing", { id: lid, patch: { title: "My saved gear details" } }, ctx.realUser));
+    assert.equal(await getPublicListing(lid), null, "editing private gear must not publish it");
     ok(await executeOp(ctx.effectiveUser, "updateProfile", { patch: { bio: "Preparing my actual gear inventory." } }, ctx.realUser));
     const source = fixture.listings.find((l) => l.id === lid);
     ok(await executeOp(ctx.effectiveUser, "createListing", { id: "l_adminnewgear", input: { ...source, title: "Additional gear draft", photos: ["/images/jersey-1.jpg"] } }, ctx.realUser));
@@ -204,7 +218,7 @@ try {
     await db.update(s.users).set({ isAdmin: true }).where(eq(s.users.id, admin.id));
     await stopImpersonation("admin-act-session");
     assert.equal((await getSessionContext("admin-act-session")).effectiveUser.id, admin.id);
-    ok(await executeOp(admin, "adminSampleBatch", input("publish")));
+    ok(await executeOp(admin, "adminSampleBatch", input("prepare")));
   });
   await check("real inventory requires owned photos and never inherits fictional reputation", async () => {
     const { publishManagedInventory } = await import("../lib/server/managed-inventory.ts");
@@ -247,7 +261,7 @@ try {
     assert.ok(await getPublicListing(lid)); assert.ok(await getPublicProfile("ownedgear"));
     assert.equal((await db.select().from(s.ratings)).length, 0);
     assert.equal((await db.select().from(s.listings).where(eq(s.listings.sellerId, targetId))).length, 1);
-    rejected(await executeOp(admin, "adminSampleBatch", input("publish")));
+    rejected(await executeOp(admin, "adminSampleBatch", input("prepare")));
     assert.ok(await getPublicListing(lid), "re-seeding must not overwrite real inventory");
   });
   console.log(`SAMPLE ADMIN SMOKE: all ${passed} checks passed.`);

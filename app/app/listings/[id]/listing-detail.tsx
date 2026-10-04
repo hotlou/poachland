@@ -1,12 +1,13 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  BadgeCheck,
   ChevronRight,
   DollarSign,
   Eye,
@@ -348,7 +349,7 @@ function ListingDetail({ id }: { id: string }) {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="font-semibold text-sm">{seller.displayName}</p>
                   {seller.isVerified && (
-                    <BadgeCheck size={14} className="text-accent flex-shrink-0" />
+                    <VerifiedMark size={14} />
                   )}
                   <p className="text-xs text-muted-foreground">@{seller.username}</p>
                   {seller.managedByUserId && <p className="text-xs text-muted-foreground">Admin-managed inventory</p>}

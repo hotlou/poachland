@@ -1,0 +1,225 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+delete process.env.DATABASE_URL;
+delete process.env.RESEND_API_KEY;
+process.env.INSTAGRAM_HANDLE = "poachland_test_inbox";
+const dir = await mkdtemp(path.join(os.tmpdir(), "poachland-trust-"));
+process.env.PGLITE_PATH = dir;
+const { eq, sql } = await import("drizzle-orm");
+const { getDb } = await import("../lib/server/db.ts");
+const s = await import("../lib/server/schema.ts");
+const trust = await import("../lib/server/trust.ts");
+const db = await getDb();
+let passed = 0;
+const check = async (name, fn) => { await fn(); passed++; console.log(`PASS ${name}`); };
+const ok = (res) => { assert.equal(res.ok, true, res.error); return res.value; };
+const rejected = (res) => assert.equal(res.ok, false, JSON.stringify(res));
+const note = "I personally confirmed this community member in the actual verification conversation.";
+const actor = (id) => ({ userId: id, effectiveUserId: id });
+const admin = actor("u_t_admin");
+const make = async (name, extras = {}) => (await db.insert(s.users).values({ id: `u_t_${name}`, email: `${name}@trust.invalid`, username: `trust_${name}`, displayName: name, onboardedAt: new Date(), ...extras }).returning())[0];
+const status = async (id) => ok(await trust.getTrustStatus(db, actor(id)));
+const grant = async (id) => ok(await trust.reviewTrust(db, admin, { userId: id, action: "grant", note }));
+
+try {
+  await make("admin", { isAdmin: true, isVerified: true });
+  for (const name of ["root", "a", "b", "c", "d", "e", "f", "cycle1", "cycle2", "cycle3", "dm1", "dm2", "dm3", "dm4", "dm5", "dm6", "dm7", "dm8"]) await make(name);
+  await make("managed", { managedByUserId: admin.userId });
+  await db.insert(s.sampleBatches).values({ id: "trust_test_samples", name: "Trust test", createdBy: admin.userId, publishedAt: new Date(), expiresAt: new Date(Date.now() + 86_400_000) });
+  await make("sample", { sampleBatchId: "trust_test_samples" });
+  await make("banned", { status: "banned" });
+
+  await check("legacy booleans do not bootstrap and account access remains open", async () => {
+    assert.equal((await status(admin.userId)).verified, false);
+    for (const id of ["u_t_a", "u_t_b"]) { const [u] = await db.select().from(s.users).where(eq(s.users.id, id)); assert.equal(u.status, "active"); assert.equal(u.isVerified, false); }
+    rejected(await trust.reviewTrust(db, actor("u_t_a"), { userId: "u_t_a", action: "grant", note }));
+    rejected(await trust.reviewTrust(db, { ...admin, effectiveUserId: "u_t_a" }, { userId: "u_t_a", action: "grant", note }));
+    rejected(await trust.reviewTrust(db, admin, { userId: "u_t_a", action: "grant", note: "fine" }));
+    for (const id of ["u_t_sample", "u_t_managed", "u_t_banned"]) rejected(await trust.reviewTrust(db, admin, { userId: id, action: "grant", note }));
+  });
+  await check("explicit staff roots are eligible; two distinct vouches qualify after a delay", async () => {
+    await grant(admin.userId); await grant("u_t_root");
+    assert.equal((await status(admin.userId)).eligibleToVouch, true);
+    ok(await trust.issueVouch(db, admin, "u_t_a", "played_together"));
+    assert.equal((await status("u_t_a")).verified, false);
+    ok(await trust.issueVouch(db, actor("u_t_root"), "u_t_a", "met_in_person"));
+    const a = await status("u_t_a"); assert.equal(a.verified, true); assert.equal(a.source, "community"); assert.equal(a.eligibleToVouch, false); assert.equal(a.validVouchCount, 2);
+    rejected(await trust.issueVouch(db, actor("u_t_a"), "u_t_b", "met_in_person"));
+    await db.update(s.users).set({ trustVerifiedAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(s.users.id, "u_t_a"));
+    assert.equal((await status("u_t_a")).eligibleToVouch, true);
+    ok(await trust.issueVouch(db, actor("u_t_a"), "u_t_b", "traded"));
+    ok(await trust.issueVouch(db, actor("u_t_root"), "u_t_b", "traded"));
+    assert.equal((await status("u_t_b")).verified, true);
+  });
+  await check("self, replay, fake, managed, impersonated and over-budget vouches fail", async () => {
+    rejected(await trust.issueVouch(db, admin, admin.userId, "met_in_person"));
+    rejected(await trust.issueVouch(db, admin, "u_t_a", "met_in_person"));
+    rejected(await trust.issueVouch(db, { ...admin, effectiveUserId: "u_t_root" }, "u_t_c", "met_in_person"));
+    for (const id of ["u_t_sample", "u_t_managed", "u_t_banned"]) rejected(await trust.issueVouch(db, admin, id, "met_in_person"));
+    ok(await trust.issueVouch(db, admin, "u_t_c", "met_in_person"));
+    ok(await trust.issueVouch(db, admin, "u_t_d", "met_in_person"));
+    rejected(await trust.issueVouch(db, admin, "u_t_e", "met_in_person"));
+    assert.equal((await status(admin.userId)).remainingVouches, 0);
+    const revoked = (await status(admin.userId)).own.outgoingVouches.find((v) => v.targetId === "u_t_d");
+    rejected(await trust.revokeVouch(db, actor("u_t_c"), revoked.id));
+    ok(await trust.revokeVouch(db, admin, revoked.id));
+    rejected(await trust.issueVouch(db, admin, "u_t_d", "met_in_person"));
+    assert.equal((await status(admin.userId)).remainingVouches, 0);
+  });
+  await check("revocation cascades without banning and blocked overrides resist immediate requalification", async () => {
+    ok(await trust.reviewTrust(db, admin, { userId: "u_t_root", action: "revoke", note }));
+    assert.equal((await status("u_t_a")).verified, false); assert.equal((await status("u_t_b")).verified, false);
+    const [a] = await db.select().from(s.users).where(eq(s.users.id, "u_t_a")); assert.equal(a.status, "active");
+    await grant("u_t_root"); assert.equal((await status("u_t_a")).verified, true);
+    ok(await trust.reviewTrust(db, admin, { userId: "u_t_a", action: "block", note }));
+    assert.equal((await status("u_t_a")).verified, false);
+    await trust.recomputeTrust(db); assert.equal((await status("u_t_a")).verified, false);
+    ok(await trust.reviewTrust(db, admin, { userId: "u_t_a", action: "clear", note }));
+    assert.equal((await status("u_t_a")).verified, true); assert.equal((await status("u_t_a")).eligibleToVouch, false);
+    await db.update(s.users).set({ status: "banned" }).where(eq(s.users.id, "u_t_root"));
+    await trust.recomputeTrust(db); assert.equal((await status("u_t_a")).verified, false);
+    await db.update(s.users).set({ status: "active" }).where(eq(s.users.id, "u_t_root"));
+    await trust.recomputeTrust(db);
+  });
+  await check("circular cached verification cannot create a new trust root", async () => {
+    const circle = ["u_t_cycle1", "u_t_cycle2", "u_t_cycle3"];
+    for (const id of circle) await db.update(s.users).set({ isVerified: true, trustSource: "community", trustVerifiedAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(s.users.id, id));
+    await db.insert(s.trustVouches).values(circle.flatMap((issuerId) => circle.filter((targetId) => targetId !== issuerId).map((targetId) => ({ id: `${issuerId}_${targetId}`, issuerId, targetId, relationship: "met_in_person" }))));
+    await trust.recomputeTrust(db);
+    for (const id of circle) assert.equal((await status(id)).verified, false);
+  });
+  await check("DM challenge requires configured own real account and stores only a hash", async () => {
+    delete process.env.INSTAGRAM_HANDLE;
+    rejected(await trust.createDmChallenge(db, actor("u_t_dm1"), "alice"));
+    process.env.INSTAGRAM_HANDLE = "poachland_test_inbox";
+    for (const a of [actor("u_t_sample"), actor("u_t_managed"), { ...admin, effectiveUserId: "u_t_a" }]) rejected(await trust.createDmChallenge(db, a, "alice"));
+    const c = ok(await trust.createDmChallenge(db, actor("u_t_dm1"), "Alice"));
+    assert.equal(c.handle, "alice"); assert.match(c.code, /^POACH-[A-F0-9]{24}$/);
+    const [row] = await db.select().from(s.trustDmChallenges).where(eq(s.trustDmChallenges.id, c.id));
+    assert.equal(JSON.stringify(row).includes(c.code), false); assert.equal(row.codeHash.length, 64);
+    const wrong = await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", username: "bob", text: c.code, messageId: "dm-wrong-handle" }); rejected(wrong);
+    const received = await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", username: "alice", text: `Hello ${c.code}`, messageId: "dm-alice" }); assert.equal(received.status, "confirmed");
+    assert.equal((await status("u_t_dm1")).verified, false);
+    assert.equal((await status("u_t_dm1")).own.evidence[0].status, "confirmed");
+    assert.equal((await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", text: c.code, messageId: "dm-alice" })).status, "duplicate");
+    rejected(await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", username: "alice", text: c.code, messageId: "dm-replay" }));
+  });
+  await check("unknown Instagram sender usernames require actual inbox review; public responses omit evidence", async () => {
+    const c = ok(await trust.createDmChallenge(db, actor("u_t_dm2"), "bravo"));
+    assert.equal((await trust.receiveInstagramDm(db, { externalSenderId: "ig_bravo", text: c.code, messageId: "dm-bravo" })).status, "pending_review");
+    assert.equal((await status("u_t_dm2")).own.evidence[0].status, "pending");
+    rejected(await trust.confirmInstagramDm(db, actor("u_t_dm1"), { code: c.code, senderHandle: "bravo", note }));
+    rejected(await trust.confirmInstagramDm(db, admin, { code: c.code, senderHandle: "different", note }));
+    ok(await trust.confirmInstagramDm(db, admin, { code: c.code, senderHandle: "bravo", note: `${note} ${c.code}` }));
+    const own = await status("u_t_dm2"); assert.equal(own.verified, false); assert.equal(own.own.evidence[0].status, "confirmed"); assert.equal(JSON.stringify(own).includes(c.code), false);
+    const publicView = ok(await trust.getTrustStatus(db, actor("u_t_dm1"), "u_t_dm2")); assert.equal(publicView.own, undefined); assert.equal(JSON.stringify(publicView).includes("bravo"), false);
+    rejected(await trust.confirmInstagramDm(db, admin, { code: c.code, senderHandle: "bravo", note }));
+  });
+  await check("expired/replaced codes and duplicate provider identities cannot bind another account", async () => {
+    const old = ok(await trust.createDmChallenge(db, actor("u_t_dm3"), "charlie"));
+    const fresh = ok(await trust.createDmChallenge(db, actor("u_t_dm3"), "charlie"));
+    rejected(await trust.confirmInstagramDm(db, admin, { code: old.code, senderHandle: "charlie", note }));
+    await db.update(s.trustDmChallenges).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(s.trustDmChallenges.id, fresh.id));
+    rejected(await trust.confirmInstagramDm(db, admin, { code: fresh.code, senderHandle: "charlie", note }));
+    rejected(await trust.createDmChallenge(db, actor("u_t_dm3"), "alice"));
+    const d = ok(await trust.createDmChallenge(db, actor("u_t_dm4"), "delta"));
+    rejected(await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", username: "delta", text: d.code, messageId: "dm-duplicate-id" }));
+    assert.equal((await status("u_t_dm4")).own.evidence.length, 0);
+  });
+  await check("concurrent code issuance and duplicate vouch issuance serialize safely", async () => {
+    const codes = await Promise.all(Array.from({ length: 4 }, () => trust.createDmChallenge(db, actor("u_t_dm5"), "echo")));
+    assert.equal(codes.filter((r) => r.ok).length, 3);
+    const [root] = await db.select().from(s.users).where(eq(s.users.id, "u_t_root")); assert.equal(root.status, "active");
+    const results = await Promise.all([trust.issueVouch(db, actor(root.id), "u_t_f", "met_in_person"), trust.issueVouch(db, actor(root.id), "u_t_f", "met_in_person")]);
+    assert.equal(results.filter((r) => r.ok).length, 1);
+    await grant("u_t_c");
+    const budget = await Promise.all(["u_t_dm1", "u_t_dm2", "u_t_dm3", "u_t_dm4"].map((id) => trust.issueVouch(db, actor("u_t_c"), id, "met_in_person")));
+    assert.equal(budget.filter((r) => r.ok).length, 3);
+  });
+  await check("staff revocation is audited and evidence alone never grants a blue check", async () => {
+    const data = ok(await trust.getAdminTrust(db, admin));
+    const evidence = data.members.find((u) => u.userId === "u_t_dm1").evidence[0];
+    rejected(await trust.revokeTrustRecord(db, actor("u_t_dm1"), "evidence", { id: evidence.id, note }));
+    ok(await trust.revokeTrustRecord(db, admin, "evidence", { id: evidence.id, note }));
+    assert.equal((await status("u_t_dm1")).own.evidence[0].status, "revoked");
+    assert.equal((await status("u_t_dm1")).verified, false);
+    const v = data.vouches.find((v) => v.issuerId === "u_t_root" && v.targetId === "u_t_a");
+    ok(await trust.revokeTrustRecord(db, admin, "vouch", { id: v.id, note })); assert.equal((await status("u_t_a")).verified, false);
+    const audit = await db.select().from(s.adminAuditEvents); assert.ok(audit.some((a) => a.action === "trust.revokeVouch")); assert.ok(audit.some((a) => a.action === "trust.confirmInstagramDm")); assert.ok(audit.every((a) => !JSON.stringify(a.metadata).match(/POACH-[A-F0-9]{24}/)));
+    rejected(await trust.getAdminTrust(db, actor("u_t_a")));
+  });
+  await check("revoked evidence retains history while releasing duplicate-account reservations", async () => {
+    const challenge = ok(await trust.createDmChallenge(db, actor("u_t_dm6"), "alice"));
+    assert.equal((await trust.receiveInstagramDm(db, { externalSenderId: "ig_alice", username: "alice", text: challenge.code, messageId: "dm-alice-reclaimed" })).status, "confirmed");
+    assert.equal((await status("u_t_dm1")).own.evidence[0].status, "revoked");
+    assert.equal((await status("u_t_dm6")).own.evidence[0].status, "confirmed");
+    const pending = ok(await trust.createDmChallenge(db, actor("u_t_dm7"), "wrongly_declared"));
+    assert.equal((await trust.receiveInstagramDm(db, { externalSenderId: "ig_unknown", text: pending.code, messageId: "dm-misdeclared" })).status, "pending_review");
+    const evidence = (await status("u_t_dm7")).own.evidence[0];
+    ok(await trust.revokeTrustRecord(db, admin, "evidence", { id: evidence.id, note }));
+    rejected(await trust.confirmInstagramDm(db, admin, { code: pending.code, senderHandle: "wrongly_declared", note }));
+    const correct = ok(await trust.createDmChallenge(db, actor("u_t_dm8"), "correct_handle"));
+    assert.equal((await trust.receiveInstagramDm(db, { externalSenderId: "ig_unknown", username: "correct_handle", text: correct.code, messageId: "dm-corrected" })).status, "confirmed");
+  });
+  await check("moderation and erasure roll back with failed graph updates and commit dependent revocations atomically", async () => {
+    const { executeOp } = await import("../lib/server/engine.ts");
+    const { deleteAccount } = await import("../lib/server/account.ts");
+    for (const name of ["atomroot", "atomroot2", "atomtarget"]) await make(name);
+    await grant("u_t_atomroot"); await grant("u_t_atomroot2");
+    ok(await trust.issueVouch(db, actor("u_t_atomroot"), "u_t_atomtarget", "met_in_person"));
+    ok(await trust.issueVouch(db, actor("u_t_atomroot2"), "u_t_atomtarget", "met_in_person"));
+    const [adminUser] = await db.select().from(s.users).where(eq(s.users.id, admin.userId));
+    const read = async (id) => (await db.select().from(s.users).where(eq(s.users.id, id)))[0];
+    assert.equal((await read("u_t_atomtarget")).isVerified, true);
+    // Fault injection: dependent cache update fails after the account mutation.
+    await db.execute(sql`ALTER TABLE users ADD CONSTRAINT trust_test_update_failure CHECK (id <> 'u_t_atomtarget' OR is_verified)`);
+    await assert.rejects(() => executeOp(adminUser, "adminSetUserStatus", { userId: "u_t_atomroot", status: "banned", note }));
+    assert.equal((await read("u_t_atomroot")).status, "active");
+    assert.equal((await read("u_t_atomtarget")).isVerified, true);
+    await db.execute(sql`ALTER TABLE users DROP CONSTRAINT trust_test_update_failure`);
+    ok(await executeOp(adminUser, "adminSetUserStatus", { userId: "u_t_atomroot", status: "banned", note }));
+    assert.equal((await read("u_t_atomtarget")).isVerified, false);
+    ok(await executeOp(adminUser, "adminSetUserStatus", { userId: "u_t_atomroot", status: "active", note }));
+    assert.equal((await read("u_t_atomtarget")).isVerified, true);
+    const proof = ok(await trust.createDmChallenge(db, actor("u_t_atomroot"), "atomroot_ig"));
+    ok(await trust.confirmInstagramDm(db, admin, { code: proof.code, senderHandle: "atomroot_ig", note }));
+    await db.execute(sql`ALTER TABLE users ADD CONSTRAINT trust_test_update_failure CHECK (id <> 'u_t_atomtarget' OR is_verified)`);
+    await assert.rejects(() => deleteAccount("u_t_atomroot", "trust_atomroot"));
+    assert.equal((await read("u_t_atomroot")).deletedAt, null);
+    assert.equal((await db.select().from(s.trustEvidence).where(eq(s.trustEvidence.userId, "u_t_atomroot"))).length, 1);
+    await db.execute(sql`ALTER TABLE users DROP CONSTRAINT trust_test_update_failure`);
+    ok(await deleteAccount("u_t_atomroot", "trust_atomroot"));
+    assert.ok((await read("u_t_atomroot")).deletedAt);
+    assert.equal((await read("u_t_atomtarget")).isVerified, false);
+    assert.equal((await db.select().from(s.trustEvidence).where(eq(s.trustEvidence.userId, "u_t_atomroot"))).length, 0);
+    assert.equal((await db.select().from(s.trustDmChallenges).where(eq(s.trustDmChallenges.userId, "u_t_atomroot"))).length, 0);
+  });
+  await check("social promotion consent belongs to the member or the actual managed-inventory owner", async () => {
+    const { executeOp } = await import("../lib/server/engine.ts");
+    const read = async (id) => (await db.select().from(s.users).where(eq(s.users.id, id)))[0];
+    const adminUser = await read(admin.userId);
+    const member = await make("consent");
+    const otherAdmin = await make("otheradmin", { isAdmin: true });
+    const ownManaged = await make("ownedinventory", { managedByUserId: adminUser.id });
+    const otherManaged = await make("otherinventory", { managedByUserId: otherAdmin.id });
+    const input = { patch: { socialSharingAllowed: true } };
+    rejected(await executeOp(member, "updateProfile", input, adminUser));
+    assert.equal((await read(member.id)).socialSharingAllowed, false);
+    ok(await executeOp(member, "updateProfile", input));
+    assert.equal((await read(member.id)).socialSharingAllowed, true);
+    rejected(await executeOp(otherManaged, "updateProfile", input, adminUser));
+    assert.equal((await read(otherManaged.id)).socialSharingAllowed, false);
+    rejected(await executeOp(ownManaged, "updateProfile", input));
+    ok(await executeOp(ownManaged, "updateProfile", input, adminUser));
+    assert.equal((await read(ownManaged.id)).socialSharingAllowed, true);
+    ok(await executeOp(otherManaged, "updateProfile", input, otherAdmin));
+    assert.equal((await read(otherManaged.id)).socialSharingAllowed, true);
+  });
+  console.log(`TRUST SMOKE: all ${passed} checks passed`);
+} finally {
+  await db.$client.close();
+  await rm(dir, { recursive: true, force: true });
+}

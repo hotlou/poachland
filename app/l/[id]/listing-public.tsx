@@ -1,5 +1,7 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 /**
  * Public listing page — the SEO-facing, signed-out-friendly version of
  * /app/listings/[id]. Standalone page chrome (no app shell): the shared
@@ -12,7 +14,7 @@ import Link from "next/link";
 import { ShareButton } from "@/components/share-button";
 import { SampleNotice } from "@/components/sample-notice";
 import { listingShareContent } from "@/lib/sharing";
-import { BadgeCheck, ChevronRight, MapPin, PackageX } from "lucide-react";
+import { ChevronRight, MapPin, PackageX } from "lucide-react";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
 import { TrustScore } from "@/components/trust-badge";
@@ -231,7 +233,7 @@ function ListingBody({ listing }: { listing: PublicListing }) {
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="font-semibold text-sm">{seller.displayName}</p>
               {seller.isVerified && (
-                <BadgeCheck size={14} className="text-accent flex-shrink-0" />
+                <VerifiedMark size={14} />
               )}
               <p className="text-xs text-muted-foreground">@{seller.username}</p>
               {seller.managedByUserId && <p className="text-xs text-muted-foreground">Admin-managed inventory</p>}

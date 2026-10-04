@@ -1,9 +1,11 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, BadgeCheck, MessageSquare, Send, ShieldOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageSquare, Send, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { DealStatusBadge } from "@/components/deal-status-badge";
 import { Hydrated } from "@/components/hydrated";
@@ -244,7 +246,7 @@ function ThreadContent({ threadId }: { threadId: string }) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground leading-tight flex items-center gap-1 group-hover:text-accent transition-colors">
               <span className="truncate">{other.displayName}</span>
-              {other.isVerified && <BadgeCheck size={14} className="text-accent flex-shrink-0" />}
+              {other.isVerified && <VerifiedMark size={14} />}
             </p>
             <TrustScore score={other.trustScore} trades={other.tradesCompleted} size="sm" />
           </div>

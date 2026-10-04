@@ -1,0 +1,14 @@
+export type TrustSource = "none" | "staff" | "community";
+export type TrustOverride = "none" | "granted" | "blocked";
+export type TrustResult<T> = { ok: true; value: T } | { ok: false; error: string };
+export type TrustVouch = { id: string; issuerId: string; issuerUsername: string; targetId: string; targetUsername: string; relationship: string; createdAt: string; revokedAt: string | null; valid: boolean };
+export type TrustEvidence = { id: string; userId: string; username: string; provider: "instagram"; handle: string; status: "pending" | "confirmed" | "revoked"; source: "manual_dm" | "webhook_dm"; createdAt: string; confirmedAt: string | null; note: string | null };
+export type TrustStatus = { userId: string; username: string; verified: boolean; source: TrustSource; verifiedAt: string | null; eligibleToVouch: boolean; eligibleAt: string | null; validVouchCount: number; vouchesRequired: number; remainingVouches: number;
+  own?: { override: TrustOverride; reviewRequestedAt: string | null; evidence: TrustEvidence[]; outgoingVouches: TrustVouch[]; unavailableReason?: string; instagramHandle: string | null };
+  viewer?: { eligibleToVouch: boolean; remainingVouches: number; vouch: TrustVouch | null };
+};
+export type DmChallenge = { id: string; code: string; handle: string; expiresAt: string };
+export type AdminTrustMember = TrustStatus & { displayName: string; status: string; override: TrustOverride; reviewRequestedAt: string | null; evidence: TrustEvidence[] };
+export type AdminTrustData = { members: AdminTrustMember[]; pendingEvidence: TrustEvidence[]; vouches: TrustVouch[] };
+export type ReviewMemberTrustInput = { userId: string; action: "grant" | "revoke" | "block" | "clear"; note: string };
+export type ConfirmDmInput = { code: string; senderHandle: string; note: string };

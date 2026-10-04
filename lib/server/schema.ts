@@ -97,6 +97,11 @@ export const users = pgTable("users", {
     .notNull()
     .defaultNow(),
   isVerified: boolean("is_verified").notNull().default(false),
+  trustOverride: text("trust_override").$type<"none" | "granted" | "blocked">().notNull().default("none"),
+  trustSource: text("trust_source").$type<"none" | "staff" | "community">().notNull().default("none"),
+  trustVerifiedAt: timestamp("trust_verified_at", { withTimezone: true, mode: "date" }),
+  trustReviewRequestedAt: timestamp("trust_review_requested_at", { withTimezone: true, mode: "date" }),
+  socialSharingAllowed: boolean("social_sharing_allowed").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   badges: jsonb("badges").$type<Badge[]>().notNull().default([]),
   baselineTrades: integer("baseline_trades").notNull().default(0),
@@ -757,3 +762,6 @@ export type ListingViewRow = typeof listingViews.$inferSelect;
 export type LoginTokenRow = typeof loginTokens.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
 export type IdentityRow = typeof identities.$inferSelect;
+
+export * from "./trust-schema";
+export * from "./social-schema";

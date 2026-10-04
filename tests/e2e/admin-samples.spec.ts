@@ -1,8 +1,11 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-test("admin can publish, hide, restore, inspect, and delete a sample batch", async ({ page, browser }, testInfo) => {
+test("admin can prepare, archive, edit privately, and delete a sample batch", async ({ page, browser }, testInfo) => {
   test.setTimeout(180_000);
+  // Sonner honors reduced motion, so axe sees the actual toast colors instead
+  // of an intermediate opacity frame. Paused/stacked notifications stay in scope.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/login");
   await page.getByRole("textbox", { name: /email/i }).fill("e2e-admin@example.test");
   await page.getByRole("button", { name: /email me a link/i }).click();
@@ -20,38 +23,40 @@ test("admin can publish, hide, restore, inspect, and delete a sample batch", asy
   }
   await page.goto("/admin");
   await page.getByRole("tab", { name: "Samples", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sample content", exact: true })).toBeVisible();
-  const confirm = async (action: "PUBLISH" | "DELETE") => {
+  await expect(page.getByRole("heading", { name: "Private sample content", exact: true })).toBeVisible();
+  const confirm = async (action: "PREPARE" | "DELETE") => {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Reason for the audit log").fill("Checking the reversible sample controls in an isolated browser test.");
     await dialog.getByRole("textbox", { name: new RegExp(`Type ${action}`) }).fill(`${action} samples_202609_v1`);
-    await dialog.getByRole("button", { name: action === "PUBLISH" ? "Publish sample batch" : "Delete sample batch", exact: true }).click();
+    await dialog.getByRole("button", { name: action === "PREPARE" ? "Prepare private sample batch" : "Delete sample batch", exact: true }).click();
     await expect(dialog).toBeHidden();
   };
-  await page.getByRole("button", { name: /^(Publish examples|Extend publication)$/ }).click();
-  await confirm("PUBLISH");
-  await expect(page.getByRole("button", { name: "Hide all examples" })).toBeEnabled();
+  await page.getByRole("button", { name: /^(Prepare private examples|Extend private workspace)$/ }).click();
+  await confirm("PREPARE");
+  await expect(page.getByRole("button", { name: "Archive private examples" })).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("admin-samples.png"), fullPage: true });
   const visitorContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
   try {
     const visitor = await visitorContext.newPage();
-    await visitor.goto("/l/l_samplev1a1");
-    await expect(visitor.getByText("Example listing", { exact: true })).toBeVisible();
-    await expect(visitor.getByRole("link", { name: "Message the seller" })).toHaveCount(0);
-    await visitor.getByRole("button", { name: "Share listing" }).click();
-    await expect(visitor.getByRole("textbox", { name: /post/i })).toHaveValue(/Example listing/);
-    await visitor.keyboard.press("Escape");
-    await expect(visitor.getByRole("dialog")).toBeHidden();
-    await visitor.screenshot({ path: testInfo.outputPath("sample-listing.png"), fullPage: true });
+    const listingPage = await visitor.goto("/l/l_samplev1a1");
+    expect(listingPage?.status()).toBe(404);
+    expect((await visitor.request.get("/u/sample_sparelight")).status()).toBe(404);
+    const anonymousMarket = await visitor.request.get("/browse");
+    expect(anonymousMarket.ok()).toBeTruthy();
+    expect(await anonymousMarket.text()).not.toContain("l_samplev1a1");
+    // Sample image routes must return the same generic card as missing records.
     const image = await visitor.request.get("/l/l_samplev1a1/opengraph-image");
+    const missingImage = await visitor.request.get("/l/l_private_missing/opengraph-image");
     expect(image.ok()).toBeTruthy();
-    const bytes = await image.body();
-    expect(bytes.readUInt32BE(16)).toBe(1200); expect(bytes.readUInt32BE(20)).toBe(630);
-    await page.getByRole("button", { name: "Hide all examples" }).click();
-    await expect(page.getByRole("button", { name: "Publish examples", exact: true })).toBeVisible();
+    expect(Buffer.compare(await image.body(), await missingImage.body())).toBe(0);
+    const profileImage = await visitor.request.get("/u/sample_sparelight/opengraph-image");
+    const missingProfileImage = await visitor.request.get("/u/private_missing/opengraph-image");
+    expect(Buffer.compare(await profileImage.body(), await missingProfileImage.body())).toBe(0);
+    await page.getByRole("button", { name: "Archive private examples" }).click();
+    await expect(page.getByRole("button", { name: "Prepare private examples", exact: true })).toBeVisible();
     expect((await visitor.request.get("/l/l_samplev1a1")).status()).toBe(404);
-    await page.getByRole("button", { name: "Publish examples", exact: true }).click();
-    await confirm("PUBLISH");
+    await page.getByRole("button", { name: "Prepare private examples", exact: true }).click();
+    await confirm("PREPARE");
     await page.getByRole("tab", { name: "Content", exact: true }).click();
     await page.getByLabel("Content source").selectOption("sample");
     await expect(page.getByText(/21 records/)).toBeVisible();
@@ -88,7 +93,8 @@ test("admin can publish, hide, restore, inspect, and delete a sample batch", asy
     await page.getByLabel("Listing title", { exact: true }).fill("My gear — preparing actual photos");
     await page.getByRole("button", { name: "Save changes", exact: true }).click();
     await expect(page.getByRole("heading", { name: "My gear — preparing actual photos", exact: true }).first()).toBeVisible();
-    await expect.poll(async () => (await visitor.request.get("/l/l_samplev1a1")).text()).toContain("My gear");
+    expect((await visitor.request.get("/l/l_samplev1a1")).status()).toBe(404);
+    expect(await (await visitor.request.get("/l/l_samplev1a1")).text()).not.toContain("My gear — preparing actual photos");
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.waitForURL("**/admin");
     await page.getByRole("tab", { name: "Audit log", exact: true }).click();

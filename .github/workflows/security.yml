@@ -23,7 +23,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm audit --audit-level high
+      - run: node --test scripts/dependency-audit.test.mjs
+      - run: node scripts/dependency-audit.mjs
 
   secrets:
     runs-on: ubuntu-latest

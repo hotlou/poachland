@@ -213,6 +213,7 @@ export interface OpMap {
         | "username"
         | "history"
         | "gallery"
+        | "socialSharingAllowed"
       >
     >;
   };
@@ -282,7 +283,7 @@ export interface OpMap {
   // admin (require isAdmin)
   adminModerateContent: { kind: import("../admin-types").ContentKind; id: string; action: import("../admin-types").ContentAction; confirm?: string; note: string };
   adminCloseAccount: { userId: string; confirm: string; note: string };
-  adminSampleBatch: { action: "publish" | "hide" | "delete"; batchId: string; confirm: string; days?: number; note: string };
+  adminSampleBatch: { action: "prepare" | "publish" | "hide" | "delete"; batchId: string; confirm: string; days?: number; note: string };
   adminResolveReport: { reportId: string; action: "dismiss" | "remove-listing" | "warn-user"; note: string };
   adminResolveDispute: { dealId: string; outcome: "cancelled" | "completed"; note: string };
   adminSetUserVerified: { userId: string; verified: boolean };

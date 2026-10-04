@@ -1,4 +1,7 @@
 "use client";
+
+import { MemberVouch } from "@/components/member-vouch";
+import { VerifiedMark } from "@/components/verified-mark";
 import { SampleNotice, SampleBadge } from "@/components/sample-notice";
 
 import { useEffect, useState } from "react";
@@ -6,7 +9,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  BadgeCheck,
   Ban,
   CalendarDays,
   Flag,
@@ -321,7 +323,7 @@ function PublicProfile({ user }: { user: User }) {
                 {user.displayName}
               </h2>
               {user.isVerified && (
-                <BadgeCheck size={18} className="text-accent flex-shrink-0" />
+                <VerifiedMark size={18} />
               )}
             </div>
             <p className="text-sm text-muted-foreground">@{user.username}</p>
@@ -422,6 +424,7 @@ function PublicProfile({ user }: { user: User }) {
         </div>
 
         {/* Linked identities */}
+        <MemberVouch userId={user.id} />
         <IdentityChips userId={user.id} ownProfile={isSelf} />
 
         {/* Favorite teams */}

@@ -1,4 +1,6 @@
 "use client";
+
+import { VerifiedMark } from "@/components/verified-mark";
 import { SampleBadge } from "@/components/sample-notice";
 
 /**
@@ -10,7 +12,7 @@ import { SampleBadge } from "@/components/sample-notice";
 
 import { useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, MapPin, Search, Users, X } from "lucide-react";
+import { MapPin, Search, Users, X } from "lucide-react";
 import { useHydrated, useStore } from "@/lib/store-context";
 import { TrustBadge, TrustScore } from "@/components/trust-badge";
 import { PublicSiteHeader } from "@/app/u/[username]/public-profile";
@@ -46,7 +48,7 @@ function TraderCard({ user }: { user: User }) {
           <p className="text-sm font-semibold truncate">{user.displayName}</p>
           {user.sampleBatchId && <SampleBadge />}
           {user.isVerified && (
-            <BadgeCheck size={14} className="text-accent flex-shrink-0" />
+            <VerifiedMark size={14} />
           )}
         </div>
         <p className="text-xs text-muted-foreground mb-1.5">

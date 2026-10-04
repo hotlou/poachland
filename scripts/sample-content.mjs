@@ -12,8 +12,8 @@ if (values.action === "preview" || !values.apply) {
   console.log(JSON.stringify({ mode: "DRY RUN — no database changes", ...samplePlan() }, null, 2));
   process.exit(0);
 }
-if (!values.actor || !values.note || !["publish", "hide", "delete"].includes(values.action)) {
-  console.error("Apply requires --action publish|hide|delete, --actor USERNAME, --note REASON, and --confirm 'ACTION samples_202609_v1'.");
+if (!values.actor || !values.note || !["prepare", "publish", "hide", "delete"].includes(values.action)) {
+  console.error("Apply requires --action prepare|hide|delete, --actor USERNAME, --note REASON, and --confirm 'ACTION samples_202609_v1'.");
   process.exit(1);
 }
 if (process.env.DATABASE_URL && !values.production) {

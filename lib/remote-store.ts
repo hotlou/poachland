@@ -67,6 +67,7 @@ function toUserRecord(me: SessionMe): UserRecord {
     moderationNote: _modNote,
     impersonatedByAdmin: _impersonatedBy,
     emailPrefs: _emailPrefs,
+    socialSharingAllowed: _socialSharingAllowed,
     ...user
   } = me;
   return user;
@@ -264,6 +265,7 @@ export class RemotePoachStore extends PoachStore {
         | "username"
         | "history"
         | "gallery"
+        | "socialSharingAllowed"
       >
     >,
   ): Res<User> {
