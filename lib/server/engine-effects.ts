@@ -6,8 +6,8 @@ import { ratingSummaryFrom } from "../reputation";
 import type { BadgeType, MessageKind } from "../types";
 import { uid } from "./auth";
 import type { Db } from "./db";
-import { insertNotifications, notify } from "./notify";
-import { activity, deals, identities, isoPosts, listings, messages, ratings, threads, users } from "./schema";
+import { insertNotifications } from "./notify";
+import { activity, deals, isoPosts, listings, messages, ratings, threads, users } from "./schema";
 
 export async function appendMessage(
   tx: Db,
@@ -132,26 +132,9 @@ export async function awardEventBadge(tx: Db, userId: string, type: BadgeType): 
   }]);
 }
 
+/** Remove the retired identity badge; social account ownership is not person verification. */
 export async function syncVerifiedIdentityBadge(tx: Db, userId: string): Promise<void> {
-  const [{ n }] = await tx
-    .select({ n: count() })
-    .from(identities)
-    .where(and(eq(identities.userId, userId), eq(identities.status, "verified")));
-  if (Number(n) > 0) {
-    await awardEventBadge(tx, userId, "verified");
-    return;
-  }
   const [target] = await tx.select({ badges: users.badges }).from(users).where(eq(users.id, userId)).for("update");
   if (!target?.badges.some((badge) => badge.type === "verified")) return;
-  await tx.update(users).set({
-    badges: target.badges.filter((badge) => badge.type !== "verified"),
-  }).where(eq(users.id, userId));
-  await notify(
-    tx,
-    userId,
-    "system",
-    "Identity badge removed",
-    "Your Verified badge was removed because no confirmed linked identity remains.",
-    "/app/profile",
-  );
+  await tx.update(users).set({ badges: target.badges.filter((badge) => badge.type !== "verified") }).where(eq(users.id, userId));
 }

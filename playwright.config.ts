@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = Number(process.env.E2E_PORT ?? 3000);
+
 export default defineConfig({
   testDir: "./tests/e2e",
   // The browser suite shares one embedded PGlite database. Serial CI execution
@@ -11,16 +13,18 @@ export default defineConfig({
   timeout: 90_000,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://localhost:3000", trace: "on-first-retry" },
+  use: { baseURL: `http://localhost:${port}`, trace: "on-first-retry" },
   // CI exercises the exact artifact built by `pnpm check`. Local development
   // retains the faster dev server. Both use an isolated embedded database.
   webServer: {
-    command: process.env.CI ? "pnpm start" : "pnpm dev --webpack",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    command: process.env.CI ? `pnpm start --port ${port}` : `pnpm dev --webpack --port ${port}`,
+    url: `http://127.0.0.1:${port}`,
+    // Never silently drive another project's server on a shared localhost port.
+    reuseExistingServer: !process.env.CI && process.env.E2E_REUSE_SERVER === "1",
     timeout: 120_000,
     env: {
       PGLITE_PATH: ".pglite-e2e",
+      NEXT_PUBLIC_APP_URL: `http://localhost:${port}`,
       ADMIN_EMAILS: "e2e-admin@example.test",
       ...(process.env.CI
         ? { POACHLAND_E2E_MODE: "1" }

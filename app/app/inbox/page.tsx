@@ -1,8 +1,10 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowRightLeft, BadgeCheck, MessageSquare } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, MessageSquare } from "lucide-react";
 import { DealStatusBadge } from "@/components/deal-status-badge";
 import { Hydrated } from "@/components/hydrated";
 import { DEAL_KIND_LABELS } from "@/lib/constants";
@@ -54,7 +56,7 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
             {thread.otherUser.displayName}
           </p>
           {thread.otherUser.isVerified && (
-            <BadgeCheck size={14} className="text-accent flex-shrink-0" />
+            <VerifiedMark size={14} />
           )}
           {thread.dealStatus && (
             <DealStatusBadge status={thread.dealStatus} className="flex-shrink-0 text-[9px]" />

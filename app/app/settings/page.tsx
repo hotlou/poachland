@@ -28,6 +28,8 @@ import { cn } from "@/lib/utils";
 import { logOut, updatePassword } from "@/app/actions/auth";
 import { useStore } from "@/lib/store-context";
 import { Hydrated } from "@/components/hydrated";
+import { CommunityVerification } from "@/components/community-verification";
+import { SocialSharingConsent } from "@/components/social-sharing-consent";
 import { AccountDangerZone } from "@/components/account-danger-zone";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -140,8 +142,8 @@ function IdentitiesSection() {
     <section>
       <SectionTitle icon={IdCard}>Linked identities</SectionTitle>
       <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
-        Tie your trader rep to a real identity. Verification reviews are coming
-        soon — linked handles already show on your profile.
+        Add your public handles. A confirmed account shows account ownership;
+        community verification above determines your blue check.
       </p>
 
       {identities.length > 0 && (
@@ -624,6 +626,8 @@ function SettingsContent() {
 
         {/* Linked identities + payment handles */}
         <div className="flex flex-col gap-7">
+          <CommunityVerification />
+          <SocialSharingConsent />
           <IdentitiesSection />
           <PaymentHandlesSection />
         </div>

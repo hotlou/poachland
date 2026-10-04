@@ -1,10 +1,11 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeCheck,
   Bookmark,
   CalendarDays,
   ChevronRight,
@@ -277,7 +278,7 @@ function ProfileContent() {
                 {me.displayName}
               </h2>
               {me.isVerified && (
-                <BadgeCheck size={18} className="text-accent flex-shrink-0" />
+                <VerifiedMark size={18} />
               )}
             </div>
             <p className="text-sm text-muted-foreground">@{me.username}</p>

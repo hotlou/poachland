@@ -90,6 +90,8 @@ export interface UserRecord {
   gallery?: string[];
   memberSince: string;
   isVerified: boolean;
+  /** Private preference: populated only for the current session. */
+  socialSharingAllowed?: boolean;
   badges: Badge[];
   /**
    * Seeded history from before the demo data window. Folded into the

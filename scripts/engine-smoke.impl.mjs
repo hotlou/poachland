@@ -875,23 +875,20 @@ try {
     assert.ok(
       snap.notifications.some(
         (n) =>
-          n.title === "Identity verified ✓" &&
-          n.body === "Your instagram handle now shows verified on your profile.",
+          n.title === "Social account confirmed" &&
+          n.body === "Ownership of your instagram account was confirmed. Your community blue check is reviewed separately.",
       ),
       "verification notification",
     );
   });
 
-  await check("removing the last verified identity revokes its evidence-backed badge", async () => {
+  await check("social account confirmation does not confer community verification", async () => {
     let snap = await buildSnapshot(A);
-    assert.ok(snap.me.badges.some((badge) => badge.type === "verified"), "verified badge awarded");
+    assert.ok(!snap.me.badges.some((badge) => badge.type === "verified"), "no identity-based human badge");
+    assert.equal(snap.me.isVerified, false);
     expectOk(await op(sA, "removeIdentity", { id: idn1 }));
     snap = await buildSnapshot(A);
-    assert.ok(!snap.me.badges.some((badge) => badge.type === "verified"), "stale verified badge removed");
-    assert.ok(
-      snap.notifications.some((notification) => notification.title === "Identity badge removed"),
-      "badge removal explained",
-    );
+    assert.ok(!snap.me.badges.some((badge) => badge.type === "verified"));
   });
 
   const disputeListing = cid("l");

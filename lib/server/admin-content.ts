@@ -6,6 +6,7 @@ import type { SessionUser } from "./auth";
 import { getDb, type Db } from "./db";
 import { recordAdminAudit } from "./audit";
 import { deleteAccount } from "./account";
+import { acquireTrustLock } from "./trust";
 import { recomputeReputation } from "./engine-effects";
 import { sampleVisible } from "./sample-visibility";
 import { deals, haulComments, haulPosts, isoPosts, listings, listingViews, offers, ratings, saves, users } from "./schema";
@@ -83,6 +84,7 @@ export async function closeMemberAccount(db: Db, actor: SessionUser, input: { us
   if (!actor.isAdmin) return { ok: false as const, error: "Moderators only" };
   if (typeof input.note !== "string" || input.note.trim().length < 20 || input.note.length > 2000) return { ok: false as const, error: "Add a reason of 20–2,000 characters." };
   return db.transaction(async (tx) => {
+    await acquireTrustLock(tx);
     const [target] = await tx.select().from(users).where(eq(users.id, input.userId)).for("update");
     if (!target || target.deletedAt) return { ok: false as const, error: "Account not found." };
     if (target.isAdmin || target.id === actor.id) return { ok: false as const, error: "Moderator accounts cannot be deleted here." };

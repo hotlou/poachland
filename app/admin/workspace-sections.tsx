@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { fetchAdminAudit, fetchAdminContent, fetchAdminMember, fetchAdminSamples } from "@/app/actions/admin";
 import type { AdminContentRow, ContentAction, ContentKind, ContentQuery } from "@/lib/admin-types";
 import type { AdminData, OpMap, OpName } from "@/lib/shared/ops";
-import { SAMPLE_BATCH_ID, SAMPLE_NOTICE } from "@/lib/sample-content";
+import { SAMPLE_BATCH_ID } from "@/lib/sample-content";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,37 +71,37 @@ function ConfirmAction({ open, title, description, expected, destructive, minRea
 
 export function SamplesSection({ run }: { run: AdminRunner }) {
   const query = useAdminQuery(useCallback(() => fetchAdminSamples(), []));
-  const [action, setAction] = useState<"publish" | "delete" | null>(null);
+  const [action, setAction] = useState<"prepare" | "delete" | null>(null);
   const [days, setDays] = useState("30");
   const [busy, setBusy] = useState(false);
   const data = query.data && !("error" in query.data) ? query.data : null;
   const batch = data?.batches.find((b) => b.id === SAMPLE_BATCH_ID);
-  const published = batch?.state === "published" && new Date(batch.expiresAt) > new Date();
+  const prepared = !!batch && batch.state !== "deleted" && !batch.archivedAt && new Date(batch.expiresAt) > new Date();
   const validDays = Number.isInteger(Number(days)) && Number(days) >= 1 && Number(days) <= 90;
-  async function apply(action: "publish" | "hide" | "delete", note: string, confirm: string) {
+  async function apply(action: "prepare" | "hide" | "delete", note: string, confirm: string) {
     const ok = await run("adminSampleBatch", { action, batchId: SAMPLE_BATCH_ID, confirm, note, days: Number(days) });
-    if (ok) { query.refresh(); toast.success(action === "hide" ? "All examples hidden. Publish again to restore them." : action === "delete" ? "Sample batch deleted." : "Examples published."); }
+    if (ok) { query.refresh(); toast.success(action === "hide" ? "Private examples archived. Prepare again to resume testing." : action === "delete" ? "Sample batch deleted." : "Examples prepared."); }
     return ok;
   }
   return <section className="space-y-5">
-    <div><h2 className="font-display text-2xl font-bold">Sample content</h2><p className="mt-1 text-sm text-muted-foreground">Preview, publish, hide, or remove this entire collection without selecting individual records.</p></div>
+    <div><h2 className="font-display text-2xl font-bold">Private sample content</h2><p className="mt-1 text-sm text-muted-foreground">Prepare examples for admin testing, edit them with Act as, or archive and remove the collection. Examples never appear in the public marketplace.</p></div>
     <QueryState {...query} error={query.error ?? (query.data && "error" in query.data ? query.data.error : null)} />
     {data && <>
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{data.plan.name}</h3><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{data.plan.id}</p></div><span className="badge-stamp">{published ? "Published" : batch?.state === "deleted" ? "Deleted" : "Hidden"}</span></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{data.plan.name}</h3><p className="mt-1 break-all font-mono text-xs text-muted-foreground">{data.plan.id}</p></div><span className="badge-stamp">{prepared ? "Private workspace" : batch?.state === "deleted" ? "Deleted" : "Archived"}</span></div>
         <p className="text-sm">Original fixture: {data.plan.users} profiles · {data.plan.listings} items ({data.plan.activeListings} available examples) · {data.plan.completedSwaps} completed swaps · {data.plan.ratings} ratings · {data.plan.haulPosts} Haul posts</p>
-        <p className="rounded-lg bg-surface p-3 text-sm">{SAMPLE_NOTICE} Sample activity is excluded from real usage and reputation totals. Messages, offers, claims, reactions, and saves are disabled.</p>
-        {batch && <p className="text-sm text-muted-foreground">Published {formatDate(batch.publishedAt)} · Expires {formatDate(batch.expiresAt)}{batch.archivalReason ? ` · ${batch.archivalReason}` : ""}</p>}
-        <div className="flex flex-wrap items-end gap-3"><label className="space-y-1 text-sm">Lifetime in days<Input className="w-28" type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} /></label>
-          <Button disabled={!validDays || busy} onClick={() => setAction("publish")}>{published ? "Extend publication" : "Publish examples"}</Button>
-          <Button variant="outline" disabled={!published || busy} onClick={async () => { setBusy(true); try { await apply("hide", "Temporarily hide the sample collection from public browsing and sharing.", `HIDE ${SAMPLE_BATCH_ID}`); } finally { setBusy(false); } }}>Hide all examples</Button>
+        <p className="rounded-lg bg-surface p-3 text-sm">These fictional examples are visible only in admin tools and an authorized Act as session. Sample activity is excluded from real usage and reputation totals. Messages, offers, claims, reactions, and saves are disabled.</p>
+        {batch && <p className="text-sm text-muted-foreground">Prepared {formatDate(batch.publishedAt)} · Expires {formatDate(batch.expiresAt)}{batch.archivalReason ? ` · ${batch.archivalReason}` : ""}</p>}
+        <div className="flex flex-wrap items-end gap-3"><label className="space-y-1 text-sm">Archive after (days)<Input className="w-28" type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} /></label>
+          <Button disabled={!validDays || busy} onClick={() => setAction("prepare")}>{prepared ? "Extend private workspace" : "Prepare private examples"}</Button>
+          <Button variant="outline" disabled={!prepared || busy} onClick={async () => { setBusy(true); try { await apply("hide", "Archive the private example workspace without changing any real inventory.", `HIDE ${SAMPLE_BATCH_ID}`); } finally { setBusy(false); } }}>Archive private examples</Button>
           <Button variant="destructive" disabled={!batch || batch.state === "deleted" || busy} onClick={() => setAction("delete")}>Delete batch permanently</Button>
         </div>
-        <p className="text-xs text-muted-foreground">Hide keeps the records and individual moderation decisions. Publish restores the batch for the chosen lifetime. Delete removes only this batch’s connected records; its audit history remains. Previously shared previews may remain cached by other services.</p>
+        <p className="text-xs text-muted-foreground">Archiving keeps all edits and moderation decisions. Prepare resumes the private workspace. Delete removes only this batch’s examples and history. Actual inventory already published from an example is preserved. External services may retain previews shared before examples became private.</p>
       </div>
-      <div><h3 className="mb-3 font-semibold">Original fixture preview</h3><p className="mb-3 text-sm text-muted-foreground">This is the publishing template. Use Content to inspect current records and individual moderation changes.</p><div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{data.plan.items.map((item) => <div key={item.id} className="overflow-hidden rounded-xl border border-border bg-card"><img src={item.photo} alt={`Illustration: ${item.title}`} className="aspect-[4/3] w-full object-cover" /><div className="p-3"><p className="text-sm font-medium">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.status} · Example</p>{published && item.status !== "removed" && <Link className="mt-2 inline-block text-sm text-accent underline" href={`/l/${item.id}`} target="_blank">Open public preview</Link>}</div></div>)}</div></div>
-      {action && <ConfirmAction key={action} open title={action === "delete" ? "Delete sample batch" : "Publish sample batch"} destructive={action === "delete"}
-        description={action === "delete" ? "Permanently remove this batch’s profiles, listings, deals, offers, ratings, and Haul posts. Real content is protected; deletion stops if outside records reference these examples." : `Publish ${data.plan.users} visibly labeled example profiles and ${data.plan.listings} items for ${days} days. Existing records and moderation decisions will not be overwritten.`}
+      <div><h3 className="mb-3 font-semibold">Original fixture preview</h3><p className="mb-3 text-sm text-muted-foreground">This is the private fixture template. Use Content to inspect current records. Use Members → Act as to edit an example and replace its details and photos with your own gear.</p><div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{data.plan.items.map((item) => <div key={item.id} className="overflow-hidden rounded-xl border border-border bg-card"><img src={item.photo} alt={`Illustration: ${item.title}`} className="aspect-[4/3] w-full object-cover" /><div className="p-3"><p className="text-sm font-medium">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.status} · Example</p></div></div>)}</div></div>
+      {action && <ConfirmAction key={action} open title={action === "delete" ? "Delete sample batch" : "Prepare private sample batch"} destructive={action === "delete"}
+        description={action === "delete" ? "Permanently remove this batch’s profiles, listings, deals, offers, ratings, and Haul posts. Real content is protected; deletion stops if outside records reference these examples." : `Prepare ${data.plan.users} example profiles and ${data.plan.listings} items for private admin testing. Archive after ${days} days. No examples will appear publicly; existing edits and moderation decisions are preserved.`}
         expected={`${action.toUpperCase()} ${SAMPLE_BATCH_ID}`} onClose={() => setAction(null)} onConfirm={(note, confirm) => apply(action, note, confirm)} />}
     </>}
   </section>;

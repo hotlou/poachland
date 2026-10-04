@@ -2,6 +2,8 @@ import "server-only";
 
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
+import { acquireTrustLock, recomputeTrust } from "./trust";
+import { trustDmChallenges, trustEvidence } from "./trust-schema";
 import type { DealStatus } from "../types";
 import { getDb, type Db } from "./db";
 import {
@@ -148,7 +150,8 @@ export async function deleteAccount(
   connection?: Db,
 ): Promise<DeleteAccountResult> {
   const db = connection ?? await getDb();
-  return db.transaction(async (tx) => {
+  const result = await db.transaction<DeleteAccountResult>(async (tx) => {
+    await acquireTrustLock(tx);
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
     if (!user || user.deletedAt) return { ok: false, error: "Account not found.", code: "not_found" };
 
@@ -199,6 +202,11 @@ export async function deleteAccount(
         lockedUntil: null,
         emailUnsubToken: null,
         isVerified: false,
+        trustOverride: "blocked",
+        trustSource: "none",
+        trustVerifiedAt: null,
+        trustReviewRequestedAt: null,
+        socialSharingAllowed: false,
         isAdmin: false,
         deletedAt: now,
       })
@@ -221,6 +229,8 @@ export async function deleteAccount(
 
     // Delete the purely personal rows.
     await tx.delete(paymentMethods).where(eq(paymentMethods.userId, userId));
+    await tx.delete(trustDmChallenges).where(eq(trustDmChallenges.userId, userId));
+    await tx.delete(trustEvidence).where(eq(trustEvidence.userId, userId));
     await tx.delete(identities).where(eq(identities.userId, userId));
     await tx.delete(saves).where(eq(saves.userId, userId));
     await tx.delete(blocks).where(or(eq(blocks.blockerId, userId), eq(blocks.blockedId, userId)));
@@ -230,6 +240,8 @@ export async function deleteAccount(
     // Kill every session (including the current one).
     await tx.delete(sessions).where(eq(sessions.userId, userId));
 
+    await recomputeTrust(tx);
     return { ok: true };
   });
+  return result;
 }

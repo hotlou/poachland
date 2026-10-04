@@ -1,6 +1,6 @@
 # Poachland: feature spec and creative handoff
 
-Prepared September 12, 2026. Audience: copywriter, creative strategist, or marketing team.
+Updated October 3, 2026. Audience: copywriter, creative strategist, or marketing team.
 
 This describes the product implemented in this repository. The sharing update went live at [poachland.com](https://poachland.com) on September 12, 2026. Production health and social-preview checks passed; see the [release record](releases/2026-09-12-sharing.md). Existing features have been checked against product code and repository documentation; this document does not independently establish audience size or validate every feature in production.
 
@@ -124,3 +124,13 @@ For each asset, include audience, intent, CTA, required screenshot or photo, and
 ## Reference for product questions
 
 Product overview: [README](../README.md). Sharing behavior and verification: [sharing implementation spec](sharing-spec.md). Deal limits: [buyer-protection page](../app/buyer-protection/page.tsx). Real conversion definitions: [analytics](analytics.md). Synthetic-content restrictions: [backlog](backlog.md).
+
+## Community verification and Instagram highlights
+
+Staff-reviewed members receive a blue check. Two eligible members who personally know another member can also help them earn a check. Verification is optional for signup and posting. Trade ratings remain separate: a check is a community connection, not a transaction guarantee or proof that every account belongs to a unique human.
+
+Useful copy: **Recognize the people behind the gear.** Supporting line: “Get a staff review or two eligible community vouches. Keep listing while you build your connections.” CTA: “Request a review” or “Vouch for someone you know.” Avoid “scam-proof,” “every seller verified,” or implying that connecting a social handle alone proves a person is trustworthy.
+
+The Instagram highlight workflow prepares actual marketplace listings and public completed exchanges for sharing, with member permission. It provides branded images, editable captions, drafts, scheduling, and a pause control. Automatic publication requires the Instagram account connection and explicit activation; do not advertise live automatic posting before that setup is complete.
+
+Only real inventory belongs in public launch creative. Private fixtures may be used for internal testing. Fictional profiles, swaps, ratings, and example activity must not appear as customer history or social proof. Staff can replace fixture inventory with their own actual items and photos using the managed inventory workflow. See the [implementation and setup spec](community-trust-and-instagram.md).

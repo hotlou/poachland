@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BadgeCheck, Facebook, Globe, Instagram, Trophy } from "lucide-react";
+import { Check, Facebook, Globe, Instagram, Trophy } from "lucide-react";
 import { useStore } from "@/lib/store-context";
 import { cn } from "@/lib/utils";
 import type { IdentityProvider, IdentityStatus } from "@/lib/types";
@@ -19,7 +19,7 @@ export const IDENTITY_PROVIDER_META: Record<
 export const IDENTITY_STATUS_META: Record<IdentityStatus, { label: string; cls: string }> = {
   unverified: { label: "Unverified", cls: "text-muted-foreground border-border" },
   pending: { label: "In review", cls: "text-yellow-400 border-yellow-400" },
-  verified: { label: "Verified ✓", cls: "text-accent border-accent" },
+  verified: { label: "Account confirmed", cls: "text-accent border-accent" },
   rejected: { label: "Rejected", cls: "text-red-400 border-red-400" },
 };
 
@@ -55,7 +55,7 @@ export function IdentityChips({
           <>
             <Icon size={11} strokeWidth={2} aria-label={meta.label} />
             <span className="max-w-32 truncate">@{identity.handle}</span>
-            {verified && <BadgeCheck size={11} className="text-accent" strokeWidth={2.5} />}
+            {verified && <Check size={11} className="text-accent" strokeWidth={2.5} aria-label="Account ownership confirmed" />}
           </>
         );
         if (ownProfile) {

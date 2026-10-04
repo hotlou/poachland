@@ -592,6 +592,10 @@ const handlers: OperationHandlers = {
         if (photos.some((p) => !validImageReference(p))) return err("Invalid gallery image");
         set.gallery = photos;
       }
+      if (patch.socialSharingAllowed !== undefined) {
+        if (typeof patch.socialSharingAllowed !== "boolean") return err("Invalid sharing preference");
+        set.socialSharingAllowed = patch.socialSharingAllowed;
+      }
       if (Object.keys(set).length > 0) {
         await tx.update(users).set(set).where(eq(users.id, me.id));
         await claimImageUploads(tx, user.id, [set.avatar, ...(set.gallery ?? [])].filter((value): value is string => typeof value === "string"));
@@ -2270,23 +2274,8 @@ const handlers: OperationHandlers = {
     });
   },
 
-  async adminSetUserVerified(db, user, { userId, verified }) {
-    return db.transaction(async (tx) => {
-      const target = await getUserRow(tx, userId);
-      if (!target) return err("User not found");
-      if (target.sampleBatchId && verified) return err("Example accounts cannot be verified.");
-      await tx.update(users).set({ isVerified: !!verified }).where(eq(users.id, userId));
-      if (verified) {
-        await notify(
-          tx,
-          userId,
-          "system",
-          "You're verified ✓",
-          "Your account passed identity review.",
-        );
-      }
-      return ok(null);
-    });
+  async adminSetUserVerified() {
+    return err("Use Admin → Verification to review community verification with an audit reason.");
   },
 
   async adminSetUserStatus(db, user, { userId, status, days, note }) {
@@ -2388,8 +2377,8 @@ const handlers: OperationHandlers = {
           tx,
           identity.userId,
           "system",
-          "Identity verified ✓",
-          `Your ${identity.provider} handle now shows verified on your profile.`,
+          "Social account confirmed",
+          `Ownership of your ${identity.provider} account was confirmed. Your community blue check is reviewed separately.`,
           "/app/profile",
         );
       } else if (status === "rejected") {

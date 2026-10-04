@@ -162,6 +162,20 @@
       "when": 1789250965773,
       "tag": "0022_redundant_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791086825457,
+      "tag": "0023_lively_snowbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791087125216,
+      "tag": "0024_absent_rhodey",
+      "breakpoints": true
     }
   ]
 }

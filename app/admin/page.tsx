@@ -1,11 +1,12 @@
 "use client";
 
+import { VerifiedMark } from "@/components/verified-mark";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  BadgeCheck,
   Ban,
   Clock,
   EyeOff,
@@ -28,7 +29,6 @@ import type {
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -58,6 +58,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SamplesSection, ContentSection, MemberDetailsSection, AuditSection } from "./workspace-sections";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TrustSection } from "./trust-section";
+import { AdminSocialSection } from "./social-section";
 import { StatsSection } from "./stats-section";
 import { PartnersSection } from "./partners-section";
 import { IdentityQueueSection } from "./identity-queue-section";
@@ -91,11 +93,9 @@ type ModAction = "shadowban" | "suspend" | "ban" | "restore";
 
 function UsersSection({
   users,
-  onSetVerified,
   onSetStatus,
 }: {
   users: AdminUser[];
-  onSetVerified: (userId: string, verified: boolean) => Promise<boolean>;
   onSetStatus: (
     userId: string,
     status: UserStatus,
@@ -114,17 +114,6 @@ function UsersSection({
   const parsedDays = Number(days);
   const validNote = cleanNote.length >= 20 && cleanNote.length <= 2_000;
   const validDays = Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 365;
-
-  const toggleVerified = async (user: AdminUser, verified: boolean) => {
-    const ok = await onSetVerified(user.id, verified);
-    if (ok) {
-      toast.success(
-        verified
-          ? `${user.username} is now verified`
-          : `Verification pulled from ${user.username}`,
-      );
-    }
-  };
 
   const openMod = (user: AdminUser, action: ModAction) => {
     setDays("7");
@@ -195,7 +184,7 @@ function UsersSection({
                   {u.username}
                 </Link>
                 {u.isVerified && (
-                  <BadgeCheck size={14} className="text-accent shrink-0" strokeWidth={2.5} />
+                  <VerifiedMark size={14} />
                 )}
                 <UserStatusChip user={u} />
                 {u.sampleBatchId && <span className="badge-stamp">Example</span>}
@@ -221,18 +210,6 @@ function UsersSection({
                 </p>
               )}
             </div>
-            <label className="flex items-center gap-2 shrink-0 cursor-pointer">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium hidden sm:inline">
-                Verified
-              </span>
-              <Switch
-                disabled={!!u.sampleBatchId}
-                checked={u.isVerified}
-                onCheckedChange={(v) => void toggleVerified(u, v)}
-                className="data-[state=checked]:bg-accent"
-                aria-label={`Verify ${u.username}`}
-              />
-            </label>
             {!u.isAdmin && <Button variant="outline" size="sm" aria-label={`Act as @${u.username}`} onClick={() => void impersonate(u)}>Act as</Button>}
             {!u.isAdmin && (
               <DropdownMenu>
@@ -553,8 +530,10 @@ export default function AdminPage() {
         ) : (
           <>
             <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-surface p-1">{[["overview", "Overview"], ["samples", "Samples"], ["content", "Content"], ["members", "Members"], ["queues", "Review queues"], ["partners", "Partners"], ["audit", "Audit log"]].map(([id, label]) => <TabsTrigger className="min-h-11" key={id} value={id}>{label}</TabsTrigger>)}</TabsList>
+            <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-surface p-1">{[["overview", "Overview"], ["samples", "Samples"], ["content", "Content"], ["members", "Members"], ["verification", "Verification"], ["instagram", "Instagram"], ["queues", "Review queues"], ["partners", "Partners"], ["audit", "Audit log"]].map(([id, label]) => <TabsTrigger className="min-h-11" key={id} value={id}>{label}</TabsTrigger>)}</TabsList>
             <TabsContent value="overview"><StatsSection stats={data.stats} /></TabsContent>
+            <TabsContent value="verification"><TrustSection /></TabsContent>
+            <TabsContent value="instagram"><AdminSocialSection /></TabsContent>
             <TabsContent value="samples"><SamplesSection run={run} /></TabsContent>
             <TabsContent value="content"><ContentSection run={run} /></TabsContent>
             <TabsContent value="queues">
@@ -588,9 +567,6 @@ export default function AdminPage() {
               <MemberDetailsSection users={data.users} run={run} />
               <UsersSection
                 users={data.users}
-                onSetVerified={(userId, verified) =>
-                  run("adminSetUserVerified", { userId, verified })
-                }
                 onSetStatus={(userId, status, opts) =>
                   run("adminSetUserStatus", {
                     userId,

@@ -6,6 +6,7 @@ import type { SessionUser } from "./auth";
 import { recordAdminAudit } from "./audit";
 import { getDb, type Db } from "./db";
 import { referencesHiddenListing, referencesSampleContent } from "./sample-guard";
+import { acquireTrustLock, recomputeTrust } from "./trust";
 
 export type OperationResult = { ok: true; value?: unknown } | { ok: false; error: string };
 export type OperationHandlers = {
@@ -43,6 +44,9 @@ export async function routeOperation<K extends OpName>(
         return { ok: false, error: "An active moderator session is required to act as another account." };
       }
       if (user.managedByUserId && !actingAdmin) return { ok: false, error: "Managed inventory requires an active moderator session." };
+      if (op === "updateProfile" && actingAdmin && Object.hasOwn((input as OpMap["updateProfile"]).patch ?? {}, "socialSharingAllowed") && user.managedByUserId !== actingAdmin.id) {
+        return { ok: false, error: "Social sharing permission must come from the member, or the moderator who owns this managed inventory." };
+      }
       const editingSample = !!actingAdmin && !!(user.sampleBatchId || user.managedByUserId) && ["createListing", "updateListing", "removeListing", "updateProfile"].includes(op);
       if (op === "markListingViewed" && actingAdmin) return { ok: true };
       if (user.sampleBatchId && !editingSample) return { ok: false, error: "Example accounts support moderator profile and listing edits only. Example trades and ratings cannot become real activity." };
@@ -54,8 +58,12 @@ export async function routeOperation<K extends OpName>(
         return { ok: false, error: "This listing is not available." };
       }
       const result = op.startsWith("admin") || actingAdmin ? await db.transaction(async (tx) => {
+        if (["adminSetUserStatus", "adminCloseAccount"].includes(op)) await acquireTrustLock(tx);
         const result = await handler(tx, user, input);
         if (!result.ok) return result;
+        // Account erasure refreshes inside deleteAccount. Standing changes must
+        // commit with their dependent blue-check changes and audit record.
+        if (op === "adminSetUserStatus") await recomputeTrust(tx);
         if (actingAdmin) {
           const values = input as Record<string, unknown>;
           const targetId = [values.id, values.listingId, values.dealId, values.threadId].find((v): v is string => typeof v === "string") ?? user.id;

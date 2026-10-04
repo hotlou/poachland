@@ -9,7 +9,8 @@ import { deals, haulComments, haulPosts, haulReactions, listings, messages, noti
 
 export const MAX_SAMPLE_LISTINGS = 200;
 
-export type SampleAction = "publish" | "hide" | "delete";
+// Retain the legacy publish verb for old clients, but it only prepares private data.
+export type SampleAction = "prepare" | "publish" | "hide" | "delete";
 
 export function samplePlan(anchor = new Date()) {
   const fixture = buildSampleContent(anchor);
@@ -77,7 +78,7 @@ async function purgeBatch(tx: Db, batchId: string) {
 
 export async function manageSampleBatch(db: Db, actor: SessionUser, input: { action: SampleAction; batchId: string; confirm: string; days?: number; note: string }) {
   if (!actor.isAdmin) return { ok: false as const, error: "Moderators only" };
-  if (input.batchId !== SAMPLE_BATCH_ID || !["publish", "hide", "delete"].includes(input.action)) return { ok: false as const, error: "Unknown sample batch or action" };
+  if (input.batchId !== SAMPLE_BATCH_ID || !["prepare", "publish", "hide", "delete"].includes(input.action)) return { ok: false as const, error: "Unknown sample batch or action" };
   if (input.confirm !== `${input.action.toUpperCase()} ${SAMPLE_BATCH_ID}`) return { ok: false as const, error: "Type the full action and batch ID to confirm." };
   const days = input.days ?? SAMPLE_DEFAULT_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 90) return { ok: false as const, error: "Choose a lifetime from 1 to 90 days." };
@@ -113,11 +114,11 @@ export async function manageSampleBatch(db: Db, actor: SessionUser, input: { act
           await tx.insert(ratings).values(data.ratings.map((r) => ({ ...r, createdAt: new Date(r.createdAt) })));
           await tx.insert(haulPosts).values(data.haulPosts.map((h) => ({ ...h, createdAt: new Date(h.createdAt) })));
         }
-        // Re-publishing never rewrites individual content or moderation decisions.
-        await tx.update(sampleBatches).set({ state: "published", expiresAt: new Date(now.getTime() + days * 86_400_000), archivedAt: null, archivalReason: null,
+        // Preparation never exposes fiction publicly or rewrites edits/moderation.
+        await tx.update(sampleBatches).set({ state: "hidden", expiresAt: new Date(now.getTime() + days * 86_400_000), archivedAt: null, archivalReason: null,
           ...(!exists ? { publishedAt: now } : {}) }).where(eq(sampleBatches.id, batch.id));
       }
-      await recordAdminAudit(tx, actor, `sampleBatch.${input.action}`, { type: "sampleBatch", id: batch.id }, { note: input.note.trim(), days, manifest: samplePlan() });
+      await recordAdminAudit(tx, actor, `sampleBatch.${input.action === "publish" ? "prepare" : input.action}`, { type: "sampleBatch", id: batch.id }, { note: input.note.trim(), days, privateOnly: true, manifest: samplePlan() });
       return { ok: true as const };
     });
   } catch (error) {
@@ -130,6 +131,6 @@ export async function manageSampleBatch(db: Db, actor: SessionUser, input: { act
 /** Called by the existing authenticated five-minute worker, independent of traffic. */
 export async function expireSampleBatches(db: Db): Promise<number> {
   const rows = await db.update(sampleBatches).set({ state: "hidden", archivedAt: new Date(), archivalReason: "Automatic expiry" })
-    .where(and(eq(sampleBatches.state, "published"), sql`${sampleBatches.expiresAt} <= now()`)).returning({ id: sampleBatches.id });
+    .where(and(sql`${sampleBatches.state} <> 'deleted'`, sql`${sampleBatches.archivedAt} is null`, sql`${sampleBatches.expiresAt} <= now()`)).returning({ id: sampleBatches.id });
   return rows.length;
 }

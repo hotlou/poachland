@@ -75,7 +75,7 @@ export const BADGE_CATALOG: BadgeDef[] = [
     description: "Brought a friend who joined Poachland." },
   // ── Identity & founder ──
   { type: "verified", label: "Verified", emoji: "✔️", category: "identity", tier: "special", event: true,
-    description: "At least one linked identity is currently confirmed by a moderator." },
+    description: "Community verification is shown by the blue check beside a member’s name." },
   { type: "founding", label: "Founding Member", emoji: "🌱", category: "founder", tier: "special", event: true,
     description: "One of the very first traders on Poachland." },
 ];

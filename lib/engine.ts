@@ -381,7 +381,7 @@ export class PoachStore {
     patch: Partial<
       Pick<
         UserRecord,
-        "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username" | "history" | "gallery"
+        "displayName" | "bio" | "location" | "favoriteTeams" | "avatar" | "username" | "history" | "gallery" | "socialSharingAllowed"
       >
     >,
   ): Res<User> {
@@ -415,6 +415,7 @@ export class PoachStore {
       }));
     }
     if (patch.gallery !== undefined) user.gallery = patch.gallery.slice(0, 4);
+    if (patch.socialSharingAllowed !== undefined) user.socialSharingAllowed = patch.socialSharingAllowed === true;
     this.commit();
     return ok(user);
   }

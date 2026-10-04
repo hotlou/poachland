@@ -629,6 +629,7 @@ export async function buildSnapshot(
             ? viewerRow.moderationNote ?? undefined
             : undefined,
         impersonatedByAdmin: impersonatorUsername,
+        socialSharingAllowed: viewerRow.socialSharingAllowed,
         emailPrefs: viewerRow.emailPrefs ?? {
           deals: true,
           messages: true,
