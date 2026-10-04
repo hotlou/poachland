@@ -86,7 +86,7 @@ Official references: [Meta Instagram API workspace](https://www.postman.com/meta
 
 Migrations 0023–0024 add tables, columns, and indexes. Existing explicit staff checks on active human-owned accounts are preserved as staff roots. Old social-account achievement badges are retired. Existing sample batches are hidden and remain private even through a normal application rollback.
 
-To stop Instagram, check Pause all scheduled publishing and save. Revoke/clear a member's verification decision through Admin → Verification; do not edit the display cache directly. Roll application code back to the previous immutable deployment if needed, retaining the additive database structures and audit history. A rollback to the old application removes the new controls and must leave Instagram disconnected/paused; do not use the old public sample publishing controls.
+To stop Instagram, check Pause all scheduled publishing and save. Revoke/clear a member's verification decision through Admin → Verification; do not edit the display cache directly. For an application rollback, retain the additive database structures and audit history, and retain Next.js 16.3.6 or later: the original pre-release artifact uses 16.3.4, which now has a critical image-renderer advisory. Rebuild the previous application code with the security patches before promoting it. The older application removes the new controls and must leave Instagram disconnected/paused; do not use its old public sample publishing controls.
 
 ## Acceptance checks
 

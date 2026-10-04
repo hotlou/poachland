@@ -23,7 +23,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI && process.env.E2E_REUSE_SERVER === "1",
     timeout: 120_000,
     env: {
-      PGLITE_PATH: ".pglite-e2e",
+      PGLITE_PATH: process.env.E2E_DB_PATH ?? ".pglite-e2e",
       NEXT_PUBLIC_APP_URL: `http://localhost:${port}`,
       ADMIN_EMAILS: "e2e-admin@example.test",
       ...(process.env.CI

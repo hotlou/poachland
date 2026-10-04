@@ -74,6 +74,9 @@ test("admin can prepare, archive, edit privately, and delete a sample batch", as
     await page.getByRole("tab", { name: "Members", exact: true }).click();
     await page.getByLabel("Inspect member").selectOption("u_samplev1nora");
     await expect(page.getByText(/Sample history; excluded from real totals/)).toBeVisible();
+    // Audit the settled page rather than a toast's partially transparent exit frame.
+    // Keep notifications in axe's scope; wait for their normal lifecycle to finish.
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 15_000 });
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(results.violations).toEqual([]);
     await page.getByLabel("Search members").fill("sample_sparelight");
