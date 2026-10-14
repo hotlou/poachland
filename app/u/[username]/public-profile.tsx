@@ -1,5 +1,7 @@
 "use client";
 
+import { ratingOverall } from "@/lib/reputation";
+
 import { MemberVouch } from "@/components/member-vouch";
 import { VerifiedMark } from "@/components/verified-mark";
 import { SampleBadge, SampleNotice } from "@/components/sample-notice";
@@ -212,8 +214,7 @@ function RecentRatings({ user }: { user: User }) {
       ) : (
         <div className="flex flex-col gap-2">
           {ratings.map((r) => {
-            const overall =
-              (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
+            const overall = ratingOverall(r);
             return (
               <div
                 key={r.id}

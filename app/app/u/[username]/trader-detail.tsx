@@ -1,5 +1,7 @@
 "use client";
 
+import { ratingOverall } from "@/lib/reputation";
+
 import { MemberVouch } from "@/components/member-vouch";
 import { VerifiedMark } from "@/components/verified-mark";
 import { SampleNotice, SampleBadge } from "@/components/sample-notice";
@@ -548,7 +550,7 @@ function PublicProfile({ user }: { user: User }) {
         ) : (
           <div className="flex flex-col gap-2">
             {ratings.map((r) => {
-              const overall = (r.communication + r.shippingSpeed + r.itemAccuracy) / 3;
+              const overall = ratingOverall(r);
               return (
                 <div key={r.id} className="bg-card border border-border rounded-xl p-3">
                   {r.sampleBatchId && <div className="mb-2"><SampleBadge label="Example rating" /></div>}

@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, count, eq, isNull, or, sql } from "drizzle-orm";
 import { BADGE_BY_TYPE, qualifyingBadges, type BadgeStats } from "../badges";
-import { ratingSummaryFrom } from "../reputation";
+import { ratingOverall, ratingSummaryFrom } from "../reputation";
 import type { BadgeType, MessageKind } from "../types";
 import { uid } from "./auth";
 import type { Db } from "./db";
@@ -73,14 +73,14 @@ export async function recomputeReputation(tx: Db, userId: string): Promise<void>
     .where(and(eq(deals.status, "completed"), eq(deals.kind, "claim"), eq(deals.ownerId, userId), user.sampleBatchId ? eq(deals.sampleBatchId, user.sampleBatchId) : isNull(deals.sampleBatchId)));
   const [{ n: isoCount }] = await tx.select({ n: count() }).from(isoPosts).where(eq(isoPosts.userId, userId));
 
-  const shippingRatings = userRatings.map((rating) => rating.shippingSpeed);
+  const shippingRatings = userRatings.map((rating) => rating.shippingSpeed).filter((score): score is number => score !== null);
   const stats: BadgeStats = {
     tradesCompleted: user.baselineTrades + completedInvolving,
     trustScore: summary.overall,
     ratingsCount: summary.count,
     ratingsReceived: userRatings.length,
     allFiveStar: userRatings.length > 0 && userRatings.every(
-      (rating) => rating.communication === 5 && rating.shippingSpeed === 5 && rating.itemAccuracy === 5,
+      (rating) => ratingOverall(rating) === 5,
     ),
     shippingAvg: shippingRatings.length
       ? shippingRatings.reduce((total, rating) => total + rating, 0) / shippingRatings.length

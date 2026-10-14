@@ -290,8 +290,8 @@ export interface Rating {
   fromUserId: string;
   toUserId: string;
   communication: number; // 1-5
-  shippingSpeed: number; // 1-5
-  itemAccuracy: number; // 1-5
+  shippingSpeed: number | null; // 1-5, null when no shipment was received
+  itemAccuracy: number | null; // 1-5, null when no item was received
   wouldTradeAgain: boolean;
   comment?: string;
   createdAt: string;
