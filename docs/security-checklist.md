@@ -17,12 +17,28 @@ The release owner dates and signs each item. A release does not proceed with an 
 - [ ] The latest isolated restore and staging rollback exercises met RPO/RTO and have linked evidence.
 - [ ] Account export/deletion, blocking, reporting, disputes, and moderator enforcement were exercised in staging.
 
-## Temporary development dependency exception
+## Dependency release gate
 
-Reviewed 2026-10-03; expires **2026-10-17 at 00:00 UTC**. The security workflow runs `node scripts/dependency-audit.mjs`, which retains the full dependency audit and blocks every high/critical finding except the exact case below. It also runs an independent production audit and production dependency graph check. Registry failures, muted findings, incomplete reports and changed report formats fail closed.
+Reviewed 2026-10-14. `node scripts/dependency-audit.mjs` runs full and production registry audits. **Every high or critical finding blocks release, without exceptions.** Registry failures, muted findings, incomplete reports and changed report formats fail closed. Run `node --test scripts/dependency-audit*.test.mjs` to verify the policy and installed lint compatibility before auditing.
 
-The sole exception is [GHSA-vfj7-8cjw-p6xm / CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), `braces@3.0.3`, only through `eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch > braces`. As of review, the advisory lists no patched release and [the upstream fix PR remains open](https://github.com/micromatch/braces/pull/72). This is an acknowledged development-tooling stack exhaustion risk, not a repaired dependency.
+The launch dependency update uses Next.js and eslint-config-next 16.3.8, sharp 0.35.5, source-map-js 1.2.2, and Vitest/coverage-v8 4.1.11. Sources: [Next security release](https://github.com/vercel/next.js/releases/tag/v16.3.8), [sharp advisory](https://github.com/advisories/GHSA-wq5f-xc86-pv6w), [source-map-js release](https://github.com/7rulnik/source-map-js/releases/tag/v1.2.2), and [Vitest advisory](https://github.com/advisories/GHSA-82fw-gwwq-j7x9). Vitest 4 [removes tinypool](https://v4.vitest.dev/guide/migration#pool-rework), eliminating both reported critical findings without overriding a major version beneath Vitest 3.
 
-Exposure review: `pnpm why braces --prod --json` returns `[]`; `eslint-config-next` is a development dependency. The only fast-glob call in Next's ESLint plugin 16.3.6 receives the repository-controlled `settings.next.rootDir` ([upstream source](https://github.com/vercel/next.js/blob/v16.3.6/packages/eslint-plugin-next/src/utils/get-root-dirs.ts)). This repository does not set that option, and the application does not import these tooling packages. Marketplace content and uploaded files are not passed into this code path. Reassess this conclusion if lint configuration or application imports change.
+The October 14 local audit reports **zero production advisories**, and **zero high/critical findings in the full graph**. One moderate development-only finding remains: [esbuild GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99), via `drizzle-kit > @esbuild-kit/esm-loader > @esbuild-kit/core-utils > esbuild@0.18.20`. This concerns esbuild's development server; the application does not expose that tooling server. It is reported normally by the audit, not muted or exempted. Recheck registry results on the actual release commit.
 
-The exception rejects any additional dependency path or version, production presence, severity change, or newly reported patched range. It expires automatically. Upgrade to an upstream stable fix and remove this exception when available; do not extend the deadline without a fresh exposure review. No production finding, other advisory, or registry failure is waived.
+### Removed braces exception
+
+The temporary exception due to expire October 17 at 00:00 UTC was removed on October 14, **without extending the deadline**. [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) still lists no patched release, and the registry's latest `braces` is 3.0.3. Instead, the vulnerable lint dependency chain was removed entirely.
+
+`package.json` narrowly substitutes published `tinyglobby@0.2.17` for **only** `@next/eslint-plugin-next@16.3.8 > fast-glob`. The pinned pnpm patch adds `expandDirectories: false` to that consumer's `globSync` call, as required by [tinyglobby's migration guide](https://superchupu.dev/tinyglobby/migration#switching-from-fast-glob). This avoids recursively treating nested directories as Next roots. Both packages support the `onlyDirectories` option used by the plugin. Tinyglobby may return equivalent relative paths with trailing slashes; Next joins these with `app`/`pages` before reading them.
+
+The compatibility tests exercise default roots, literal directories, wildcard/brace patterns, arrays, Windows separators, missing roots, and actual internal-link rule detection. They also verify the installed package identity and that both `pnpm why braces --json` and `pnpm why tinypool --json` return `[]`. All existing Next lint rules remain enabled according to `eslint.config.mjs`. Reassess the override and patch when upgrading the pinned Next lint plugin; remove both once its upstream dependency chain is safe. The audit regression test explicitly rejects the previously waived braces path.
+
+## Historical secret-scan false positive
+
+Reviewed 2026-10-14. Commit `34292b466dc1ffea4db658a04433ef564acc78b2`, `lib/engine.ts` line 50, contains `const STORAGE_KEY = "poachland.db.v1"`. This is the public browser localStorage namespace, not a credential or authentication secret. `.gitleaksignore` contains only this exact historical fingerprint:
+
+```text
+34292b466dc1ffea4db658a04433ef564acc78b2:lib/engine.ts:generic-api-key:50
+```
+
+There is no rule, file, path, regular-expression, or commit-wide allowlist. Secret scanning remains enabled for all other matches, including other occurrences in this file. Gitleaks 8.30.1 scanned all 79 existing commits locally: before the exception it reported exactly this finding; afterward it reported no leaks. An isolated synthetic credential at the same `lib/engine.ts:50` location still triggered `generic-api-key` and exit code 1 with this ignore file loaded. The Security workflow must still pass on the actual release commit, together with Quality; a local scan does not establish those release checks.

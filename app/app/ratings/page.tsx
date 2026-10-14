@@ -1,5 +1,7 @@
 "use client";
 
+import { ratingOverall } from "@/lib/reputation";
+
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -72,8 +74,7 @@ function DimensionBar({
 function RatingRow({ rating, tab }: { rating: HydratedRating; tab: Tab }) {
   // Received tab shows who rated me; Given tab shows who I rated.
   const person = tab === "received" ? rating.fromUser : rating.toUser;
-  const overall =
-    (rating.communication + rating.shippingSpeed + rating.itemAccuracy) / 3;
+  const overall = ratingOverall(rating);
   const listingTitle = rating.deal?.listing?.title;
 
   return (
@@ -118,12 +119,12 @@ function RatingRow({ rating, tab }: { rating: HydratedRating; tab: Tab }) {
         <span className="flex items-center gap-1">
           <MessageSquare size={10} /> {rating.communication}/5
         </span>
-        <span className="flex items-center gap-1">
+        {rating.shippingSpeed !== null && <span className="flex items-center gap-1">
           <Truck size={10} /> {rating.shippingSpeed}/5
-        </span>
-        <span className="flex items-center gap-1">
+        </span>}
+        {rating.itemAccuracy !== null && <span className="flex items-center gap-1">
           <Package size={10} /> {rating.itemAccuracy}/5
-        </span>
+        </span>}
         {rating.wouldTradeAgain && (
           <span className="badge-stamp text-[9px] text-accent border-accent">
             Would trade again ✓
@@ -206,16 +207,16 @@ function RatingsContent() {
                 icon={MessageSquare}
                 value={summary.communication}
               />
-              <DimensionBar
+              {summary.shippingSpeed > 0 ? <DimensionBar
                 label="Shipping speed"
                 icon={Truck}
                 value={summary.shippingSpeed}
-              />
-              <DimensionBar
+              /> : <p className="text-xs text-muted-foreground">Shipping speed — not rated</p>}
+              {summary.itemAccuracy > 0 ? <DimensionBar
                 label="Item accuracy"
                 icon={Package}
                 value={summary.itemAccuracy}
-              />
+              /> : <p className="text-xs text-muted-foreground">Item accuracy — not rated</p>}
               <DimensionBar
                 label="Would trade again"
                 icon={ThumbsUp}

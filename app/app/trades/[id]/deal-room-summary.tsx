@@ -1,5 +1,7 @@
 "use client";
 
+import { ratingOverall } from "@/lib/reputation";
+
 import Link from "next/link";
 import { Star } from "lucide-react";
 import type { HydratedRating, User } from "@/lib/types";
@@ -79,7 +81,7 @@ function MiniStars({ value }: { value: number }) {
 }
 
 export function ExchangedRating({ rating, heading }: { rating: HydratedRating; heading: string }) {
-  const overall = (rating.communication + rating.shippingSpeed + rating.itemAccuracy) / 3;
+  const overall = ratingOverall(rating);
   return (
     <div className="rounded-xl border border-border bg-card p-3">
       <div className="flex items-center justify-between mb-1.5">
@@ -89,7 +91,9 @@ export function ExchangedRating({ rating, heading }: { rating: HydratedRating; h
         <MiniStars value={overall} />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Communication {rating.communication} · Shipping {rating.shippingSpeed} · Accuracy {rating.itemAccuracy}
+        Communication {rating.communication}
+        {rating.shippingSpeed !== null && ` · Shipping ${rating.shippingSpeed}`}
+        {rating.itemAccuracy !== null && ` · Accuracy ${rating.itemAccuracy}`}
         {rating.wouldTradeAgain ? " · Would trade again" : ""}
       </p>
       {rating.comment && (

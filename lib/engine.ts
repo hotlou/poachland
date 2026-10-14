@@ -514,7 +514,7 @@ export class PoachStore {
 
   private awardBadges(user: UserRecord) {
     const ratings = this.state.ratings.filter((r) => r.toUserId === user.id && (user.sampleBatchId ? r.sampleBatchId === user.sampleBatchId : !r.sampleBatchId));
-    const shipRatings = ratings.map((r) => r.shippingSpeed);
+    const shipRatings = ratings.map((r) => r.shippingSpeed).filter((score): score is number => score !== null);
     const stats: BadgeStats = {
       tradesCompleted: user.tradesCompleted,
       trustScore: user.trustScore,
@@ -523,7 +523,7 @@ export class PoachStore {
       allFiveStar:
         ratings.length > 0 &&
         ratings.every(
-          (r) => r.communication === 5 && r.shippingSpeed === 5 && r.itemAccuracy === 5,
+          (r) => ratingOverall(r) === 5,
         ),
       shippingAvg: shipRatings.length
         ? shipRatings.reduce((a, b) => a + b, 0) / shipRatings.length

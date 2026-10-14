@@ -1,0 +1,3 @@
+# Reviewed 2026-10-14: literal browser storage key, not a credential.
+# Only this historical occurrence is ignored. See docs/security-checklist.md.
+34292b466dc1ffea4db658a04433ef564acc78b2:lib/engine.ts:generic-api-key:50

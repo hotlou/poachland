@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { evaluateDependencyAudit } from "../lib/dependency-audit-policy.mjs";
 
@@ -29,18 +28,15 @@ function pnpmJson(args, audit = false) {
 }
 
 try {
-  const [fullReport, productionReport, productionBraces, manifestText] = await Promise.all([
+  const [fullReport, productionReport] = await Promise.all([
     pnpmJson(["audit", "--json"], true),
     pnpmJson(["audit", "--prod", "--json"], true),
-    pnpmJson(["why", "braces", "--prod", "--json"]),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  const result = evaluateDependencyAudit({ fullReport, productionReport, productionBraces, manifest: JSON.parse(manifestText) });
+  const result = evaluateDependencyAudit({ fullReport, productionReport });
   console.log(`Full dependency audit: ${Object.entries(result.counts).map(([level, count]) => `${count} ${level}`).join(", ")}.`);
-  for (const warning of result.waived) console.warn(`WARNING: ${warning}`);
   for (const failure of result.failures) console.error(`BLOCKED: ${failure}`);
   if (result.failures.length) process.exitCode = 1;
-  else console.log("Dependency policy passed; all other high/critical findings remain blocking.");
+  else console.log("Dependency policy passed; every high/critical finding is blocking, with no exceptions.");
 } catch (error) {
   console.error(`Dependency audit failed closed: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;

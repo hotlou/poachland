@@ -2,8 +2,8 @@ import type { RatingSummary } from "./types";
 
 export type RatingLike = {
   communication: number;
-  shippingSpeed: number;
-  itemAccuracy: number;
+  shippingSpeed: number | null;
+  itemAccuracy: number | null;
   wouldTradeAgain: boolean;
 };
 
@@ -13,15 +13,18 @@ export type ReputationBaseline = {
 };
 
 export function ratingOverall(rating: Pick<RatingLike, "communication" | "shippingSpeed" | "itemAccuracy">): number {
-  return (rating.communication + rating.shippingSpeed + rating.itemAccuracy) / 3;
+  const scores = [rating.communication, rating.shippingSpeed, rating.itemAccuracy].filter((score): score is number => score !== null);
+  return scores.reduce((sum, score) => sum + score, 0) / scores.length;
 }
 
 export function ratingSummaryFrom(rows: RatingLike[], baseline: ReputationBaseline): RatingSummary {
   const currentCount = rows.length;
   const totalCount = currentCount + baseline.baselineRatingCount;
-  const average = (pick: (rating: RatingLike) => number) => totalCount === 0
-    ? 0
-    : (rows.reduce((sum, rating) => sum + pick(rating), 0) + baseline.baselineRatingSum) / totalCount;
+  const average = (pick: (rating: RatingLike) => number | null) => {
+    const scores = rows.map(pick).filter((score): score is number => score !== null);
+    const count = scores.length + baseline.baselineRatingCount;
+    return count === 0 ? 0 : (scores.reduce((sum, score) => sum + score, 0) + baseline.baselineRatingSum) / count;
+  };
   const overall = totalCount === 0
     ? 0
     : (rows.reduce((sum, rating) => sum + ratingOverall(rating), 0) + baseline.baselineRatingSum) / totalCount;

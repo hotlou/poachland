@@ -337,8 +337,8 @@ export const ratings = pgTable(
     fromUserId: text("from_user_id").notNull(),
     toUserId: text("to_user_id").notNull(),
     communication: integer("communication").notNull(),
-    shippingSpeed: integer("shipping_speed").notNull(),
-    itemAccuracy: integer("item_accuracy").notNull(),
+    shippingSpeed: integer("shipping_speed"),
+    itemAccuracy: integer("item_accuracy"),
     wouldTradeAgain: boolean("would_trade_again").notNull(),
     comment: text("comment"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
